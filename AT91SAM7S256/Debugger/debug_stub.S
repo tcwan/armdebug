@@ -340,13 +340,15 @@ debug_cmdJumpTable:
 /* The Debugger Interface can handle a total of (n-1) Breakpoint States and 1 Single Stepping State,
  * where n is a power of 2. The value of n is given by __breakpoints_num__ defined in the linker file.
  *
- * In addition, a Debugger Stack contains the User Mode Register Stack Frame + SPSR = Bkpt Instr Addr.
+ * In addition, a Debugger Stack contains the User Mode Register Stack Frame + SPSR + Bkpt Instr Addr.
  * These are currently stored in the .stack area in RAM, so there is no fixed address
  * location that is used for this purpose.
  *
  * The Breakpoint feature assumes that the program is executed in RAM. It is not possible
- * to set breakpoints for programs executed from Flash in the AT91SAM7S which lacks a hardware
- * Debug interface.
+ * to set dynamic breakpoints for programs executed from Flash in the AT91SAM7S which lacks
+ * instruction breakpointing support in hardware without using JTAG. The only type of breakpoints
+ * that can be supported in Flash based programs are Static (predefined) breakpoints inserted into
+ * the code.
  *
  * Each Breakpoint State i is a struct comprising the Breakpoint Address + Memory Contents
  * stored in 8 bytes as:
