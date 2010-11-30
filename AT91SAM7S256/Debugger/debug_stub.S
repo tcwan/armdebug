@@ -440,20 +440,19 @@ _dbg__flush_icache:
 		bx	lr
 
 
-	.global	dbg__bkpt_handler
-/* dbg__bkpt_handler
- * 		GDB handle_exception() routine
+	.global	dbg__thumb_bkpt_handler
+/* dbg__thumb_bkpt_handler
+ * 		GDB handle_exception() routine (Thumb Mode)
  */
-dbg__bkpt_handler:
+dbg__thumb_bkpt_handler:
 /* On entry, r0 contains breakpoint index value */
-/* FIXME: Currently we only deal with ARM mode, Thumb mode checks are missing! */
-	mov	r4, #BKPT32_AUTO_BKPT
-	and	r4, r0, #BKPT32_AUTO_BKPT	/* keep AUTO flag value in r4 */
-	bic	r0, r0, #BKPT32_AUTO_BKPT	/* mask out AUTO flag */
+	mov	r4, #BKPT16_AUTO_BKPT
+	and	r4, r0, #BKPT16_AUTO_BKPT	/* keep AUTO flag value in r4 */
+	bic	r0, r0, #BKPT16_AUTO_BKPT	/* mask out AUTO flag */
 	_dbg_setcurrbkpt_index r0		/* keep current breakpoint index in memory */
-	ldr	r1, =BKPT32_MANUAL_BKPT
+	ldr	r1, =BKPT16_MANUAL_BKPT
 	teq	r0, r1
-	beq	_process_manual_breakpoint
+	beq	_process_manual_breakpoint_thumb
 	ldr	r1, =__breakpoints_num__
 	cmp	r0, r1					/* Sanity check that index is in range */
 	bhs	dbg__bkpt_offset_outofrange
@@ -461,11 +460,37 @@ dbg__bkpt_handler:
 	teq	r4, #0					/* Check if AUTO flag set */
 	bne	_process_auto_breakpoint
 /* else */
+	_dbg_setstate DBG_NORMAL_BKPT_THUMB
+	b	_process_normal_breakpoint
+
+	.global	dbg__arm_bkpt_handler
+/* dbg__arm_bkpt_handler
+ * 		GDB handle_exception() routine (ARM Mode)
+ */
+dbg__arm_bkpt_handler:
+/* On entry, r0 contains breakpoint index value */
+	mov	r4, #BKPT32_AUTO_BKPT
+	and	r4, r0, #BKPT32_AUTO_BKPT	/* keep AUTO flag value in r4 */
+	bic	r0, r0, #BKPT32_AUTO_BKPT	/* mask out AUTO flag */
+	_dbg_setcurrbkpt_index r0		/* keep current breakpoint index in memory */
+	ldr	r1, =BKPT32_MANUAL_BKPT
+	teq	r0, r1
+	beq	_process_manual_breakpoint_arm
+	ldr	r1, =__breakpoints_num__
+	cmp	r0, r1					/* Sanity check that index is in range */
+	bhs	dbg__bkpt_offset_outofrange
+/* Valid index value found */
+	teq	r4, #0					/* Check if AUTO flag set */
+	bne	_process_auto_breakpoint
+/* else */
+	_dbg_setstate DBG_NORMAL_BKPT_ARM
+/*	b	_process_normal_breakpoint */
+
+_process_normal_breakpoint:
 	bl	_dbg__restore_breakpoints
 	bl	_dbg__restore_singlestep
 	bl	_dbg__clear_singlestep
 	bl	_dbg__flush_icache
-	_dbg_setstate DBG_NORMAL_BKPT_ARM
 	b	dbg__bkpt_waitCMD
 
 _process_auto_breakpoint:
@@ -479,7 +504,11 @@ _process_auto_breakpoint:
 	bl	_dbg__clear_singlestep
 	b	__dbg__resume_execution
 
-_process_manual_breakpoint:
+_process_manual_breakpoint_thumb:
+	_dbg_setstate DBG_MANUAL_BKPT_THUMB
+	b	dbg__bkpt_waitCMD
+
+_process_manual_breakpoint_arm:
 	_dbg_setstate DBG_MANUAL_BKPT_ARM
 /*	b	dbg__bkpt_waitCMD */
 
@@ -644,10 +673,13 @@ _dbg__procGetRegs:
  *		NOP Command Handler (placeholder)
  *		On entry:
  *			r0: parameter buffer (contents after '$' and '<cmdchar>')
- *			r1: output message buffer
  */
 _dbg__nop:
-	bx		lr								/* Dummy, just return */
+	stmfd	sp!, {lr}
+	mov		r0, #MSG_ERRIMPL				/* Stub, not implemented yet */
+	_dbg_outputMsgStatusErr
+	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
+	ldmfd	sp!, {pc}
 
 
 /* dbg__cmd_install_breakpoint
@@ -1188,18 +1220,28 @@ void __single_step (void)
  *	the next instruction address (for inserting a Breakpoint).
  */
 _dbg_next_instruction_addr:
-/* FIXME: Currently we only deal with ARM mode, Thumb mode checks are missing! */
 /* We assume that any BKPT instructions in the code will be Manual Breakpoints,
  * i.e., the Debugger does not leave stray Single Step / Auto / Normal breakpoints in memory
  */
-	_dbg_getabortedinstr_addr	r2					/* Retrieve aborted instruction address */
-1:	ldr	r0,	[r2]									/* Read actual instruction from memory */
-	ldr	r1, =(BKPT32_INSTR | BKPT32_MANUAL_BKPT)	/* check for ARM Manual Breakpoint Instruction */
-	teq	r0, r1
-	bne	2f											/* Not Manual breakpoint */
-	add	r2, r2, #4									/* Is Manual Breakpoint, Skip to next ARM instruction */
-	_dbg_setabortedinstr_addr	r2					/* Update aborted instruction address */
-	b	1b											/* To protect against a sequence of Manual Breakpoint Instructions */
+
+	mov		r2, #DBGSTACK_USERCPSR_INDEX				/* Retrieve User CPSR */
+	_index2dbgstackaddr r2, r0							/* Calculate address pointer to relevant register, result in R0 */
+	ldr		r0, [r0]									/* Retrieve Register contents into R0 */
+ 	and		r4, r0, #CPSR_THUMB							/* store Thumb Mode status in R4 */
+
+	_dbg_getabortedinstr_addr	r2						/* Retrieve aborted instruction address */
+1:	teq		r4, #0										/* Check if it is ARM or Thumb instruction */
+	ldrneh	r0, [r2]
+	ldrne	r1, =(BKPT16_INSTR | BKPT16_MANUAL_BKPT)	/* check for Thumb Manual Breakpoint Instruction */
+	ldreq	r0, [r2]
+	ldreq	r1, =(BKPT32_INSTR | BKPT32_MANUAL_BKPT)	/* check for ARM Manual Breakpoint Instruction */
+	teq		r0, r1
+	bne		2f											/* Not Manual breakpoint */
+	teq		r4, #0										/* Check if it is ARM or Thumb instruction */
+	addne	r2, r2, #2									/* Is Manual Breakpoint, Skip to next Thumb instruction */
+	addeq	r2, r2, #4									/* Is Manual Breakpoint, Skip to next ARM instruction */
+	_dbg_setabortedinstr_addr	r2						/* Update aborted instruction address */
+	b		1b											/* To protect against a sequence of Manual Breakpoint Instructions */
 
 /* Here, r0 contains the instruction which will be reexecuted when program resumes. We need to dissect it to see if
  * it is a branch instruction.

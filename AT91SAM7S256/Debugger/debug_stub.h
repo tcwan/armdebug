@@ -39,6 +39,7 @@
 #define MSGBUF_ERRCHAR   'E'
 #define MSGBUF_SIGCHAR   'S'
 #define MSGBUF_CPSRREG   '!'
+#define MSGBUF_SETCHAR   '='
 #define MSGBUF_CMDINDEX_OUTOFRANGE_VAL     -1
 
 /*@}*/
@@ -73,6 +74,17 @@
 #define BYTE3	0xFF000000                       /* Byte 3 word(31:24) */
 #define HLFWRD0	0x0000FFFF                       /* Halfword 0 word(15:0) */
 #define HLFWRD1	0xFFFF0000                       /* Halfword 0 word(31:16) */
+/*@}*/
+
+/** @name CPSR Bit Definitions.
+ *
+ * Various Bit definitions for accessing the CPSR register.
+ */
+/*@{*/
+#define CPSR_THUMB      0x00000020
+#define CPSR_FIQ        0x00000040
+#define CPSR_IRQ        0x00000080
+
 /*@}*/
 
 /** @name BKPT suppport constants
@@ -111,7 +123,8 @@ ENUM_END(dbg_state_t)
  * The enums must be consecutive, starting from 1
  */
 ENUM_BEGIN
-ENUM_VALASSIGN(MSG_ERRCHKSUM, 1)  /**< Checksum Error. */
+ENUM_VALASSIGN(MSG_ERRIMPL, 0)    /**< Stub (not implemented) Error. */
+ENUM_VAL(MSG_ERRCHKSUM)           /**< Checksum Error. */
 ENUM_VAL(MSG_ERRFORMAT)           /**< Message Format Error. */
 ENUM_VAL(MSG_UNKNOWNCMD)          /**< Unrecognized Command Error. */
 ENUM_VAL(MSG_UNKNOWNPARAM)        /**< Unrecognized Parameter Error. */
