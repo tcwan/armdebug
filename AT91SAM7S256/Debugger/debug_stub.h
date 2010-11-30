@@ -38,10 +38,18 @@
 #define MSGBUF_NAKCHAR   '-'
 #define MSGBUF_ERRCHAR   'E'
 #define MSGBUF_SIGCHAR   'S'
-#define MSG_ERRCHKSUM      1
-#define MSG_UNKNOWNCMD     2
+#define MSGBUF_CPSRREG   '!'
 #define MSGBUF_CMDINDEX_OUTOFRANGE_VAL     -1
 
+/*@}*/
+/** @name Debug Stack Constants.
+ *
+ * Debug Stack Manipulation Values
+ */
+/*@{*/
+#define DBGSTACK_USERCPSR_OFFSET   (DBGSTACK_USERCPSR_INDEX-DBGSTACK_USERREG_INDEX)       /* = -1, offset for calculating Debug Stack index */
+#define DBGSTACK_USERCPSR_INDEX 1                /* User CPSR (SPSR_UNDEF) is at index 1 from bottom of Debug Stack */
+#define DBGSTACK_USERREG_INDEX  2                /* R0 starts at index 2 from bottom of Debug Stack */
 /*@}*/
 
 /** @name Bitmask Definitions.
@@ -96,6 +104,19 @@ ENUM_VAL(DBG_NORMAL_BKPT_ARM)     /**< Normal ARM Breakpoint (Single Step, Norma
 ENUM_VAL(DBG_MANUAL_BKPT_THUMB)     /**< Manual Thumb Breakpoint. */
 ENUM_VAL(DBG_NORMAL_BKPT_THUMB)     /**< Normal Thumb Breakpoint (Single Step, Normal). */
 ENUM_END(dbg_state_t)
+
+/** Debugger Message Error Enums
+ *
+ * Debugger Error Message Enums.
+ * The enums must be consecutive, starting from 1
+ */
+ENUM_BEGIN
+ENUM_VALASSIGN(MSG_ERRCHKSUM, 1)  /**< Checksum Error. */
+ENUM_VAL(MSG_ERRFORMAT)           /**< Message Format Error. */
+ENUM_VAL(MSG_UNKNOWNCMD)          /**< Unrecognized Command Error. */
+ENUM_VAL(MSG_UNKNOWNPARAM)        /**< Unrecognized Parameter Error. */
+ENUM_END(dbg_msg_errno)
+
 
 #ifndef __ASSEMBLY__
 

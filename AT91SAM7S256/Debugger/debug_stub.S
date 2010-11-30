@@ -63,10 +63,12 @@
  *    g             return the value of the CPU registers  hex data or ENN
  *    GrrrrRRRR..   set the value of the CPU registers     OK or ENN
  *					where register values are given as
- *					32-bit hex values from R0 to R15
+ *					32-bit hex values in the sequence:
+ *					User CPSR, R0, R1, ..., R15
  *	  px			get the value of one register (x)      hex data or ENN
  *	  Px=rrrr		set the value of one register (x) to   OK or ENN
  *					32-bit hex value rrrr.
+ *					x = ['0','F'] for R0-R15, '!' for User CPSR
  *
  *    mAA..AA,LLLL  Read LLLL bytes at address AA..AA      hex data or ENN
  *    MAA..AA,LLLL: Write LLLL bytes at address AA.AA      OK or ENN
@@ -136,8 +138,9 @@ debug_OkResponse:
 debug_cmdIndexTable:
 	.byte	'g','G','p','P','m','M','c','s','k','?',0
 
-/* Command Handlers expect the address pointer to the parameter buffer (contents after '$' and '<cmdchar>') in R0
- * and the Output Message Buffer Address in R1
+/* Command Handlers
+ * On entry:
+ *		R0: Input Message Parameter Buffer address pointer (points to contents after '$' and '<cmdchar>')
  */
 debug_cmdJumpTable:
 	.word	_dbg__procGetRegs					/* 'g' */
@@ -259,6 +262,19 @@ debug_cmdJumpTable:
 	bl		byte2ascii		/* R1 points to NULL character after the prefix */
 	.endm
 
+/* _index2dbgstackaddr
+ *		Convert debugger stack index to Debugger Stack register address
+ *
+ *		On entry:
+ *			indexreg contains debugger stack index value (0-max entries)
+ *		On exit:
+ *			indexreg: Breakpoint index (preserved)
+ *			addrreg: Debugger Stack Register Address
+ */
+	.macro	_index2dbgstackaddr  indexreg, addrreg
+	ldr	\addrreg, =__debugger_stack_bottom__
+	add	\addrreg, \addrreg, \indexreg, lsl #2			/* Calculate Debugger Stack Register Address */
+	.endm
 
 /* _index2bkptindex_addr
  *		Convert Breakpoint index to breakpoing entry address
@@ -494,7 +510,8 @@ dbg__bkpt_waitCMD:
 	mov		r4, r0							/* Use R4 as Message Buffer pointer */
 	ldrb	r0, [r4], #1					/* Look for '$' */
 	teq		r0, #MSGBUF_STARTCHAR
-	beq		_dbg__cmdError					/* Shouldn't happen */
+	movne	r0, #MSG_ERRFORMAT				/* Message Format invalid (not '$') */
+	bne		_dbg__cmdError					/* Shouldn't happen */
 	ldrb	r0, [r4], #1					/* Look for command char */
 	bl		_dbg__cmdChar2Index				/* Index in R0 */
 	ldr		r1, =MSGBUF_CMDINDEX_OUTOFRANGE_VAL
@@ -502,11 +519,9 @@ dbg__bkpt_waitCMD:
 	moveq	r0, #MSG_UNKNOWNCMD				/* Out of range, Command character not recognized */
 	beq		_dbg__cmdError					/* Send response to GDB server */
 
-_dbg__cmdValid:
-	stmfd	sp!, {r0, r4}
-	_dbg_outputMsgValidResponse				/* Setup R1 with address of output message buffer data pointer (after response prefix) */
-	ldmfd	sp!, {r3}						/* Command Handler Index */
-	ldmfd	sp!, {r0}						/* R1 now contains Input Message Buffer Parameter Pointer (previously in R4) */
+_dbg__cmdExists:
+	mov		r3, r0							/* put Command Handler Index in R3 */
+	mov		r0, r4							/* R0 now contains Input Message Buffer Parameter Pointer (previously in R4) */
 	_dbg_jumpTableHandler	debug_cmdJumpTable, r2, r3		/* Call Command Handler Routine, use R2 as jump address pointer */
 	b dbg__bkpt_waitCMD
 
@@ -522,12 +537,15 @@ _dbg__cmdError:
  *			r0: command character
  *		On exit:
  *			r0: jump table index (-1 for command not found)
+ *			R1: destroyed
+ *			R2: destroyed
+ *			R3: destroyed
  */
 _dbg__cmdChar2Index:
 	mov		r1, r0							/* Copy command character to r1 */
 	mov		r0, #0							/* Clear return value */
 	ldr		r3, =debug_cmdIndexTable		/* Convert command to index using r3 as Index Lookup Address Pointer */
-1:	ldrb	r2, [r3], #1					/* Get table entry */
+1:	ldrb	r2, [r3, r0]					/* Get table entry */
 	teq		r2, #0
 	moveq	r0, #MSGBUF_CMDINDEX_OUTOFRANGE_VAL	/* End of Index Table, Not found */
 	beq		_exit_cmdIndexTable
@@ -537,15 +555,90 @@ _dbg__cmdChar2Index:
 _exit_cmdIndexTable:
 	bx		lr
 
+/* __dbg__procCmdParamError
+ *		Common subroutine exit stub to handle Command Parameter Error for Command Handlers
+ *		DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
+ *
+ */
+
+__dbg__procCmdParamError:
+	mov		r0, #MSG_UNKNOWNPARAM
+	_dbg_outputMsgStatusErr
+	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
+	ldmfd	sp!, {pc}
+
+
 
 /* _dbg__procGetOneReg
  *		Get One Register Value Command Handler
+ *		Valid register parameter is from '0' to 'F' for User Mode Registers R0-R15
+ *		CPSR register parameer is '!'
  *		On entry:
- *			r0: parameter buffer (contents after '$' and '<cmdchar>')
- *			r1: output message buffer
+ *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *
  */
 _dbg__procGetOneReg:
-	bx		lr
+	stmfd	sp!, {lr}
+	ldrb	r2, [r0, #1]					/* char after parameter value (Should be NULL character) */
+	ldrb	r0, [r0]						/* Retrieve register index parameter to R0 */
+	teq		r2, #0							/* Check for NULL */
+	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
+	teq		r0, #MSGBUF_CPSRREG				/* Check for CPSR register indicator */
+	moveq	r0, #DBGSTACK_USERCPSR_OFFSET	/* Put offset from User Registers (-1) into index, so that after adjustment it points to CPSR slot */
+	beq		_dbg__procRegister				/* Handle User CPSR */
+	bl		char2hex						/* Convert to Hex value (assume input is valid) */
+	cmp		r0, #NIBBLE0					/* sanity check, (though it is not foolproof as input char in 0x0-0xF (ctrl-chars) will pass through) */
+	bhi		__dbg__procCmdParamError		/* Non-hex char, report error */
+
+_dbg__procRegister:
+	mov		r3, r0							/* Keep register index safe */
+	_dbg_outputMsgValidResponse				/* Setup R1 with address of output message buffer data pointer (after response prefix) */
+	mov		r0, r3							/* Restore register index value */
+	bl		_dbg_outputOneRegValue			/* update output buffer */
+	bl		dbg__putDebugMsg				/* Send response to the GDB server */
+	ldmfd	sp!, {pc}
+
+/* _dbg_outputOneRegValue
+ *		Given Register Index (-1: CPSR, 0-F: R0-R15), output hex char to buffer
+ *		On entry:
+ *			r0: register index (-1, 0-F)
+ *			r1: output message buffer pointer
+ *		On exit:
+ *			r0: output message buffer pointer
+ *			r1: updated (points to NULL character at end of Output Buffer)
+ *			r2: destroyed
+ */
+_dbg_outputOneRegValue:
+	stmfd	sp!, {lr}
+	add		r2, r0, #DBGSTACK_USERREG_INDEX	/* Convert register index to Debug Stack index */
+	_index2dbgstackaddr r2, r0				/* Calculate address pointer to relevant register, result in R0 */
+	ldr		r0, [r0]						/* Retrieve Register contents into R0 */
+	bl		word2ascii						/* Convert and put hex chars into Output Message Buffer */
+	ldmfd	sp!, {pc}
+
+/* _dbg__procGetRegs
+ *		Get All Register Values Command Handler
+ *		Output Buffer returns register values in the order: User CPSR, R0, R1, R2, ..., R15
+ *		On entry:
+ *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ */
+_dbg__procGetRegs:
+	stmfd	sp!, {lr}
+	ldrb	r0, [r0]						/* Retrieve register index parameter to R0 */
+	teq		r0, #0							/* Check for NULL */
+	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
+
+	_dbg_outputMsgValidResponse				/* Setup R1 with address of output message buffer data pointer (after response prefix) */
+	mov		r3, #DBGSTACK_USERCPSR_OFFSET	/* Output User CPSR Value first */
+1:  mov		r0, r3
+	bl		_dbg_outputOneRegValue			/* update output buffer */
+	add		r3, r3, #1						/* increment index */
+	cmp		r3, #0xF
+	ble		1b								/* process all the registers */
+
+	bl		dbg__putDebugMsg				/* Send response to the GDB server */
+	ldmfd	sp!, {pc}
+
 
 /* _dbg__nop
  *		NOP Command Handler (placeholder)

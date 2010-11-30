@@ -89,7 +89,7 @@ hex2char_lut:
 
 hex2char:
 	stmfd	sp!, {r1,lr}
-	and		r0, #0x000F			/* make sure that input is sane */
+	and		r0, #NIBBLE0			/* make sure that input is sane */
 	_hex2char	r0, r1
 	ldmfd	sp!, {r1,pc}
 
@@ -100,7 +100,7 @@ hex2char:
 	.global	char2hex
 
 char2hex:
-	and		r0, #0x00FF			/* make sure that input is sane */
+	and		r0, #BYTE0			/* make sure that input is sane */
 	cmp		r0, #'0'
 	blo		exit_char2hex
 	cmp		r0, #'F'
