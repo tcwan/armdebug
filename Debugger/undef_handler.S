@@ -37,11 +37,11 @@ undef_handler:
  		stmfd sp, {r0-r15}^				/* Save workspace, user mode's pc via 'S' flag */
  		sub	sp, sp, #(4*16)				/* Need to manually update SP(undef) */
  		mrs	r1, spsr					/* Copy SPSR to r0 */
- 		sub	r0, lr, #-4					/* LR points to instruction after UNDEF instruction */
- 		stmfd	sp!, {r0,r1}			/* Save UNDEF instruction addr and previous mode's CPSR to stack */
  		tst	r1, #CPSR_THUMB				/* Check for Thumb Mode */
 		beq	_is_arm						/* Clear, so it's ARM mode */
 _is_thumb:
+ 		sub	r0, lr, #-2					/* LR points to instruction after UNDEF instruction */
+ 		stmfd	sp!, {r0,r1}			/* Save UNDEF instruction addr and previous mode's CPSR to stack */
 		ldrh r0, [r0]					/* load UNDEF instruction into r0 */
 		ldr	r1, =BKPT16_ENUM_MASK		/* Thumb BKPT enum mask */
 		bic	r2, r0, r1					/* leave only opcode */
@@ -54,6 +54,8 @@ _is_thumb:
 		ldr	lr, =dbg__thumb_bkpt_handler	/* handle BKPT, BKPT index in r0 */
 		mov	pc, lr						/* Invoke Debugger State (Supervisor Mode) */
 _is_arm:
+ 		sub	r0, lr, #-4					/* LR points to instruction after UNDEF instruction */
+ 		stmfd	sp!, {r0,r1}			/* Save UNDEF instruction addr and previous mode's CPSR to stack */
 		ldr	r0, [r0]					/* load UNDEF instruction into r0 */
 		ldr	r1, =BKPT32_ENUM_MASK		/* ARM BKPT enum mask */
 		bic	r2, r0, r1					/* leave only opcode */

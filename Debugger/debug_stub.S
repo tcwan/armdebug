@@ -155,6 +155,25 @@ debug_cmdJumpTable:
 	.word	_dbg__nop							/* '?' */
 	.word	0
 
+/*
+ * To determine the next instruction to execute, we need to check current (breakpointed) instruction
+ * and determine whether it will be executed or not. This necessitates a mini instruction decoder
+ * that can check the type of instruction, as well as if it'll affect the PC.
+ * The instruction decoder used here is table based. Each entry in the table consists of:
+ *		Instruction Identifier (IID), Instruction Bitmask (IBM), Instruction Handler Address (IHA)
+ * Null entries are placed at the end of the table.
+ *
+ * This allows for a flexible approach to handling instructions that we're interested in, at the expense
+ * of memory usage.
+ *
+ * For ARM, the IID & IBM are both 4 bytes, whereas the Thumb IID & IBM are 2 bytes.
+ * The IHA is always 4 bytes.
+ */
+
+/* ARM Instruction Decode Table */
+
+/* Thumb Instruction Decode Table */
+
 
 .code 32
 .text
@@ -1245,8 +1264,18 @@ _dbg_next_instruction_addr:
 
 /* Here, r0 contains the instruction which will be reexecuted when program resumes. We need to dissect it to see if
  * it is a branch instruction.
+ * For ARM instructions, we also need to evaluate the current (breakpointed) instruction to see if it'll execute.
+ * If not, then the next instruction is the instruction following the current instruction.
  */
 2:
+	/* Use R5 to store candidate next instruction address */
+	teq		r4, #0										/* Check if it is ARM or Thumb instruction */
+	beq		_next_instr_is_arm
+_next_instr_is_thumb:
+	add		r5, r2, #2									/* set next Thumb instruction address */
+	_is_thumb_branch_instr	r0							/* check if the current instruction is a branch instruction */
+_next_instr_is_arm:
+	add		r5, r2, #4									/* Is ARM, set next ARM instruction address */
 @@@@@@@@@
 	bx	lr
 
