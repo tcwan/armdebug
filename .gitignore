@@ -1,0 +1,40 @@
+# Ignore tag
+MASTER-REPO_DO-NOT-DELETE
+*.lst
+*.objdump
+.DS_Store
+
+# Generally annoying things.
+*.[oa]
+*.pyc
+*.bin
+*.elf
+*.rxe
+*.map
+*.orig
+*.log
+*~
+*.swp
+\#*\#
+.\#*
+
+# Python distutils creates this when building.
+pynxt/build/
+
+# Files generated during a NxOS build.
+nxos/base/_font.h
+nxos/doc/*/
+
+# The TVM port has a whole SVN checkout not managed by hg.
+nxos/systems/tvm/tvm/
+
+# SCons cruft
+nxos/.sconsign.dblite
+nxos/.sconf_temp
+nxos/build_flags.py
+
+# Precommit hooks drop a commit.msg file if they fail.
+commit.msg
+
+# The option-cache
+scons.options
