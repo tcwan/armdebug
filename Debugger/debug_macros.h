@@ -16,7 +16,6 @@
 #ifndef __DEBUG_MACROS_H__
 #define __DEBUG_MACROS_H__
 
-#include "_c_arm_macros.h"
 
 
 /** @addtogroup debug_macros */
@@ -36,6 +35,43 @@
 	mov	 lr, pc
 	bx	  \jumpreg	/* Call Command Handler Routine */
 	.endm
+
+
+/* _dbg_thumbDecodeEntry
+ *      Load Thumb Instruction Decoder Entry
+ *      On entry:
+ *        instrreg is the register to load the instruction into
+ *        instrmask is the register to load the instruction mask into
+ *        codehandler is the register to load the code handling routine into
+ *        indexreg contains decode table index value
+ *      NOTE: instrreg, instrmask, codehandler must be in increasing register number order
+ */
+        .macro  _dbg_thumbDecodeEntry   instrreg, instrmask, codehandler, indexreg
+
+        ldr      \instrmask, =debug_thumbDecodeTable                    /* Temporary register */
+        add      \instrmask, \instrmask, \indexreg, lsl #3
+        ldm      \instrmask, {\instrreg, \codehandler}                  /* LSHW: IID, MSHW: IBM */
+        mov      \instrmask, \instrreg, lsr #16
+        and      \instrreg, \instrreg, #HLFWRD0
+        .endm
+
+/* _dbg_armDecodeEntry
+ *      Load ARM Instruction Decoder Entry
+ *      On entry:
+ *        instrreg is the register to load the instruction into
+ *        instrmask is the register to load the instruction mask into
+ *        codehandler is the register to load the code handling routine into
+ *        indexreg contains decode table index value
+ *      NOTE: instrreg, instrmask, codehandler must be in increasing register number order
+ */
+        .macro  _dbg_armDecodeEntry   instrreg, instrmask, codehandler, indexreg
+
+        ldr      \instrmask, =debug_thumbDecodeTable                    /* Temporary register */
+        add      \instrmask, \instrmask, \indexreg, lsl #3
+        add      \instrmask, \instrmask, \indexreg, lsl #2              /* 12  byte entries */
+        ldm      \instrmask, {\instrreg, \instrmask, \codehandler}
+        .endm
+
 
 
 /* _dbg_stpcpy
@@ -120,19 +156,20 @@
 	bl	  byte2ascii	  /* R1 points to NULL character after the prefix */
 	.endm
 
-/* _index2dbgstackaddr
- *	Convert debugger stack index to Debugger Stack register address
+/* _getdbgregisterfromindex
+ *      Retrieve register contents from debugger stack given index
  *
- *	On entry:
- *	  indexreg contains debugger stack index value (0-max entries)
- *	On exit:
- *	  indexreg: Breakpoint index (preserved)
- *	  addrreg: Debugger Stack Register Address
+ *      On entry:
+ *        indexreg contains debugger stack index value (0-max entries)
+ *      On exit:
+ *        indexreg: Breakpoint index (preserved)
+ *        contentsreg: Register Contents for given index
  */
-	.macro  _index2dbgstackaddr  indexreg, addrreg
-	ldr	 \addrreg, =__debugger_stack_bottom__
-	add	 \addrreg, \addrreg, \indexreg, lsl #2	   /* Calculate Debugger Stack Register Address */
-	.endm
+        .macro  _getdbgregisterfromindex  indexreg, contentsreg
+        ldr      \contentsreg, =__debugger_stack_bottom__
+        ldr      \contentsreg, [\contentsreg, \indexreg, lsl #2]
+        .endm
+
 
 /* _index2bkptindex_addr
  *	Convert Breakpoint index to breakpoing entry address

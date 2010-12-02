@@ -175,9 +175,36 @@ debug_cmdJumpTable:
  * The IHA is always 4 bytes.
  */
 
-/* ARM Instruction Decode Table */
+/* ARM Instruction Decode Table
+ *	.word IID, IBM, IHA (12 bytes)
+ */
+debug_armDecodeTable:
+	.word	0x0000f000, 0x0c00f000, _arm_data_instr_handler	/* Data Processing instr with Rd = R15 */
+	.word	0x012fff10, 0x0ffffff0, _arm_bx_blx_handler		/* BX or BLX */
+	.word	0x0410f000, 0x0410f000, _arm_ldr_pc_handler		/* LDR with Rd = PC */
+/*	.word	0x06000010, 0x0e000010, _arm_undef_handler	*/	/* Undefined instr: shouldn't occur, as it would've been trapped already */
+	.word	0x08108000, 0x0e108000, _arm_ldm_pc_handler		/* LDM {pc} */
+	.word	0x0a000000, 0x0e000000, _arm_b_bl_handler		/* B or BL. Note v4t does not have BLX instr */
+	.word	0x0c000000, 0x0c000000, _arm_coproc_swi_handler	/* Coprocessor instr or SWI */
+	.word	0x0,0x0,0x0										/* Null Entry */
 
-/* Thumb Instruction Decode Table */
+/* Thumb Instruction Decode Table
+ * 	.hword IID, IBM
+ * 	.word IHA (8 bytes)
+ */
+debug_thumbDecodeTable:
+	.hword	0x4700, 0xff07
+	.word	_thumb_bx_blx_handler				/* BX or BLX. Note: b7 (H1) is not matched in the mask */
+	.hword	0xbd00, 0xff00
+	.word	_thumb_poppc_handler				/* PUSH/POP, specifically POP {Rlist,PC} */
+	.hword	0xd000, 0xf000
+	.word	_thumb_bcond_swi_handler			/* B<cond> or SWI */
+	.hword	0xe000, 0xf800
+	.word	_thumb_b_handler					/* B */
+	.hword	0xf000, 0xf000
+	.word	_thumb_long_b_handler				/* Long BL or BLX (4 bytes) Note: b11 (H) indicates 1st or 2nd instr */
+	.hword	0x0,0x0
+	.word	0x0									/* Null Entry */
 
 
 .code 32
@@ -476,8 +503,8 @@ _dbg__procRegister:
 _dbg_outputOneRegValue:
 	stmfd	sp!, {lr}
 	add		r2, r0, #DBGSTACK_USERREG_INDEX	/* Convert register index to Debug Stack index */
-	_index2dbgstackaddr r2, r0				/* Calculate address pointer to relevant register, result in R0 */
-	ldr		r0, [r0]						/* Retrieve Register contents into R0 */
+	_getdbgregisterfromindex r2, r0			/* Retrieve Register contents into R0 */
+	ldr		r0, [r0]
 	bl		word2ascii						/* Convert and put hex chars into Output Message Buffer */
 	ldmfd	sp!, {pc}
 
@@ -1061,8 +1088,7 @@ _dbg_next_instruction_addr:
  */
 
 	mov		r2, #DBGSTACK_USERCPSR_INDEX				/* Retrieve User CPSR */
-	_index2dbgstackaddr r2, r0							/* Calculate address pointer to relevant register, result in R0 */
-	ldr		r0, [r0]									/* Retrieve Register contents into R0 */
+	_getdbgregisterfromindex r2, r0						/* Retrieve Register contents into R0 */
  	and		r4, r0, #CPSR_THUMB							/* store Thumb Mode status in R4 */
 
 	_dbg_getabortedinstr_addr	r2						/* Retrieve aborted instruction address */
