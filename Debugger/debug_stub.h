@@ -9,8 +9,8 @@
  *
  * See AUTHORS for a full list of the developers.
  *
- * Redistribution of this file is permitted under
- * the terms of the GNU Public License (GPL) version 2.
+ * See COPYING for redistribution license
+ *
  */
 
 #ifndef __DEBUG_STUB_H__
@@ -18,9 +18,6 @@
 
 #include "_c_arm_macros.h"
 
-#ifndef __ASSEMBLY__
-#include "types.h"
-#endif
 
 /** @addtogroup debugger */
 /*@{*/

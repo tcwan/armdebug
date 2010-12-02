@@ -19,6 +19,7 @@
 
 	.extern dbg__thumb_bkpt_handler
 	.extern dbg__arm_bkpt_handler
+	.extern default_undef_handler
 
 	.global undef_handler
 
@@ -69,5 +70,3 @@ _is_arm:
 		mov	pc, lr						/* Invoke Debugger State (Supervisor Mode) */
 
 
-default_undef_handler:
-		b default_undef_handler			/* Infinite loop */

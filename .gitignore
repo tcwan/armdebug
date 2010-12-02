@@ -21,17 +21,11 @@ MASTER-REPO_DO-NOT-DELETE
 # Python distutils creates this when building.
 pynxt/build/
 
-# Files generated during a NxOS build.
-nxos/base/_font.h
-nxos/doc/*/
-
-# The TVM port has a whole SVN checkout not managed by hg.
-nxos/systems/tvm/tvm/
 
 # SCons cruft
-nxos/.sconsign.dblite
-nxos/.sconf_temp
-nxos/build_flags.py
+.sconsign.dblite
+.sconf_temp
+build_flags.py
 
 # Precommit hooks drop a commit.msg file if they fail.
 commit.msg

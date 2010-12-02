@@ -1,3 +1,7 @@
+/** @file debug_comm.S
+ *  @brief GDB Server communications support routines
+ *
+ */
 
 /* Copyright (C) 2007-2010 the NxOS developers
  *
@@ -5,8 +9,8 @@
  *
  * See AUTHORS for a full list of the developers.
  *
- * Redistribution of this file is permitted under
- * the terms of the GNU Public License (GPL) version 2.
+ * See COPYING for redistribution license
+ *
  */
 
 #define __ASSEMBLY__
