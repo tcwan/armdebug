@@ -29,7 +29,17 @@
  * Debug Message Values
  */
 /*@{*/
-#define MSGBUF_SIZE     256                      /* Debug Message Buffer Size */
+
+/*
+ * USB Buffer Sizes:    Ctrl    Intr    Iso     Bulk
+ * Full Speed Device    64      64      1023    64
+ * High Speed Device    64      1024    1024    512
+ */
+
+#define USB_BUFSIZE     64
+#define USB_NUMDATAPKTS 3                               /* For packet transfers */
+
+#define MSGBUF_SIZE     (USB_BUFSIZE*USB_NUMDATAPKTS)   /* Debug Message Buffer Size, 64 x 3 = 192 chars = ~90 bytes */
 #define MSGBUF_STARTCHAR '$'
 #define MSGBUF_ACKCHAR   '+'
 #define MSGBUF_NAKCHAR   '-'
@@ -148,12 +158,12 @@ FUNCDEF void dbg__bkpt_handler(void);
 /** dbg_breakpoint_arm.
  * 		Equivalent to GDB breakpoint() routine for ARM code
  */
-FUNCDEF inline void dbg_breakpoint_arm(void) { asm volatile (".word BKPT32_INSTR | BKPT32_MANUAL_BKPT") }
+/* FUNCDEF */ inline void dbg_breakpoint_arm(void) { asm volatile (".word BKPT32_INSTR | BKPT32_MANUAL_BKPT") }
 
 /** dbg_breakpoint_thumb.
  * 		Equivalent to GDB breakpoint() routine for Thumb code
  */
-FUNCDEF inline void dbg_breakpoint_thumb(void) { asm volatile (".hword BKPT16_INSTR | BKPT16_MANUAL_BKPT") }
+/* FUNCDEF */ inline void dbg_breakpoint_thumb(void) { asm volatile (".hword BKPT16_INSTR | BKPT16_MANUAL_BKPT") }
 
 /*@}*/
 

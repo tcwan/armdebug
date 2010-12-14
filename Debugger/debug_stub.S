@@ -182,7 +182,7 @@ debug_armDecodeTable:
 	.word	0x0000f000, 0x0c00f000, _arm_data_instr_handler	/* Data Processing instr with Rd = R15 */
 	.word	0x012fff10, 0x0ffffff0, _arm_bx_blx_handler		/* BX or BLX */
 	.word	0x0410f000, 0x0410f000, _arm_ldr_pc_handler		/* LDR with Rd = PC */
-/*	.word	0x06000010, 0x0e000010, _arm_undef_handler	*/	/* Undefined instr: shouldn't occur, as it would've been trapped already */
+/*	.word	0x06000010, 0x0e000010, _arm_undef_handler	*/	/* Undefined instr: shouldn't occur, as it would've been trapped already. See _dbg_next_instruction_addr */
 	.word	0x08108000, 0x0e108000, _arm_ldm_pc_handler		/* LDM {pc} */
 	.word	0x0a000000, 0x0e000000, _arm_b_bl_handler		/* B or BL. Note v4t does not have BLX instr */
 	.word	0x0c000000, 0x0c000000, _arm_coproc_swi_handler	/* Coprocessor instr or SWI */
@@ -206,6 +206,19 @@ debug_thumbDecodeTable:
 	.hword	0x0,0x0
 	.word	0x0									/* Null Entry */
 
+/* ARM Condition Code Mapping Table
+ * Converts Instruction encoding to
+ * SPSR Flags.
+ * b31 b30 b29 b28
+ *  N   Z   C   V
+ * Indexed according to Instruction Encoding order (pg 30, Table 6, ATMEL ARM7TDMI Data Sheet)
+ * Condition Code stored in MSN(set), LSN(clear) order
+ * Note1: 0x00 = AL
+ * Note2: 0xFF indicates that the condition checks needs to be handled separately (complex checks)
+ */
+debug_armCondCodetable:
+			/* EQ,   NE, HS/CS, LO/CC,   MI,   PL,   VS,   VC,   HI,   LS,   GE,   LT,   GT,   LE,   AL, NV */
+	.byte	 0x40, 0x04,  0x20,  0x02, 0x80, 0x08, 0x10, 0x01, 0x24, 0x42, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
 
 .code 32
 .text
