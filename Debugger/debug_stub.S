@@ -216,7 +216,7 @@ debug_thumbDecodeTable:
  * Note1: 0x00 = AL. NV is deprecated, treat as AL
  * Note2: 0xFF indicates that the condition checks needs to be handled separately (complex checks)
  */
-debug_armCondCodetable:
+debug_armCondCodeTable:
 			/* EQ,   NE, HS/CS, LO/CC,   MI,   PL,   VS,   VC,   HI,   LS,   GE,   LT,   GT,   LE,   AL,   NV */
 	.byte	 0x40, 0x04,  0x20,  0x02, 0x80, 0x08, 0x10, 0x01, 0x24, 0x42, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00
 
@@ -1103,6 +1103,7 @@ _dbg_next_instruction_addr:
 	mov		r2, #DBGSTACK_USERCPSR_INDEX				/* Retrieve User CPSR */
 	_getdbgregisterfromindex r2, r0						/* Retrieve Register contents into R0 */
  	and		r4, r0, #CPSR_THUMB							/* store Thumb Mode status in R4 */
+ 	mov		r5, r0, lsr #28								/* store CPSR condition flags in R5[3:0] */
 
 	_dbg_getabortedinstr_addr	r2						/* Retrieve aborted instruction address */
 1:	teq		r4, #0										/* Check if it is ARM or Thumb instruction */
@@ -1124,14 +1125,14 @@ _dbg_next_instruction_addr:
  * If not, then the next instruction is the instruction following the current instruction.
  */
 2:
-	/* Use R5 to store candidate next instruction address */
+	/* Use R6 to store candidate next instruction address */
 	teq		r4, #0										/* Check if it is ARM or Thumb instruction */
 	beq		_next_instr_is_arm
 _next_instr_is_thumb:
-	add		r5, r2, #2									/* set next Thumb instruction address */
+	add		r6, r2, #2									/* set next Thumb instruction address */
 	/*_is_thumb_branch_instr	r0		*/					/* check if the current instruction is a branch instruction */
 _next_instr_is_arm:
-	add		r5, r2, #4									/* Is ARM, set next ARM instruction address */
+	add		r6, r2, #4									/* Is ARM, set next ARM instruction address */
 @@@@@@@@@
 	bx	lr
 
@@ -1144,6 +1145,82 @@ __dbg__resume_execution:
 	bl	_dbg__flush_icache
 	b __dbg__resume_execution
 
+/****************************************************************************
+ *
+ * Instruction Decode Routines
+ *
+ ****************************************************************************/
+
+/* _dbg_check_arm_condcode
+ *		Check ARM conditional execution code
+ *		On entry:
+ *			R0: instruction to be executed
+ *			R5[3:0]: CPSR condition codes
+ *		On exit:
+ *			R0: will_execute (boolean)
+ */
+
+_dbg_check_arm_condcode:
+	stmfd	sp!, {r6,lr}							/* Use R6 as temporary will_execute variable */
+	mov		r6, #TRUE
+	mov		r0, r0, lsr #28							/* convert condition code to index (0-F) */
+	ldr		r2, =debug_armCondCodeTable
+	ldrb	r1, [r2, r0]							/* Get condition code mask */
+	teq		r1, #0xFF
+	beq		_dbg_cond_complex_check
+
+/*
+ * will_execute = TRUE [default condition, equivalent to 0x00 (AL) ]
+ * If (SetBitMask is Non-Zero)
+ *		will_execute = ((cond_code & SetBitMask) == SetBitMask)
+ * If will_execute && (ClearBitMask is Non-Zero)
+ *		will_execute = will_execute && ((cond_code | ~ClearBitMask) == ~ClearBitMask)
+ */
+
+/*
+ * The following check is unnecessary as it is covered by the set/clear checking algorithm
+ 	teq		r1, #0
+	beq		_dbg_cond_will_exec
+*/
+
+_dbg_check_bits_set:
+	movs	r0, r1, lsr #4							/* R0: bits set */
+	beq		_dbg_check_bits_clear
+	and		r2, r5, r0								/* Check bits set IF bitmask non-zero */
+	teq		r2, r0									/* ((cond_code & SetBitMask) == SetBitMask)? */
+	movne	r6, #FALSE								/* No, so will_execute = FALSE */
+	bne		_dbg_check_arm_condcode_exit
+
+_dbg_check_bits_clear:
+	ands	r1, r1, #NIBBLE0						/* R1: bits clear */
+	beq		_dbg_check_arm_condcode_exit
+	mvn		r1, r1									/* Invert Bitmask */
+	orr		r2, r5, r1								/* Check bits clear IF bitmask non-zero */
+	teq		r2, r1									/* ((cond_code | ~ClearBitMask) == ~ClearBitMask)? */
+	movne	r6, #FALSE								/* No, so will_execute = FALSE */
+	bne		_dbg_check_arm_condcode_exit
+
+_dbg_cond_complex_check:
+@@@@@@
+
+_dbg_check_arm_condcode_exit:
+	mov		r0, r6									/* Update return value */
+	ldmfd	sp!, {r6, pc}
+
+_arm_data_instr_handler:	/* Data Processing instr with Rd = R15 */
+_arm_bx_blx_handler:		/* BX or BLX */
+_arm_ldr_pc_handler:		/* LDR with Rd = PC */
+_arm_ldm_pc_handler:		/* LDM {pc} */
+_arm_b_bl_handler:		/* B or BL. Note v4t does not have BLX instr */
+_arm_coproc_swi_handler:	/* Coprocessor instr or SWI */
+	bx	lr
+
+_thumb_bx_blx_handler:				/* BX or BLX. Note: b7 (H1) is not matched in the mask */
+_thumb_poppc_handler:				/* PUSH/POP, specifically POP {Rlist,PC} */
+_thumb_bcond_swi_handler:			/* B<cond> or SWI */
+_thumb_b_handler:					/* B */
+_thumb_long_b_handler:				/* Long BL or BLX (4 bytes) Note: b11 (H) indicates 1st or 2nd instr */
+	bx	lr
 
 
 /****************************************************************************
