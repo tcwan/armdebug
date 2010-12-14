@@ -158,12 +158,14 @@ FUNCDEF void dbg__bkpt_handler(void);
 /** dbg_breakpoint_arm.
  * 		Equivalent to GDB breakpoint() routine for ARM code
  */
-/* FUNCDEF */ inline void dbg_breakpoint_arm(void) { asm volatile (".word BKPT32_INSTR | BKPT32_MANUAL_BKPT") }
+/* FUNCDEF void dbg_breakpoint_arm(void); */
+inline void dbg_breakpoint_arm(void) { asm volatile (".word BKPT32_INSTR | BKPT32_MANUAL_BKPT"); }
 
 /** dbg_breakpoint_thumb.
  * 		Equivalent to GDB breakpoint() routine for Thumb code
  */
-/* FUNCDEF */ inline void dbg_breakpoint_thumb(void) { asm volatile (".hword BKPT16_INSTR | BKPT16_MANUAL_BKPT") }
+/* FUNCDEF void dbg_breakpoint_thumb(void); */
+inline void dbg_breakpoint_thumb(void) { asm volatile (".hword BKPT16_INSTR | BKPT16_MANUAL_BKPT"); }
 
 /*@}*/
 
