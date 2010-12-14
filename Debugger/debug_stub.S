@@ -213,12 +213,12 @@ debug_thumbDecodeTable:
  *  N   Z   C   V
  * Indexed according to Instruction Encoding order (pg 30, Table 6, ATMEL ARM7TDMI Data Sheet)
  * Condition Code stored in MSN(set), LSN(clear) order
- * Note1: 0x00 = AL
+ * Note1: 0x00 = AL. NV is deprecated, treat as AL
  * Note2: 0xFF indicates that the condition checks needs to be handled separately (complex checks)
  */
 debug_armCondCodetable:
-			/* EQ,   NE, HS/CS, LO/CC,   MI,   PL,   VS,   VC,   HI,   LS,   GE,   LT,   GT,   LE,   AL, NV */
-	.byte	 0x40, 0x04,  0x20,  0x02, 0x80, 0x08, 0x10, 0x01, 0x24, 0x42, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
+			/* EQ,   NE, HS/CS, LO/CC,   MI,   PL,   VS,   VC,   HI,   LS,   GE,   LT,   GT,   LE,   AL,   NV */
+	.byte	 0x40, 0x04,  0x20,  0x02, 0x80, 0x08, 0x10, 0x01, 0x24, 0x42, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00
 
 .code 32
 .text
