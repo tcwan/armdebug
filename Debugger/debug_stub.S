@@ -178,6 +178,7 @@ debug_cmdJumpTable:
 /* ARM Instruction Decode Table
  *	.word IID, IBM, IHA (12 bytes)
  */
+
 debug_armDecodeTable:
 	.word	0x0000f000, 0x0c00f000, _arm_data_instr_handler	/* Data Processing instr with Rd = R15 */
 	.word	0x012fff10, 0x0ffffff0, _arm_bx_blx_handler		/* BX or BLX */
@@ -192,6 +193,7 @@ debug_armDecodeTable:
  * 	.hword IID, IBM
  * 	.word IHA (8 bytes)
  */
+
 debug_thumbDecodeTable:
 	.hword	0x4700, 0xff07
 	.word	_thumb_bx_blx_handler				/* BX or BLX. Note: b7 (H1) is not matched in the mask */
@@ -207,18 +209,63 @@ debug_thumbDecodeTable:
 	.word	0x0									/* Null Entry */
 
 /* ARM Condition Code Mapping Table
- * Converts Instruction encoding to
- * SPSR Flags.
+ * Converts Instruction encoding to SPSR Flags.
  * b31 b30 b29 b28
  *  N   Z   C   V
  * Indexed according to Instruction Encoding order (pg 30, Table 6, ATMEL ARM7TDMI Data Sheet)
- * Condition Code stored in MSN(set), LSN(clear) order
+ * Condition Code stored in MSN(set), LSN(clr) order
  * Note1: 0x00 = AL. NV is deprecated, treat as AL
  * Note2: 0xFF indicates that the condition checks needs to be handled separately (complex checks)
+ *
+ *		EQ: Z set
+ *		NE: Z clr
+ *		HS/CS: C set
+ *		LO/CC: C clr
+ *		MI: N set
+ *		PL: N clr
+ *		VS: V set
+ *		VC: V clr
+ *		HI: C set AND Z clr
+ *		LS: C clr AND Z set
  */
+
+
 debug_armCondCodeTable:
 			/* EQ,   NE, HS/CS, LO/CC,   MI,   PL,   VS,   VC,   HI,   LS,   GE,   LT,   GT,   LE,   AL,   NV */
 	.byte	 0x40, 0x04,  0x20,  0x02, 0x80, 0x08, 0x10, 0x01, 0x24, 0x42, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00
+
+/* ARM Complex Condition Code Mapping Table
+ * Converts Instruction encoding to SPSR Flags.
+ * b31 b30 b29 b28
+ *  N   Z   C   V
+ * Indexed according to Instruction Encoding order (pg 30, Table 6, ATMEL ARM7TDMI Data Sheet)
+ * for GE, LT, GT and LE instructions only
+ * Condition Code stored in the following order:
+ *	 b7  b6  b5  b4   b3     b2   b1    b0
+ *	  -   -   - ANDOR  -  Z set  AND  N==V		(bit set = 1)
+ *	  -   -   - ANDOR  -  Z clr   OR  N!=V		(bit clr = 0)
+ *
+ *		GE: N == V
+ *		LT: N != V
+ *		GT: Z clr AND (N == V)
+ *		LE: Z set OR (N != V)
+ */
+
+#define COMPLEX_CONDCODE_START	   0x0A
+#define COMPLEX_CONDCODE_NEQV_MASK 0x01
+#define COMPLEX_CONDCODE_AND_MASK  0x02
+#define COMPLEX_CONDCODE_ZSET_MASK 0x04
+#define COMPLEX_CONDCODE_ANDOR_MASK 0x10
+
+#define COMPLEX_CONDCODE_NFLAG		0x08
+#define COMPLEX_CONDCODE_ZFLAG		0x04
+#define COMPLEX_CONDCODE_CFLAG		0x02
+#define COMPLEX_CONDCODE_VFLAG		0x01
+
+
+debug_armComplexCCTable:
+			/* GE,   LT,   GT,   LE */
+	.byte	 0x01, 0x00, 0x15, 0x12
 
 .code 32
 .text
@@ -1166,22 +1213,73 @@ _dbg_check_arm_condcode:
 	mov		r0, r0, lsr #28							/* convert condition code to index (0-F) */
 	ldr		r2, =debug_armCondCodeTable
 	ldrb	r1, [r2, r0]							/* Get condition code mask */
+/*
+ * The following check is unnecessary as it is covered by the set/clear checking algorithm
+ 	teq		r1, #0
+	beq		_dbg_check_arm_condcode_exit
+*/
 	teq		r1, #0xFF
-	beq		_dbg_cond_complex_check
+	bne		_dbg_check_bits_set
+
 
 /*
+ * Complex Checks:
+ *
+ * will_execute = TRUE [default condition]
+ * If (N == V) bit set
+ *		will_execute = (N == V)
+ * else
+ *		will_execute = (N != V)
+ *
+ * If (ANDOR bit) set
+ *		z_cond = ((Z XOR Z set) == 0)
+ *		If (AND bit set)
+ *			will_execute = will_execute && z_cond
+ *		else
+ *			will_execute = will_execute || z_cond
+ */
+_dbg_cond_complex_check:
+	sub		r1, r0, #COMPLEX_CONDCODE_START			/* Convert complex condition code to new index (0-3) */
+	ldr		r2, =debug_armComplexCCTable
+	ldrb	r1, [r2, r1]							/* Get complex condition code bitmap */
+
+	/* Use r2 to store N, r3 to store V */
+	tst		r5, #COMPLEX_CONDCODE_NFLAG
+	moveq	r2, #FALSE
+	movne	r2, #TRUE								/* r2 = N flag */
+	tst		r5, #COMPLEX_CONDCODE_VFLAG
+	moveq	r3, #FALSE
+	movne	r3, #TRUE								/* r3 = V flag */
+	eor		r2, r2, r3								/* r2 = (N xor V): 0 if equal, 0xFF if not equal */
+	tst		r1, #COMPLEX_CONDCODE_NEQV_MASK
+	mvnne	r6, r1									/* If (N == V) bit set, will_execute (r6) = TRUE if (N == V) [r2 == 0] -> invert r2 */
+	moveq	r6, r1									/* else (N == V) bit clr, will_execute (r6) = TRUE if (N != V) [r2 == 0xFF] */
+
+	tst		r1, #COMPLEX_CONDCODE_ANDOR_MASK
+	beq		_dbg_check_arm_condcode_exit			/* No additional checks needed, exit */
+
+	/* Use r2 to store Z, r3 to store Z set */
+	and		r2, r5, #COMPLEX_CONDCODE_ZFLAG			/* r2 = Z flag */
+	and		r3, r1, #COMPLEX_CONDCODE_ZSET_MASK		/* r3 = Z set */
+	eors	r2, r2, r3								/* r2 = (Z xor Z set): 0 if matched, non-zero if not matched */
+	moveq	r2, #TRUE
+	movne	r2, #FALSE								/* r2 (z_cond): TRUE if matched, FALSE if not matched */
+
+	tst		r1, #COMPLEX_CONDCODE_AND_MASK
+	andne	r6, r6, r2								/* If AND bit set, will_execute = will_execute && z_cond */
+	orreq	r6, r6, r2								/* else, will_execute = will_execute || z_cond */
+	b		_dbg_check_arm_condcode_exit
+
+
+/*
+ * Simple Checks:
+ *
  * will_execute = TRUE [default condition, equivalent to 0x00 (AL) ]
  * If (SetBitMask is Non-Zero)
  *		will_execute = ((cond_code & SetBitMask) == SetBitMask)
  * If will_execute && (ClearBitMask is Non-Zero)
  *		will_execute = will_execute && ((cond_code | ~ClearBitMask) == ~ClearBitMask)
  */
-
-/*
- * The following check is unnecessary as it is covered by the set/clear checking algorithm
- 	teq		r1, #0
-	beq		_dbg_cond_will_exec
-*/
 
 _dbg_check_bits_set:
 	movs	r0, r1, lsr #4							/* R0: bits set */
@@ -1200,12 +1298,11 @@ _dbg_check_bits_clear:
 	movne	r6, #FALSE								/* No, so will_execute = FALSE */
 	bne		_dbg_check_arm_condcode_exit
 
-_dbg_cond_complex_check:
-@@@@@@
 
 _dbg_check_arm_condcode_exit:
 	mov		r0, r6									/* Update return value */
 	ldmfd	sp!, {r6, pc}
+
 
 _arm_data_instr_handler:	/* Data Processing instr with Rd = R15 */
 _arm_bx_blx_handler:		/* BX or BLX */
