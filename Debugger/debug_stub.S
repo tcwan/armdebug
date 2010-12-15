@@ -592,6 +592,10 @@ _dbg__procGetRegs:
 	ldmfd	sp!, {pc}
 
 
+_dbg__procSetOneReg:
+_dbg__procSetRegs:
+	bx		lr
+
 /* _dbg__nop
  *		NOP Command Handler (placeholder)
  *		On entry:
