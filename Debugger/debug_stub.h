@@ -99,7 +99,16 @@
  * ARM and Thumb Breakpoint Instructions.
  */
 /*@{*/
-#define BKPT32_INSTR   		0xE1200070	/* ARM BKPT instruction */
+
+#define __ARM6OR7__
+
+#ifdef __ARM6OR7__
+#define BKPT32_INSTR            0xE7200070      /* ARM6 and ARM7 does not trap unused opcodes (BKPT overlap with control instructions), \
+                                                   CPU has unpredictable behavior. Ref: Steve Furber, ARM SoC 2nd Ed, pg. 143 */
+#else
+#define BKPT32_INSTR            0xE1200070      /* ARM BKPT instruction, will work in ARMv5T and above */
+#endif
+
 #define BKPT32_ENUM_MASK	0x000FFF0F	/* ARM BKPT Enum Mask */
 #define BKPT32_AUTO_BKPT	0x00080000	/* ARM BKPT Auto-Step Flag (for CONT support) */
 #define BKPT32_MANUAL_BKPT	0x0007FF0F	/* Manually inserted ARM Breakpoint */
@@ -159,7 +168,11 @@ FUNCDEF void dbg__bkpt_handler(void);
  * 		Equivalent to GDB breakpoint() routine for ARM code
  */
 FUNCDEF void dbg_breakpoint_arm(void);
+#ifdef __ARM6OR7__
+inline void dbg_breakpoint_arm(void) { asm volatile (".word 0xE727FF7F" /* (BKPT32_INSTR | BKPT32_MANUAL_BKPT) */ ); }
+#else
 inline void dbg_breakpoint_arm(void) { asm volatile (".word 0xE127FF7F" /* (BKPT32_INSTR | BKPT32_MANUAL_BKPT) */ ); }
+#endif
 
 /** dbg_breakpoint_thumb.
  * 		Equivalent to GDB breakpoint() routine for Thumb code
