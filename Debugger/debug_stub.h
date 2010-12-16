@@ -104,7 +104,7 @@
 
 #ifdef __ARM6OR7__
 #define BKPT32_INSTR            0xE7200070      /* ARM6 and ARM7 does not trap unused opcodes (BKPT overlap with control instructions), \
-                                                   CPU has unpredictable behavior. Ref: Steve Furber, ARM SoC 2nd Ed, pg. 143 */
+                                                   CPU has unpredictable behavior. Ref: Steve Furber, ARM SoC Architecture 2nd Ed, pg. 143 */
 #else
 #define BKPT32_INSTR            0xE1200070      /* ARM BKPT instruction, will work in ARMv5T and above */
 #endif
