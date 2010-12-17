@@ -35,7 +35,8 @@ undef_handler:
     On entry, LR_undef points to one instruction past the UNDEF instruction
   */
   		ldr	sp, =__debugger_stack__
- 		stmfd sp, {r0-r15}^				/* Save workspace, user mode's pc via 'S' flag */
+ 		stmfd sp, {r0-r15}^				/* Save workspace, user mode's pc via 'S' flag, R15: placeholder */
+ 		str	lr, [sp, #-4]				/* Keep User's Next Instr Pointer (in UNDEF SP) in user mode R15 */
  		sub	sp, sp, #(4*16)				/* Need to manually update SP(undef) */
  		mrs	r1, spsr					/* Copy SPSR to r0 */
  		tst	r1, #CPSR_THUMB				/* Check for Thumb Mode */
