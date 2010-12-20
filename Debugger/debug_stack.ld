@@ -2,7 +2,7 @@
 
     /* debugger state */
     __debugger_stack_bottom__ = . ;
-    . += 0x48;  /* 16 user mode registers + SPSR + BKPT Instr Addr */
+    . += 0x48;  /* 16 previous mode registers + SPSR + UNDEF Next Instruction Address */
     __debugger_stack__ = .;
     __debugger_stack_top__ = . ;
     
