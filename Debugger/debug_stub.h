@@ -91,6 +91,7 @@
 #define CPSR_THUMB      0x00000020
 #define CPSR_FIQ        0x00000040
 #define CPSR_IRQ        0x00000080
+#define CPSR_MODE       0x0000001F
 
 /*@}*/
 

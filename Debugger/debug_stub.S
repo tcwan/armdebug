@@ -321,7 +321,7 @@ debug_armComplexCCTable:
  *		User Mode R01
  *		User Mode R00
  *		User Mode CPSR (UNDEF SPSR)
- *		Bkpt Instr Addr 			__debugger_stack_bottom__
+ *		UNDEF Next Instr Addr 		__debugger_stack_bottom__
  *  [Low Memory Address]
  *
  *	Each Breakpoint State will initially be zeroed.
