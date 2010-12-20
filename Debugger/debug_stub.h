@@ -168,7 +168,7 @@ FUNCDEF void dbg__bkpt_handler(void);
  * 		Equivalent to GDB breakpoint() routine for ARM code
  */
 FUNCDEF void dbg_breakpoint_arm(void);
-inline void dbg_breakpoint_arm(void)
+static inline void dbg_breakpoint_arm(void)
 {
   asm volatile (".word %a0"
                   :     /* Output (empty) */
@@ -179,9 +179,9 @@ inline void dbg_breakpoint_arm(void)
 #if 0                /* Old asm definitions, in case gas does not recognize %a0 operand */
 
 #ifdef __ARM6OR7__
-inline void dbg_breakpoint_arm(void) { asm volatile (".word 0xE727FF7F" /* (BKPT32_INSTR | BKPT32_MANUAL_BKPT) */ ); }
+static inline void dbg_breakpoint_arm(void) { asm volatile (".word 0xE727FF7F" /* (BKPT32_INSTR | BKPT32_MANUAL_BKPT) */ ); }
 #else
-inline void dbg_breakpoint_arm(void) { asm volatile (".word 0xE127FF7F" /* (BKPT32_INSTR | BKPT32_MANUAL_BKPT) */ ); }
+static inline void dbg_breakpoint_arm(void) { asm volatile (".word 0xE127FF7F" /* (BKPT32_INSTR | BKPT32_MANUAL_BKPT) */ ); }
 #endif
 
 #endif
@@ -190,7 +190,7 @@ inline void dbg_breakpoint_arm(void) { asm volatile (".word 0xE127FF7F" /* (BKPT
  * 		Equivalent to GDB breakpoint() routine for Thumb code
  */
 FUNCDEF void dbg_breakpoint_thumb(void);
-inline void dbg_breakpoint_thumb(void)
+static inline void dbg_breakpoint_thumb(void)
 {
   asm volatile (".hword %a0"
                   :     /* Output (empty) */
@@ -200,7 +200,7 @@ inline void dbg_breakpoint_thumb(void)
 
 #if 0                /* Old asm definitions, in case gas does not recognize %a0 operand */
 
-inline void dbg_breakpoint_thumb(void) { asm volatile (".hword 0xBE7F" /* (BKPT16_INSTR | BKPT16_MANUAL_BKPT) */); }
+static inline void dbg_breakpoint_thumb(void) { asm volatile (".hword 0xBE7F" /* (BKPT16_INSTR | BKPT16_MANUAL_BKPT) */); }
 
 #endif
 
