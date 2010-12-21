@@ -168,7 +168,7 @@ FUNCDEF void dbg__bkpt_handler(void);
 /** dbg_breakpoint_arm.
  * 		Equivalent to GDB breakpoint() routine for ARM code
  */
-FUNCDEF void dbg_breakpoint_arm(void);
+FUNCDEF static void dbg_breakpoint_arm(void);
 static inline void dbg_breakpoint_arm(void)
 {
   asm volatile (".word %a0"
@@ -190,7 +190,7 @@ static inline void dbg_breakpoint_arm(void) { asm volatile (".word 0xE127FF7F" /
 /** dbg_breakpoint_thumb.
  * 		Equivalent to GDB breakpoint() routine for Thumb code
  */
-FUNCDEF void dbg_breakpoint_thumb(void);
+FUNCDEF static void dbg_breakpoint_thumb(void);
 static inline void dbg_breakpoint_thumb(void)
 {
   asm volatile (".hword %a0"
