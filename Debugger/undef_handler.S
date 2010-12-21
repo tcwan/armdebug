@@ -47,32 +47,42 @@ undef_handler:
   * since it has a three stage pipeline).
   *
   * We will also store UNDEF LR (next instruction pointer) and UNDEF SPSR to the stack.
+  *
+  * For the handler, once the user registers have been stored in the debug stack, the
+  * registers will be used as follows:
+  *
+  *		R0: UNDEF LR
+  * 	R1: SPSR
+  * 	R2: Mode
+  * 	R3: Debug Stack Pointer (for Banked R13-R14 update)
   */
-  		ldr	sp, =__debugger_stack__
- 		stmfd sp, {r0-r15}^				/* Save workspace, previous mode's pc via 'S' flag, R13-R15: placeholders */
- 		mrs	r1, spsr					/* Copy SPSR to r1 */
- 		tst	r1, #CPSR_THUMB				/* Check for Thumb Mode */
- 		subne	r4, lr, #2				/* Is Thumb instruction, adjust PC for UNDEF instruction address */
- 		subeq	r4, lr, #4				/* Is ARM instruction, adjust PC for UNDEF instruction address */
- 		str		r4, [sp, #-4]			/* Save PC to stack (R15 slot) */
+  		ldr		sp, =__debugger_stack__
+ 		stmfd 	sp, {r0-r15}^			/* Save workspace, previous mode's pc via 'S' flag, R13-R15: placeholders */
+		mov		r3, sp					/* Use R3 to write Banked R13-R14, and actual PC of UNDEF instruction */
+ 		sub		sp, sp, #(4*16)			/* Need to manually update SP(undef) */
 
- 		and r0, r1, #CPSR_MODE			/* Get previous mode */
- 		teq	r0, #MODE_USR
- 		beq	_skip_banked_registers		/* Can't switch back if we're in User mode! */
-/* FIXME: We don't handle FIQ properly! */
+		mov		r0, lr					/* Keep Next Instruction address after UNDEF instruction in R0 */
+ 		mrs		r1, spsr				/* Copy SPSR to r1 */
+ 		stmfd	sp!, {r0,r1}			/* Save User's Next Instr Pointer (in UNDEF LR) and previous mode's CPSR to stack */
+
+ 		tst		r1, #CPSR_THUMB			/* Check for Thumb Mode */
+ 		subne	r2, r0, #2				/* Is Thumb instruction, adjust PC for UNDEF instruction address */
+ 		subeq	r2, r0, #4				/* Is ARM instruction, adjust PC for UNDEF instruction address */
+ 		str		r2, [r3, #-4]!			/* Save PC to stack (R15 slot) */
+
+ 		and 	r2, r1, #CPSR_MODE		/* Get previous mode */
+ 		teq		r2, #MODE_USR
+ 		beq		_skip_banked_registers	/* Can't switch back if we're in User mode! */
 
 _store_prev_mode_banked_regs:
- 		orr	r0, #(CPSR_FIQ | CPSR_IRQ)	/* Disable Interrupts */
- 		msr	cpsr_c, r0					/* Switch to previous mode */
- 		mov	r3, lr						/* Previous Mode's LR (R14) */
- 		mov	r2, sp						/* Previous Mode's SP (R13) */
+		/* FIXME: We don't handle FIQ properly! */
+
+ 		orr	r2, #(CPSR_FIQ | CPSR_IRQ)	/* Disable Interrupts */
+ 		msr	cpsr_c, r2					/* Switch to previous mode */
+ 		stmfd	r3!, {sp, lr}			/* Store Previous Mode's LR (R14), SP (R13) via R3 */
 		msr	cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)	/* Revert to Undef Mode */
- 		stmfd	sp, {r2,r3,r4}			/* Save previous mode SP, LR, PC to stack (R13-R15 slots). Need to store PC again as we're not updating SP(undef) */
 
 _skip_banked_registers:
- 		sub	sp, sp, #(4*16)				/* Need to manually update SP(undef) */
- 		mov r0, lr						/* Move LR to r0 to enable use of stmfd */
- 		stmfd	sp!, {r0,r1}			/* Save User's Next Instr Pointer (in UNDEF LR) and previous mode's CPSR to stack */
  		tst	r1, #CPSR_THUMB				/* Check for Thumb Mode */
 		beq	_is_arm						/* Clear, so it's ARM mode */
 _is_thumb:
