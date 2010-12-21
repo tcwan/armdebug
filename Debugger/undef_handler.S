@@ -51,7 +51,7 @@ undef_handler:
   * For the handler, once the user registers have been stored in the debug stack, the
   * registers will be used as follows:
   *
-  *		R0: UNDEF LR
+  *		R0: UNDEF LR, then UNDEF instruction address, finally UNDEF instruction word / BKPT index
   * 	R1: SPSR
   * 	R2: Mode
   * 	R3: Debug Stack Pointer (for Banked R13-R14 update)
@@ -66,9 +66,9 @@ undef_handler:
  		stmfd	sp!, {r0,r1}			/* Save User's Next Instr Pointer (in UNDEF LR) and previous mode's CPSR to stack */
 
  		tst		r1, #CPSR_THUMB			/* Check for Thumb Mode */
- 		subne	r2, r0, #2				/* Is Thumb instruction, adjust PC for UNDEF instruction address */
- 		subeq	r2, r0, #4				/* Is ARM instruction, adjust PC for UNDEF instruction address */
- 		str		r2, [r3, #-4]!			/* Save PC to stack (R15 slot) */
+ 		subne	r0, r0, #2				/* Is Thumb instruction, adjust PC for UNDEF instruction address */
+ 		subeq	r0, r0, #4				/* Is ARM instruction, adjust PC for UNDEF instruction address */
+ 		str		r0, [r3, #-4]!			/* Save PC to stack (R15 slot) */
 
  		and 	r2, r1, #CPSR_MODE		/* Get previous mode */
  		teq		r2, #MODE_USR
@@ -86,7 +86,7 @@ _skip_banked_registers:
  		tst	r1, #CPSR_THUMB				/* Check for Thumb Mode */
 		beq	_is_arm						/* Clear, so it's ARM mode */
 _is_thumb:
-		ldrh r0, [r4]					/* load UNDEF instruction into r0 */
+		ldrh r0, [r0]					/* load UNDEF instruction into r0 */
 		ldr	r1, =BKPT16_ENUM_MASK		/* Thumb BKPT enum mask */
 		bic	r2, r0, r1					/* leave only opcode */
 		ldr	r1, =BKPT16_INSTR			/* check for Thumb Breakpoint Instruction */
@@ -95,7 +95,7 @@ _is_thumb:
 		ldr	r1, =BKPT16_ENUM_MASK		/* get Thumb BKPT Enum Mask */
 		b	_exit_undef_handler
 _is_arm:
-		ldr	r0, [r4]					/* load UNDEF instruction into r0 */
+		ldr	r0, [r0]					/* load UNDEF instruction into r0 */
 		ldr	r1, =BKPT32_ENUM_MASK		/* ARM BKPT enum mask */
 		bic	r2, r0, r1					/* leave only opcode */
 		ldr	r1, =BKPT32_INSTR			/* check for ARM Breakpoint Instruction */
