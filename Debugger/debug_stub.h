@@ -36,10 +36,20 @@
  * High Speed Device    64      1024    1024    512
  */
 
-#define USB_BUFSIZE     64
-#define USB_NUMDATAPKTS 3                               /* For packet transfers */
+#define USB_BUFSIZE     64                                      /* USB Buffer size for AT91SAM7S */
 
-#define MSGBUF_SIZE     (USB_BUFSIZE*USB_NUMDATAPKTS)   /* Debug Message Buffer Size, 64 x 3 = 192 chars = ~90 bytes */
+#define USB_NXT_TELEGRAMTYPE_OFFSET     0                       /* NXT Direct Command/Response Header */
+#define USB_NXT_COMMAND_OFFSET          1
+#define USB_NXT_SEGNUM_OFFSET           2
+#define USB_NXT_TELEGRAMSIZE_OFFSET     3
+
+#define USB_GDBMSG_START                4                       /* Offset into USB Telegram buffer */
+#define USB_GDBMSG_CHKSUMOFFSET         4                       /* to be subtracted from USB_NXT_TELEGRAMSIZE_OFFSET */
+
+#define MSG_NUMSEGMENTS  3                                      /* For packet transfers */
+#define MSG_SEGMENTSIZE (USB_BUFSIZE - USB_GDBMSG_START)        /* 60 bytes per segment */
+#define MSGBUF_SIZE     (MSG_SEGMENTSIZE*MSG_NUMSEGMENTS)       /* Debug Message Buffer Size, 60 x 3 = 180 chars = ~80 bytes of actual data */
+
 #define MSGBUF_STARTCHAR '$'
 #define MSGBUF_ACKCHAR   '+'
 #define MSGBUF_NAKCHAR   '-'
@@ -47,6 +57,7 @@
 #define MSGBUF_SIGCHAR   'S'
 #define MSGBUF_CPSRREG   '!'
 #define MSGBUF_SETCHAR   '='
+#define MSGBUF_CHKSUMCHAR '#'
 #define MSGBUF_CMDINDEX_OUTOFRANGE_VAL     -1
 
 /*@}*/

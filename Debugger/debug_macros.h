@@ -91,6 +91,23 @@
 	sub	 \deststrptr, \deststrptr, #1	/* Adjust Destination string pointer to point at NULL character */
 	.endm
 
+/* _dbg_memcpy
+ *      _dbg_stpcpy macro
+ *      On entry:
+ *        deststrptr: Destination string [Cannot be R0]
+ *        sourcestrptr: Source string [Cannot be R0]
+ *        sizereg: Number of bytes to copy [Cannot be R0]
+ *      On exit:
+ *        deststrptr: Pointer to NULL character in destination string
+ *        R0: destroyed
+ */
+        .macro  _dbg_memcpy      deststrptr, sourcestrptr, sizereg
+1:      ldrb    r0, [\sourcestrptr], #1
+        strb    r0, [\deststrptr], #1
+        subs    \sizereg, \sizereg, #1
+        bne      1b
+        .endm
+
 /* _dbg_outputMsgValidResponse
  *	Return Message with valid response ('+$')
  *	On exit:

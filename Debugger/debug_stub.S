@@ -341,13 +341,14 @@ debug_armComplexCCTable:
 dbg__bkpt_init:
 	stmfd	sp!, {lr}
 	bl		_dbg__clear_breakpoints
-	mov		r0, #0
+	mov		r2, #0
 	ldr		r1, =debug_curr_breakpoint
-	str		r0, [r1]
-	ldr		r1, =debug_InMsgBuf
-	strb	r0, [r1]
+	str		r2, [r1]
+	ldr		r0, =debug_InMsgBuf
+	strb	r2, [r0]
 	ldr		r1, =debug_OutMsgBuf
-	strb	r0, [r1]
+	strb	r2, [r1]
+	bl		dbg__comm_init				/* Pass R0: Rx Buffer, R1: Tx Buffer to comm submodule */
 
 /* FIXME: Initialize other stuff here */
 	_dbg_setstate DBG_INIT
