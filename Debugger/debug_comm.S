@@ -14,16 +14,12 @@
  */
 
 
-#define __NXOS__			/* Temporarily hardcoded in file */
+/* #define __NXOS__		*/	/* Defined externally in SConstruct */
 
 #define __ASSEMBLY__
+#include "debug_macros.h"
 #include "debug_stub.h"
-
-#ifdef __NXOS__
-#include "usb.h"
-#else
-#include "c_comm.h"
-#endif
+#include "debug_comm.h"
 
 .bss
 .align 4
@@ -346,7 +342,7 @@ dbg__comm_init:
 _dbg__usbbuf_reset:
 	stmfd	sp!, {lr}
 	ldr		r0, =debug_InUSBBuf
-	ldr		r1, #USB_BUFSIZE
+	mov		r1, #USB_BUFSIZE
 	ldr		r2, =nx_usb_read
 	bl		r2
 	ldmfd	sp!, {pc}
