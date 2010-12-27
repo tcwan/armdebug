@@ -344,7 +344,8 @@ _dbg__usbbuf_reset:
 	ldr		r0, =debug_InUSBBuf
 	mov		r1, #USB_BUFSIZE
 	ldr		r2, =nx_usb_read
-	bl		r2
+	mov		lr,pc
+	bx		r2
 	ldmfd	sp!, {pc}
 #else
 	/* FIXME: NXT Firmware support */
@@ -361,8 +362,9 @@ _dbg__usbbuf_reset:
 dbg__hasDebugMsg:
 #ifdef __NXOS__
 	stmfd	sp!, {lr}
-	ldr		r0, =nx_usb_data_read
-	bl		r2					/* Number of bytes read in R0 */
+	ldr		r2, =nx_usb_data_read
+	mov		lr,pc
+	bx		r2					/* Number of bytes read in R0 */
 	/* Note: The return value is the USB Buffer Size, includes NXT Direct Command Header */
 	/* FIXME: Need to check command type etc. before accepting it as a valid Debugger message */
 	ldr		r2, =debug_InUSBBuf
