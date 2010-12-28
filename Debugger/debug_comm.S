@@ -42,6 +42,9 @@ debug_segmentTxNum:				/* Current Tx Segment Number */
 .data
 .align 4
 
+nxt_usbcmd_header:
+	.byte	USB_NXT_TELEGRAM_RESP, USB_NXT_RESPONSE_GDB, 0x00, 0x00		/* padded to 4 bytes */
+
 hex2char_lut:
 	.ascii	"0123456789ABCDEF"
 
@@ -381,16 +384,16 @@ dbg__hasDebugMsg:
  *		Returns Debugger Message to calling routine after verifying and removing checksum (Blocking).
  *		On entry:
  *			r0: address of message buffer
- *			r1: maximum size of message buffer (incl NULL character)
+ *			r1: maximum size of message buffer (incl ASCIIZ character)
  *		On exit:
- *			r0: address of message buffer with NULL terminated message, excluding '#<checksum>'
+ *			r0: address of message buffer with ASCIIZ terminated message, excluding '#<checksum>'
  *				(NULL if message error)
  *
  */
  /* FIXME: This does not handle multiple segments currently, we just assume that everything is in one segment */
 dbg__getDebugMsg:
 #ifdef __NXOS__
-	stmfd	sp!, {lr}
+	stmfd	sp!, {r4,r5,lr}
 	bl		dbg__hasDebugMsg
 	cmp		r0, #0
 	ble		_exit_getDebugMsg		/* Zero length message, skip */
@@ -399,6 +402,9 @@ dbg__getDebugMsg:
 
 _copy_msg_from_usbbuf:
 	/* FIXME: handle multiple segments */
+	/* FIXME: Need to check NXT Direct command type etc. before accepting it as a valid Debugger message */
+	ldr		r5, =debug_msgRxBufPtr
+	ldr		r5, [r5]
 	ldr		r1, =debug_InUSBBuf
 	ldrb	r2, [r1, #USB_GDBMSG_START]
 	mov		r3, #MSGBUF_STARTCHAR
@@ -409,21 +415,38 @@ _copy_msg_from_usbbuf:
 	bne		_exit_getDebugMsg		/* Debugger Message does not have valid terminating NULL char */
 	sub		r3, r0, #USB_GDBMSG_CHKSUMOFFSET	/* Message Length - 4 = '#' offset */
 	ldrb	r2, [r1, r3]
+	mov		r4, #0
+	strb	r4, [r1, r3]			/* Zero out '#' char for checksum calc later */
 	mov		r3, #MSGBUF_CHKSUMCHAR
 	teq		r2, r3
-	bne		_exit_getDebugMsg		/* Debugger Message does not have valid checksum char */
+	bne		_exit_getDebugMsg		/* Debugger Message does not have valid checksum char '#' */
 
-	/* FIXME: Perform Checksum verification */
+	/* Message Buffer copy */
+	mov		r3, r0					/* Setup size param for memcpy macro */
+	mov		r2, r5					/* Message Rx Buffer Address */
+	add		r1, r1, #USB_GDBMSG_START
+	_dbg_memcpy	r2, r1, r3			/* This copies over the checksum which follows the inserted NULL char */
 
-	mov		r3, r0				/* Setup size param for memcpy macro */
+	/* Perform Checksum Verification */
+	mov		r0, r5					/* Message Rx Buffer Address */
+	bl		_dbg__calcChecksum		/* Checksum in R1 */
+
+	/* At this point, we have the checksum of characters in R0, and R1 points to Incoming Checksum char(s) */
+	mov		r3, r0					/* Keep calculated checksum in R3 */
+	mov		r0, r1					/* Move pointer to R0 for conversion */
+	bl		ascii2byte				/* Convert Incoming Checksum from ASCII to byte value in R0 */
+	teq		r0, r3					/* They must agree */
+	beq		_exit_getDebugMsg		/* Debugger Message has valid checksum */
+
+	/* Invalid message checksum, zero out buffer */
+	mov		r0, #0
 	ldr		r2, =debug_msgRxBufPtr
 	ldr		r2, [r2]
-	add		r1, r1, #USB_GDBMSG_START
-	_dbg_memcpy	r2, r1, r3
-	/* FIXME: Need to check command type etc. before accepting it as a valid Debugger message */
+	strb	r0, [r2]
+
 _exit_getDebugMsg:
 	bl		_dbg__usbbuf_reset	/* Next USB telegram transaction */
-	ldmfd	sp!, {pc}
+	ldmfd	sp!, {r4,r5,pc}
 #else
 	/* FIXME: NXT Firmware support */
 	bx		lr
@@ -433,11 +456,61 @@ _exit_getDebugMsg:
 /* dbg__putDebugMsg
  *		Sends Debugger Message from calling routine after appending checksum (Blocking) .
  *		On entry:
- *			r0: address of message buffer with NULL terminated message, without '#<checksum>'
+ *			r0: address of message buffer with ASCIIZ terminated message, without '#<checksum>'
  *		On exit:
  *			r0: status (0: success, -1: error)
  */
 dbg__putDebugMsg:
+#ifdef __NXOS__
+	stmfd	sp!, {r4,lr}
+	/* Perform Checksum Calculation */
+	ldr		r4, =debug_OutUSBBuf
+	bl		_dbg__calcChecksum		/* Checksum in R0 */
+
+	/* At this point, we have the checksum of characters in R0, and R1 points to Outgoing Checksum char(s) */
+	mov		r2, #MSGBUF_CHKSUMCHAR
+	strb	r2, [r1, #-1]			/* Store checksum char '#' into buffer (overwriting ASCIIZ character) */
+	bl		byte2ascii				/* On return, R1 points to ASCIIZ character */
+
+	/* Calculate size of message to copy */
+	ldr		r2, =debug_msgTxBufPtr
+	ldr		r2, [r2]
+	sub		r3, r1, r2				/* calculate length of message */
+	add		r3, #1					/* length is 1 more */
+	ldr		r1, =nxt_usbcmd_header
+	ldr		r0, [r1]
+	str		r0, [r4]				/* Straight copy of the header (Endianness issues?) */
+	/* FIXME: handle multiple segments */
+	strb	r3, [r4, #USB_NXT_TELEGRAMSIZE_OFFSET]	/* Update the size field */
+	add		r1, r4, #USB_GDBMSG_START
+	_dbg_memcpy	r1, r2, r3			/* This copies over the message + checksum which follows */
+
+	/* Message Buffer copy */
+	ldmfd	sp!, {r4,pc}
+#else
+	/* FIXME: NXT Firmware support */
+	bx		lr
+#endif
+
+/* _dbg__calcChecksum
+ *		Calculate Checksum for NULL terminated message
+ *		On entry:
+ *			r0: address of message buffer with ASCIIZ terminated message, without '#<checksum>'
+ *		On exit:
+ *			r0: checksum modulo 256
+ *			r1: pointer to buffer following ASCIIZ message character
+ *			r2: destroyed
+ */
+_dbg__calcChecksum:
+	mov		r2, #0					/* Intermediate checksum calculation */
+1:
+	ldrb	r1, [r0], #1
+	teq		r1, #0
+	addne	r2, r1, r2				/* sum of each character in message */
+	bne		1b
+
+	mov		r1, r0					/* Keep pointer in R1 for return parameter */
+	and		r0, r2, #BYTE0			/* Checksum is sum of char values modulo 256 */
 	bx		lr
 
 

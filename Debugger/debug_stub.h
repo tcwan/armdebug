@@ -43,6 +43,11 @@
 #define USB_NXT_SEGNUM_OFFSET           2
 #define USB_NXT_TELEGRAMSIZE_OFFSET     3
 
+#define USB_NXT_TELEGRAM_DC_RESP        0x00
+#define USB_NXT_TELEGRAM_RESP           0x02
+#define USB_NXT_COMMAND_GDB             0xF0
+#define USB_NXT_RESPONSE_GDB            0xF1
+
 #define USB_GDBMSG_START                4                       /* Offset into USB Telegram buffer */
 #define USB_GDBMSG_CHKSUMOFFSET         4                       /* to be subtracted from USB_NXT_TELEGRAMSIZE_OFFSET */
 

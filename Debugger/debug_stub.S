@@ -153,7 +153,7 @@ debug_OkResponse:
 
 /* The CmdIndexTable and CmdJumpTable must be kept in sync */
 debug_cmdIndexTable:
-	.byte	'g','G','p','P','m','M','c','s','k','?',0
+	.byte	'g','G','p','P','m','M','c','s','k','z','Z','?',0
 
 /* Command Handlers
  * On entry:
@@ -169,6 +169,8 @@ debug_cmdJumpTable:
 	.word	_dbg__nop							/* 'c' */
 	.word	_dbg__nop							/* 's' */
 	.word	_dbg__nop							/* 'k' */
+	.word	_dbg__nop							/* 'z' */
+	.word	_dbg__nop							/* 'Z' */
 	.word	_dbg__nop							/* '?' */
 	.word	0
 
