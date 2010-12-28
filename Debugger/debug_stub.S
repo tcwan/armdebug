@@ -87,6 +87,19 @@
  *
  *    ?             What was the last sigval ?             SNN   (signal NN)
  *
+ *    zt,AA..AA,k	Remove a Breakpoint of type t at addr  OK or ENN
+ *                  AA..AA of kind k
+ *    Zt,AA..AA,k	Insert a Breakpoint of type t at addr  OK or ENN
+ *                  AA..AA of kind k
+ *                  t 0: memory breakpoint
+ *                    1: hardware breakpoint
+ *                    2: write watchpoint
+ *                    3: read watchpoint
+ *                    4: access watchpoint
+ *                  k: 2 (16-bit Thumb), 3 (32-bit Thumb2)
+ *                       or 4 (32-bit ARM) for t=[0,1]
+ *                     Num. bytes to watch for t=[3,4]
+ *
  * All commands and responses are sent with a packet which includes a
  * checksum.  A packet consists of
  *
@@ -105,10 +118,9 @@
  * $m0,10#2a               +$00010203040506070809101112131415#42
  *
  ****************************************************************************/
- /* Modified GDB Server Remote Protocol definition from GDB's sparc-stub.c Comment Header included above */
-
-
-/* FIXME: What about setting/clearing Breakpoints? */
+ /* Modified GDB Server Remote Protocol definition from GDB's sparc-stub.c Comment Header included above
+  * Additional commands from GDB Reference Appendix D.2
+  */
 
 #define __ASSEMBLY__
 #include "debug_stub.h"
