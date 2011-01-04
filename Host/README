@@ -1,9 +1,9 @@
 The nxt-gdb-server.py script is initially developed by Nicolas Schodet.
 
 It depends on the following libraries:
- - nxt-python v2.01 http://code.google.com/p/nxt-python/
- - pyusb v1.0x http://pyusb.wiki.sourceforge.net
- - libusb v1.0x http://libusb.org/
+ - nxt-python v2.0x http://code.google.com/p/nxt-python/
+ - pyusb v0.4x http://pyusb.wiki.sourceforge.net
+ - libusb-compat v0.1x and libusb v1.0x http://libusb.org/
 
  It will probably work with libusb v0.1.x but it has not been tested in that configuration.
  
