@@ -50,9 +50,9 @@ class NXTGDBServer:
         # May be improved, for now, check command and announced length.
         if len (data) < 2:
             return ''
-        header, body = data[0:3], data[3:]
+        header, segment_no, body = data[0:3], data[3:]
         command, self.segment_no, length = struct.unpack ('BBB', header)
-        if command != self.debug_command or length != len (body):
+        if command != self.debug_command or length != len (body) or (self.segment_no != 0):
             return ''
         return body
 
