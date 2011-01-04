@@ -64,7 +64,7 @@ class NXTGDBServer:
         # Open connection to the NXT brick.
         brick = nxt.locator.find_one_brick ()
         brick.sock.debug = DEBUG
-        print "Waiting connection..."
+        print "Waiting for GDB connection on port %s..." % self.port
         while True:
             # Wait for a connection.
             client, addr = s.accept ()
@@ -92,7 +92,7 @@ class NXTGDBServer:
                     # Some pyusb are buggy, ignore some "errors".
                     if e.args != ('No error', ):
                         raise e
-            print "Connection closed, waiting connection..."
+            print "Connection closed, waiting for GDB connection on port %s..." % self.port
 
 if __name__ == '__main__':
     # Read options from command line.
