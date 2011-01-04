@@ -3,6 +3,7 @@
 # Copyright (C) 2011 the NxOS developers
 #
 # Module Developed by: Nicolas Schodet
+#                      TC Wan
 #
 # See AUTHORS for a full list of the developers.
 #
@@ -32,6 +33,7 @@ class NXTGDBServer:
     
     # Debug command header, no reply.
     debug_command = 0x8d
+    segment_no = 0
 
     def __init__ (self, port):
         """Initialise server."""
@@ -41,15 +43,15 @@ class NXTGDBServer:
         """Return packed data to send to NXT."""
         # Insert command and length.
         assert len (data) <= self.pack_size
-        return struct.pack ('BB', self.debug_command, len (data)) + data
+        return struct.pack ('BBB', self.debug_command, self.segment_no, len (data)) + data
 
     def unpack (self, data):
         """Return unpacked data from NXT."""
         # May be improved, for now, check command and announced length.
         if len (data) < 2:
             return ''
-        header, body = data[0:2], data[2:]
-        command, length = struct.unpack ('BB', header)
+        header, body = data[0:3], data[3:]
+        command, self.segment_no, length = struct.unpack ('BBB', header)
         if command != self.debug_command or length != len (body):
             return ''
         return body

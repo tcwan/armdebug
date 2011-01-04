@@ -281,17 +281,15 @@ _exit_conv_ascii2byte:
  *		There is a one byte Telegram Type field which identifies the type of telegram, followed by the
  *		Telegram header and actual message.
  *
- *		[The GDB Message Format is derived from the MESSAGEWRITE Direct Command format]
  *		The LEGO Mindstorms Communications Protocol Direct Commands GDB Message format (including all headers)
  *		is as follows:
  *
  *		GDB Command
  *		===========
- *			Byte 0:	Telegram Type Field (0x00 Direct Command, Response required)	| USB Channel Header
- *			Byte 1: Command Field (0xF0: GDB command)								| NXT Command Header
- *			Byte 2:	Segment No (1-255, 0: Last Segment; limit is MSG_NUMSEGMENTS)	|
- *			Byte 3:	Telegram Size (Len of USB Buffer - 4, max is MSG_SEGMENTSIZE)	|
- *			Byte 4-N: Message data													| GDB Command
+ *			Byte 0:	Telegram Type Field (0x8d Direct Command, No response required)	| USB Channel Header
+ *			Byte 1:	Segment No (1-255, 0: Last Segment; limit is MSG_NUMSEGMENTS)	|
+ *			Byte 2:	Telegram Size (Len of USB Buffer - 2, max is MSG_SEGMENTSIZE)	|
+ *			Byte 3-N: Message data													| GDB Command
  *
  *		The GDB Command (of size M) has the following format:
  *				Offset 0: '$'
@@ -305,11 +303,10 @@ _exit_conv_ascii2byte:
  *
  *		GDB Response
  *		============
- *			Byte 0:	Telegram Type Field (0x02 Response)								| USB Channel Header
- *			Byte 1: Command Field (0xF1: GDB response)								| NXT Command Header
- *			Byte 2:	Segment No (1-255, 0: Last Segment; limit is MSG_NUMSEGMENTS)	|
- *			Byte 3:	Telegram Size (Len of USB Buffer - 4, max is MSG_SEGMENTSIZE)	|
- *			Byte 4-N: Message data													| GDB Response
+ *			Byte 0:	Telegram Type Field (0x8d Direct Command, No response required)	| USB Channel Header
+ *			Byte 1:	Segment No (1-255, 0: Last Segment; limit is MSG_NUMSEGMENTS)	|
+ *			Byte 2:	Telegram Size (Len of USB Buffer - 2, max is MSG_SEGMENTSIZE)	|
+ *			Byte 3-N: Message data													| GDB Response
  *
  *		The GDB Response (of size M) has the following format:
  *				Offset 0: '+' or '-' Command Received Status
@@ -322,7 +319,7 @@ _exit_conv_ascii2byte:
  *		The maximum size of a GDB Response packet is MSGBUF_SIZE - 6 ('-'/'+', '$', '#', 2 byte checksum, trailing NULL char)
  *
  *		Note: The Telegram Size is the actual size of the Message Data portion
- *			  (i.e., excludes the four header bytes, includes the GDB Command/Response Packet trailing NULL character
+ *			  (i.e., excludes the three header bytes, includes the GDB Command/Response Packet trailing NULL character
  *					 in the last segment)
  */
 
@@ -413,7 +410,7 @@ _copy_msg_from_usbbuf:
 	ldrb	r2, [r1, r0]
 	cmp		r2, #0					/* Check for NULL (in last segment) */
 	bne		_exit_getDebugMsg		/* Debugger Message does not have valid terminating NULL char */
-	sub		r3, r0, #USB_GDBMSG_CHKSUMOFFSET	/* Message Length - 4 = '#' offset */
+	sub		r3, r0, #USB_GDBMSG_CHKSUMOFFSET	/* Message Length - 3 = '#' offset */
 	ldrb	r2, [r1, r3]
 	mov		r4, #0
 	strb	r4, [r1, r3]			/* Zero out '#' char for checksum calc later */
