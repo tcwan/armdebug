@@ -288,7 +288,7 @@ _exit_conv_ascii2byte:
  *		===========
  *			Byte 0:	Telegram Type Field (0x8d Direct Command, No response required)	| USB Channel Header
  *			Byte 1:	Segment No (1-255, 0: Last Segment; limit is MSG_NUMSEGMENTS)	|
- *			Byte 2:	Telegram Size (Len of USB Buffer - 2, max is MSG_SEGMENTSIZE)	|
+ *			Byte 2:	Telegram Size (Len of USB Buffer - 3, max is MSG_SEGMENTSIZE)	|
  *			Byte 3-N: Message data													| GDB Command
  *
  *		The GDB Command (of size M) has the following format:
@@ -305,7 +305,7 @@ _exit_conv_ascii2byte:
  *		============
  *			Byte 0:	Telegram Type Field (0x8d Direct Command, No response required)	| USB Channel Header
  *			Byte 1:	Segment No (1-255, 0: Last Segment; limit is MSG_NUMSEGMENTS)	|
- *			Byte 2:	Telegram Size (Len of USB Buffer - 2, max is MSG_SEGMENTSIZE)	|
+ *			Byte 2:	Telegram Size (Len of USB Buffer - 3, max is MSG_SEGMENTSIZE)	|
  *			Byte 3-N: Message data													| GDB Response
  *
  *		The GDB Response (of size M) has the following format:
