@@ -39,6 +39,8 @@
   .extern      cCommInit
   .extern      cCommCtrl
   .extern      cCommExit
+  .extern	   dUsbWrite
+  .extern      dUsbRead
 
 #endif
 
