@@ -28,33 +28,57 @@ DEBUG = True
 
 class NXTGDBServer:
 
+    # Socket read size.
+    recv_size = 1024
+
     # Maximum message size.
-    pack_size = 62
+    pack_size = 61
     
     # Debug command header, no reply.
     debug_command = 0x8d
-    segment_no = 0
 
     def __init__ (self, port):
         """Initialise server."""
         self.port = port
+        self.in_buf = ''
 
-    def pack (self, data):
+    def pack (self, data, segment_no):
         """Return packed data to send to NXT."""
         # Insert command and length.
         assert len (data) <= self.pack_size
-        return struct.pack ('BBB', self.debug_command, self.segment_no, len (data)) + data
+        return struct.pack ('BBB', self.debug_command, segment_no, len (data)) + data
 
     def unpack (self, data):
         """Return unpacked data from NXT."""
         # May be improved, for now, check command and announced length.
-        if len (data) < 2:
+        if len (data) < 3:
             return ''
-        header, segment_no, body = data[0:3], data[3:]
-        command, self.segment_no, length = struct.unpack ('BBB', header)
-        if command != self.debug_command or length != len (body) or (self.segment_no != 0):
+        header, body = data[0:3], data[3:]
+        command, segment_no, length = struct.unpack ('BBB', header)
+        if command != self.debug_command or length != len (body) or segment_no != 0:
             return ''
         return body
+
+    def segment (self, data):
+        """Split datas in GDB commands and make segments with each command."""
+        segs = [ ]
+        self.in_buf += data
+        end = self.in_buf.find ('#')
+        # Is # found and enough place for the checkum?
+        while end >= 0 and end < len (self.in_buf) - 2:
+            msg, self.in_buf = self.in_buf[0:end + 3], self.in_buf[end + 3:]
+            assert msg[0] == '$', "not a GDB command"
+            # Make segments.
+            seg_no = 0
+            while msg:
+                seg, msg = msg[0:self.pack_size], msg[self.pack_size:]
+                seg_no += 1
+                if not msg: # Last segment.
+                    seg_no = 0
+                segs.append (self.pack (seg, seg_no))
+            # Look for next one.
+            end = self.in_buf.find ('#')
+        return segs
 
     def run (self):
         """Endless run loop."""
@@ -79,15 +103,18 @@ class NXTGDBServer:
                 for c in rlist:
                     assert c is client
                     # Data from client, read it and forward it to NXT brick.
-                    data = client.recv (self.pack_size)
+                    data = client.recv (self.recv_size)
                     if data:
-                        brick.sock.send (self.pack (data))
+                        segments = self.segment (data)
+                        for s in segments:
+                            brick.sock.send (s)
                     else:
                         client.close ()
                         client = None
                 # Is there something from NXT brick?
                 try:
                     data = self.unpack (brick.sock.recv ())
+                    # We don't handle segmented messages yet!
                     if data:
                         client.send (data)
                 except usb.USBError as e:
