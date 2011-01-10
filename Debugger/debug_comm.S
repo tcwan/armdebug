@@ -43,7 +43,7 @@ debug_segmentTxNum:				/* Current Tx Segment Number */
 .align 4
 
 nxt_usbcmd_header:
-	.byte	USB_NXT_TELEGRAM_RESP, USB_NXT_RESPONSE_GDB, 0x00, 0x00		/* padded to 4 bytes */
+	.byte	USB_NXT_TELEGRAM_RESP, 0x00, 0x00		/* padded to 3 bytes */
 
 hex2char_lut:
 	.ascii	"0123456789ABCDEF"

@@ -42,7 +42,6 @@
 #define USB_NXT_SEGNUM_OFFSET           1
 #define USB_NXT_TELEGRAMSIZE_OFFSET     2
 
-#define USB_NXT_TELEGRAM_DC_RESP        0x8d
 #define USB_NXT_TELEGRAM_RESP           0x8d
 
 #define USB_GDBMSG_START                3                       /* Offset into USB Telegram buffer */
