@@ -42,14 +42,14 @@
 #define USB_NXT_SEGNUM_OFFSET           1
 #define USB_NXT_TELEGRAMSIZE_OFFSET     2
 
-#define USB_NXT_TELEGRAM_RESP           0x8d
+#define USB_NXT_TELEGRAMTYPE            0x8d                    /* GDB debugger specific, no Response required */
 
 #define USB_GDBMSG_START                3                       /* Offset into USB Telegram buffer */
-#define USB_GDBMSG_CHKSUMOFFSET         3                       /* to be subtracted from USB_NXT_TELEGRAMSIZE_OFFSET */
 
 #define MSG_NUMSEGMENTS  3                                      /* For packet transfers */
 #define MSG_SEGMENTSIZE (USB_BUFSIZE - USB_GDBMSG_START)        /* 61 bytes per segment */
 #define MSGBUF_SIZE     (MSG_SEGMENTSIZE*MSG_NUMSEGMENTS)       /* Debug Message Buffer Size, 61 x 3 = 183 chars = ~80 bytes of actual data */
+#define MSGBUF_CHKSUMOFFSET             3                       /* to be subtracted from message length */
 
 #define MSGBUF_STARTCHAR '$'
 #define MSGBUF_ACKCHAR   '+'

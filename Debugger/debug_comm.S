@@ -34,6 +34,15 @@ debug_msgRxBufPtr:
 debug_msgTxBufPtr:
 	.word	0x0
 
+
+debug_msgRxBuf_AppendPtr:
+    .word   0x0
+debug_msgTxBuf_AppendPtr:
+    .word   0x0
+
+    .equ    RXAPPENDPTR_OFFSET, (debug_msgRxBuf_AppendPtr - debug_msgRxBufPtr)
+    .equ     TXAPPENDPTR_OFFSET, (debug_msgTxBuf_AppendPtr - debug_msgTxBufPtr)
+
 debug_segmentRxNum:				/* Current Rx Segment Number */
 	.word	0x0
 debug_segmentTxNum:				/* Current Tx Segment Number */
@@ -43,7 +52,7 @@ debug_segmentTxNum:				/* Current Tx Segment Number */
 .align 4
 
 nxt_usbcmd_header:
-	.byte	USB_NXT_TELEGRAM_RESP, 0x00, 0x00		/* padded to 3 bytes */
+	.byte	USB_NXT_TELEGRAMTYPE, 0x00, 0x00		/* padded to 3 bytes */
 
 hex2char_lut:
 	.ascii	"0123456789ABCDEF"
@@ -325,17 +334,18 @@ _exit_conv_ascii2byte:
 
  	.global dbg__comm_init
 /* dbg__comm_init
- *		Initialize communications channel.
- *		On Entry:
- *			R0: MSG Rx Buf Pointer
- *			R1: MSG Tx Buf Pointer
+ *      Initialize communications channel.
+ *      On Entry:
+ *          R0: MSG Rx Buf Pointer
+ *          R1: MSG Tx Buf Pointer
  */
 
 dbg__comm_init:
 #ifdef __NXOS__
 	stmfd	sp!, {lr}
-	ldr		r2, =debug_msgRxBufPtr
-	stmia	r2, {r0,r1}							/* Assume that the 2 pointers are consecutive */
+	ldr     r2, =debug_msgRxBufPtr
+	stmia   r2!, {r0, r1}          /* debug_msgRxBufPtr and debug_msgTxBufPtr */
+	stmia   r2!, {r0, r1}          /* debug_msgRxBuf_AppendPtr and debug_msgTxBuf_AppendPtr */
 	bl		_dbg__usbbuf_reset
 	ldmfd	sp!, {pc}
 
@@ -344,7 +354,7 @@ _dbg__usbbuf_reset:
 	ldr		r0, =debug_InUSBBuf
 	mov		r1, #USB_BUFSIZE
 	ldr		r2, =nx_usb_read
-	mov		lr,pc
+	mov		lr, pc
 	bx		r2
 	ldmfd	sp!, {pc}
 #else
@@ -352,102 +362,188 @@ _dbg__usbbuf_reset:
 	bx		lr
 #endif
 
-	.global	dbg__hasDebugMsg
-/* dbg__hasDebugMsg
- *		Checks for pending Debugger Message (Non-Blocking).
+/* _dbg_reset_msgTxBuf_AppendPtr
+ *      Internal variable to reset pointers.
+ *      On Exit:
+ *          R0: debug_msgTxBuf_AppendPtr
+ *          R1: destroyed
+ */
+_dbg_reset_msgTxBuf_AppendPtr:
+    ldr     r1, =debug_msgTxBufPtr              /* Should not be modified */
+    ldr     r0, [r1]
+    str     r0, [r1, #TXAPPENDPTR_OFFSET]
+    mov     pc, lr
+
+/* _dbg__usbHasMsg
+ *		Internal Segment Reassembly Routine.
  *		On exit:
- *			r0: !0: (Availale Debugger Message Size), 0: no pending message
+ *			r0: !0: (Availale Telegram Message Size), 0: no incoming message/segment
  *			r1: message segment number
  */
-dbg__hasDebugMsg:
+_dbg__usbHasMsg:
 #ifdef __NXOS__
 	stmfd	sp!, {lr}
 	ldr		r2, =nx_usb_data_read
 	mov		lr,pc
-	bx		r2					/* Number of bytes read in R0 */
-	/* Note: The return value is the USB Buffer Size, includes NXT Direct Command Header */
-	/* FIXME: Need to check command type etc. before accepting it as a valid Debugger message */
+	bx		r2					    /* Number of bytes read in R0 */
+	/* Note: The return value in R0 is the USB Buffer Size, includes NXT Direct Command Header */
 	ldr		r2, =debug_InUSBBuf
-	ldrb	r0, [r2, #USB_NXT_TELEGRAMSIZE_OFFSET]
+	ldrb    r1, [r2, #USB_NXT_TELEGRAMTYPE_OFFSET]
+	cmp     r1, #USB_NXT_TELEGRAMTYPE
+	bne     invalid_USBMsg          /* Invalid telegram type, ignore */
+
+	ldrb	r1, [r2, #USB_NXT_TELEGRAMSIZE_OFFSET]
+	sub     r0, r0, r1              /* USB Buffer Size - Telegram Size = 3 (header size) */
+	cmp     r0, #USB_GDBMSG_START   /* Start offset is equal to header size */
+    bne     invalid_USBMsg          /* Invalid Message Length, ignore */
+
+    mov     r0, r1                  /* Telegram Message Size */
 	ldrb	r1, [r2, #USB_NXT_SEGNUM_OFFSET]
-	ldmfd	sp!, {pc}
+    b       _exit_dbg__usbHasMsg
+
+invalid_USBMsg:
+    mov   r0, #0
+_exit_dbg__usbHasMsg:
+    ldmfd   sp!, {pc}
 #else
-	/* FIXME: NXT Firmware support */
-	bx		lr
+    /* FIXME: NXT Firmware support */
+    bx      lr
 #endif
 
-	.global	dbg__getDebugMsg
-/* dbg__getDebugMsg
- *		Returns Debugger Message to calling routine after verifying and removing checksum (Blocking).
- *		On entry:
- *			r0: address of message buffer
- *			r1: maximum size of message buffer (incl ASCIIZ character)
- *		On exit:
- *			r0: address of message buffer with ASCIIZ terminated message, excluding '#<checksum>'
- *				(NULL if message error)
- *
+/* _copy_msg_from_usbbuf
+ *      Internal USB buffer copy routine, handles segment reassembly.
+ *      On entry:
+ *          r0: number of bytes to copy
+ *          r1: segment number
+ *      On exit:
+ *          r0: cummulative message length
+ *          r1: segment number
+ *          r2, r3: Destroyed
  */
- /* FIXME: This does not handle multiple segments currently, we just assume that everything is in one segment */
+_copy_msg_from_usbbuf:
+    stmfd   sp!, {r1,r4,r5,r6,lr}
+    movs    r4, r0
+    beq     _exit_copy_msg_from_usbbuf
+
+    ldr     r6, =debug_msgRxBufPtr              /* Address of Pointers */
+    ldr     r5, [r6]                            /* Rx buffer Start Address */
+    ldr     r2, [r6, #RXAPPENDPTR_OFFSET]       /* Append Pointer */
+
+    sub     r3, r2, r5                          /* r3: current length of message */
+    add     r3, r3, r4                          /* new cummulative length of message */
+    cmp     r3, #MSGBUF_SIZE
+    movhi   r4, #0                              /* Buffer overflow! */
+    strhi   r5, [r6, #RXAPPENDPTR_OFFSET]       /* Reset AppendPtr to beginning of Rx Buffer */
+    bhi     _exit_copy_msg_from_usbbuf
+
+    ldr     r3, =debug_InUSBBuf
+    add     r3, r3, #USB_GDBMSG_START
+    _dbg_memcpy r2, r3, r4                      /* r2 updated to point to next empty char slot in Rx buffer */
+    sub     r4, r2, r5                          /* r4: cummulative length of message */
+
+    /* Update debug_msgRxBuf_AppendPtr */
+    teq     r1, #0                              /* Check if this is last segment (segment 0) */
+    streq   r5, [r6, #RXAPPENDPTR_OFFSET]       /* Reset AppendPtr to beginning of Rx Buffer if so */
+    strne   r2, [r6, #RXAPPENDPTR_OFFSET]       /* Otherwise, update Append Pointer to receive next segment */
+
+_exit_copy_msg_from_usbbuf:
+    bl      _dbg__usbbuf_reset                  /* Next USB telegram transaction */
+    mov     r0, r4                              /* Return cummulative message length in R0 */
+    ldmfd   sp!, {r1,r4,r5,r6,pc}               /* Return segment number in R1 */
+
+
+/* _msgbuf_checksum
+ *      Internal routine to calculate checksum character buffer.
+ *      On entry:
+ *          r0: pointer to character buffer to checksum (assume ASCIIZ terminated)
+ *      On exit:
+ *          r0: pointer to character buffer after ASCIIZ
+ *          r1: checksum (8-bit binary)
+ *          r2: Destroyed
+ */
+_msgbuf_checksum:
+    mov     r1, #0                              /* clear checksum */
+1:  ldrb    r2, [r0], #1                        /* Iterate through buffer */
+    add     r1, r1, r2                          /* cummulative sum of char */
+    teq     r2, #0
+    bne     1b                                  /* until ASCIIZ found */
+    and     r1, #BYTE0                          /* Modulo 256 */
+    mov     pc, lr
+
+    .global dbg__getDebugMsg
+/* dbg__getDebugMsg
+ *      Retrieve pending Debugger Message (Non-Blocking).
+ *      On exit:
+ *          r0: !0: Valid GDB Message Size (excluding '#' and checksum), 0: no valid message (yet)
+ *          r1, r2, r3: Destroyed
+ *      Note: If GDB Message exists, it is ASCIIZ terminated (referenced via pointer initialized using dbg__comm_init)
+ */
 dbg__getDebugMsg:
 #ifdef __NXOS__
-	stmfd	sp!, {r4,r5,lr}
-	bl		dbg__hasDebugMsg
-	cmp		r0, #0
-	ble		_exit_getDebugMsg		/* Zero length message, skip */
-	teq		r1, #0
-	bne		_exit_getDebugMsg		/* Don't process segmented messages for now */
+    stmfd   sp!, {r4,lr}
+    bl      _dbg__usbHasMsg                     /* r0: message length, r1: segment number */
+    teq     r0, #0
+    beq     exit_dbg__hasDebugMsg               /* no valid message, exit */
 
-_copy_msg_from_usbbuf:
-	/* FIXME: handle multiple segments */
-	/* FIXME: Need to check NXT Direct command type etc. before accepting it as a valid Debugger message */
-	ldr		r5, =debug_msgRxBufPtr
-	ldr		r5, [r5]
-	ldr		r1, =debug_InUSBBuf
-	ldrb	r2, [r1, #USB_GDBMSG_START]
-	mov		r3, #MSGBUF_STARTCHAR
-	teq		r2, r3
-	bne		_exit_getDebugMsg		/* Debugger Message does not have valid start char '$' */
-	ldrb	r2, [r1, r0]
-	cmp		r2, #0					/* Check for NULL (in last segment) */
-	bne		_exit_getDebugMsg		/* Debugger Message does not have valid terminating NULL char */
-	sub		r3, r0, #USB_GDBMSG_CHKSUMOFFSET	/* Message Length - 3 = '#' offset */
-	ldrb	r2, [r1, r3]
-	mov		r4, #0
-	strb	r4, [r1, r3]			/* Zero out '#' char for checksum calc later */
-	mov		r3, #MSGBUF_CHKSUMCHAR
-	teq		r2, r3
-	bne		_exit_getDebugMsg		/* Debugger Message does not have valid checksum char '#' */
+    ldr     r4, =debug_segmentRxNum
+    ldr     r2, [r4]                            /* Get current Segment Number */
+    add     r2, r2, #1                          /* Expected Segment Number for comparison */
+    teq     r1, #0
+    streq   r1, [r4]                            /* Update current Segment Number with 0 since it is the last segment */
+    beq     _hasMsg2Copy
+    cmp     r1, #MSG_NUMSEGMENTS                /* Segment Number < MSG_NUMSEGMENTS? */
+    bhs     _invalid_segment
+    teq     r1, r2                              /* Valid Segment Number, check against Expected Segment Number */
+    beq     _hasMsg2Copy                        /* Segment Number matches Expected Segment Number, update buffers */
 
-	/* Message Buffer copy */
-	mov		r3, r0					/* Setup size param for memcpy macro */
-	mov		r2, r5					/* Message Rx Buffer Address */
-	add		r1, r1, #USB_GDBMSG_START
-	_dbg_memcpy	r2, r1, r3			/* This copies over the checksum which follows the inserted NULL char */
+_invalid_segment:
+    bl      _dbg__usbbuf_reset                  /* Invalid, Next USB telegram transaction */
+    mov     r0, #0                              /* Reset Segment Number */
+    str     r0, [r4]                            /* Update current Segment Number with 0 since it is the last segment */
+    b       exit_dbg__hasDebugMsg               /* Exit using R0 = 0 (no message) */
 
-	/* Perform Checksum Verification */
-	mov		r0, r5					/* Message Rx Buffer Address */
-	bl		_dbg__calcChecksum		/* Checksum in R1 */
+_hasMsg2Copy:
+    str     r1, [r4]                            /* Update current Segment Number */
+    bl      _copy_msg_from_usbbuf               /* r0: cummulative message length, r1: segment number */
+    teq     r1, #0
+    bne     exit_dbg__hasNoDebugMsg             /* Message not complete yet, exit */
 
-	/* At this point, we have the checksum of characters in R0, and R1 points to Incoming Checksum char(s) */
-	mov		r3, r0					/* Keep calculated checksum in R3 */
-	mov		r0, r1					/* Move pointer to R0 for conversion */
-	bl		ascii2byte				/* Convert Incoming Checksum from ASCII to byte value in R0 */
-	teq		r0, r3					/* They must agree */
-	beq		_exit_getDebugMsg		/* Debugger Message has valid checksum */
+    /* Check for valid GDB message */
+    mov     r4, r0                              /* keep message length in R4, assume to be within MSGBUF_SIZE */
+    ldr     r3, =debug_msgRxBufPtr
+    ldr     r3, [r3]                            /* Rx buffer Start Address */
 
-	/* Invalid message checksum, zero out buffer */
-	mov		r0, #0
-	ldr		r2, =debug_msgRxBufPtr
-	ldr		r2, [r2]
-	strb	r0, [r2]
+    ldrb    r0, [r3]
+    teq     r0, #MSGBUF_STARTCHAR               /* Look for '$' */
+    bne     exit_dbg__hasNoDebugMsg             /* No start char '$', exit */
 
-_exit_getDebugMsg:
-	bl		_dbg__usbbuf_reset	/* Next USB telegram transaction */
-	ldmfd	sp!, {r4,r5,pc}
+    sub     r2, r4, #MSGBUF_CHKSUMOFFSET        /* Look for '#': Message Length - 3 = '#' offset */
+    ldrb    r0, [r3, r2]
+    teq     r0, #MSGBUF_CHKSUMCHAR
+    bne     exit_dbg__hasNoDebugMsg             /* No checksum char '#', exit */
+
+    mov     r1, #0
+    strb    r1, [r3, r2]                        /* Zero out '#' char for checksum calc later */
+
+    add     r0, r3, #1                          /* Checksum packet data (excl '$') */
+    bl      _msgbuf_checksum                    /* R1: calculated checksum, R0: pointer to checksum in receive buffer */
+    bl      ascii2byte                          /* R0: received checksum */
+    teq     r0, r1
+    subeq   r0, r4, #MSGBUF_CHKSUMOFFSET        /* Update length value to return */
+    beq     exit_dbg__hasDebugMsg               /* Valid Checksum, return */
+
+exit_dbg__hasNoDebugMsg:
+    mov     r0, #0                              /* Incomplete, invalid or wrong checksum */
+exit_dbg__hasDebugMsg:
+	ldmfd	sp!, {r4,pc}
 #else
 	/* FIXME: NXT Firmware support */
 	bx		lr
 #endif
+
+
+
+@@@@@@@@@@@@@@@@@
 
 	.global dbg__putDebugMsg
 /* dbg__putDebugMsg
@@ -489,29 +585,4 @@ dbg__putDebugMsg:
 	bx		lr
 #endif
 
-/* _dbg__calcChecksum
- *		Calculate Checksum for NULL terminated message
- *		On entry:
- *			r0: address of message buffer with ASCIIZ terminated message, without '#<checksum>'
- *		On exit:
- *			r0: checksum modulo 256
- *			r1: pointer to buffer following ASCIIZ message character
- *			r2: destroyed
- */
-_dbg__calcChecksum:
-	mov		r2, #0					/* Intermediate checksum calculation */
-1:
-	ldrb	r1, [r0], #1
-	teq		r1, #0
-	addne	r2, r1, r2				/* sum of each character in message */
-	bne		1b
 
-	mov		r1, r0					/* Keep pointer in R1 for return parameter */
-	and		r0, r2, #BYTE0			/* Checksum is sum of char values modulo 256 */
-	bx		lr
-
-
-/* Private functions (if needed) */
-_dbg__getChar:
-_dbg__putChar:
-	bx		lr
