@@ -341,6 +341,8 @@ debug_armComplexCCTable:
  *	Each Breakpoint State will initially be zeroed.
  *
  */
+ /* FIXME: The Debugger Stack Frame is probably not 100% consistent with the order that
+    GDB expects in the g/G messages. CSPR is probably located above R15 */
 
 /****************************************************************************
  *
