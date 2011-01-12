@@ -34,14 +34,13 @@ debug_msgRxBufPtr:
 debug_msgTxBufPtr:
 	.word	0x0
 
-
 debug_msgRxBuf_AppendPtr:
     .word   0x0
 debug_msgTxBuf_AppendPtr:
     .word   0x0
 
     .equ    RXAPPENDPTR_OFFSET, (debug_msgRxBuf_AppendPtr - debug_msgRxBufPtr)
-    .equ     TXAPPENDPTR_OFFSET, (debug_msgTxBuf_AppendPtr - debug_msgTxBufPtr)
+    .equ    TXAPPENDPTR_OFFSET, (debug_msgTxBuf_AppendPtr - debug_msgTxBufPtr)
 
 debug_segmentRxNum:				/* Current Rx Segment Number */
 	.word	0x0
@@ -149,76 +148,108 @@ exit_char2hex:
 	bx		lr
 
 /* byte2ascii_cont
- *		This routine accepts a byte value in R0(7:0), and a ASCII buffer pointer in R1,
- *		and stores the ASCII equivalent byte value in the buffer pointed to by R1.
- *		Note: On return, R1 points to next empty char slot in buffer (i.e., R1 is modified)
- *			  and R0 is destroyed.
+ *      (Shared routine, does not perform sanity checks)
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *          R1[7:0]: byte value
+ *      On exit:
+ *          R0: Address of next empty char slot in buffer
+ *          R1: Destroyed
+ *
+ *      This routine accepts an ASCII buffer pointer in R0 and a byte value in R1,
+ *		and stores the ASCII equivalent byte value in the buffer pointed to by R0.
+ *		Note: On return, R0 points to next empty char slot in buffer
  */
 byte2ascii_cont:
 	stmfd	sp!, {r2,r3,r4, lr}
-	mov		r2, r0, lsl #24			/* Keep copy of input byte value R0(7:0), shifted to MSB R2(31:24) */
+	lsl		r2, r1, #24			    /* Keep copy of input byte value R1[7:0], shifted to MSB R2[31:24] */
 	mov		r4, #2					/* Loop counter */
 	_hex2char_lut	r3				/* initialize LUT pointer */
-1:	mov		r0, r2, ror #28			/* Rotate MSNibble R2(31:28) into LSNibble position R0(3:0) */
-	and		r0, r0, #NIBBLE0		/* Mask out everything else */
-	_hex2char_cont	r0, r3			/* Convert nibble to ASCII char */
-	strb	r0, [r1], #1
+1:	ror		r1, r2, #28 			/* Rotate MSNibble R2[31:28] into LSNibble position R1[3:0] */
+	and		r1, r1, #NIBBLE0		/* Mask out everything else */
+	_hex2char_cont	r1, r3			/* Convert nibble to ASCII char */
+	strb	r1, [r0], #1
 	subs	r4, r4, #1				/* decrement loop counter */
 	bne		1b
 	ldmfd	sp!, {r2,r3,r4, pc}
 
 /* byte2ascii
- *		This routine accepts a byte value in R0(7:0), and a ASCII buffer pointer in R1,
- *		and stores the ASCII equivalent byte value in the buffer pointed to by R1.
- *		Note: On return, R1 points to the end of the ASCIIZ string (i.e. NULL character)
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *          R1[7:0]: Byte value
+ *      On exit:
+ *          R0: Address of next empty char slot in buffer
+ *          R1: Original Address of Buffer
+ *
+ *		This routine accepts an ASCII buffer pointer in R0 and a byte value in R1,
+ *		and stores the ASCII equivalent byte value in the buffer pointed to by R0.
+ *		Note: On return, R0 points to the next empty char slot in buffer
  */
 	.global	byte2ascii
 
 byte2ascii:
-	stmfd	sp!, {r1, lr}			/* Keep ASCII buffer pointer */
-	and		r0, #BYTE0				/* sanitize input */
+	stmfd	sp!, {r0, lr}			/* Keep ASCII buffer pointer */
+	and		r1, #BYTE0				/* sanitize input */
 	bl		byte2ascii_cont
-	_asciiz	r0, r1
-	ldmfd	sp!, {r0, pc}			/* return string pointer in R0 */
+	ldmfd	sp!, {r1, pc}			/* return original string pointer in R1 */
 
 /* halfword2ascii
- *		This routine accepts a halfword value in R0(15:0), and a ASCII buffer pointer in R1,
- *		and returns the ASCIIZ equivalent byte value in the buffer pointed to by R0.
- *		Note: On return, R1 points to the end of the ASCIIZ string (i.e. NULL character)
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *          R1[15:0]: Halfword value
+ *      On exit:
+ *          R0: Address of next empty char slot in buffer
+ *          R1: Original Address of Buffer
+ *
+ *      This routine accepts an ASCII buffer pointer in R0 and a halfword value in R1,
+ *      and stores the ASCII equivalent halfword value in the buffer pointed to by R0.
+ *      Note: On return, R0 points to the next empty char slot in buffer
  */
 	.global	halfword2ascii
 halfword2ascii:
-	stmfd	sp!, {r1,r2,r3, lr}		/* Keep ASCII buffer pointer */
-	mov		r2, r0, lsl #16			/* copy of input halfword value R0(15:0), shifted to MSH R2(31:16) */
+	stmfd	sp!, {r0,r2,r3, lr}		/* Keep ASCII buffer pointer */
+	mov		r2, r1, lsl #16			/* copy of input halfword value R1[15:0], shifted to MSH R2[31:16] */
 	mov		r3, #2					/* Loop Counter */
 	b		_conv_byte2ascii		/* goto Byte conversion loop */
 
 /* word2ascii
- *		This routine accepts a word value in R0(31:0), and a ASCII buffer pointer in R1,
- *		and returns the ASCIIZ equivalent byte value in the buffer pointed to by R0.
- *		Note: On return, R1 points to the end of the ASCIIZ string (i.e. NULL character)
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *          R1[31:0]: Word value
+ *      On exit:
+ *          R0: Address of next empty char slot in buffer
+ *          R1: Original Address of Buffer
+ *
+ *      This routine accepts an ASCII buffer pointer in R0 and a word value in R1,
+ *      and stores the ASCII equivalent word value in the buffer pointed to by R0.
+ *      Note: On return, R0 points to the next empty char slot in buffer
  */
 	.global	word2ascii
 word2ascii:
-	stmfd	sp!, {r1,r2,r3, lr}		/* Keep ASCII buffer pointer */
-	mov		r2, r0					/* copy of input word value R0(31:0) */
+	stmfd	sp!, {r0,r2,r3, lr}		/* Keep ASCII buffer pointer */
+	mov		r2, r1					/* copy of input word value R1[31:0] */
 	mov		r3, #4					/* Loop Counter */
 
 	/* Fall through to byte coversion loop */
 
 _conv_byte2ascii:
-	mov		r0, r2, ror #24			/* Rotate MSB R2(31:24) into LSB position R0(7:0) */
-	and		r0, #BYTE0			/* Mask out everything else */
-	bl		byte2ascii_cont
+	ror		r2, r2, #24			    /* Rotate MSB R2[31:24] into LSB position R2[7:0] */
+	and		r1, r2, #BYTE0			/* Copy byte value in R2[7:0] into R1 */
+	bl		byte2ascii_cont         /* R0: next ASCII buffer location pointer, R1: destroyed */
 	subs	r3, r3, #1
 	bne		_conv_byte2ascii
-	_asciiz	r0, r1
-	ldmfd	sp!, {r0,r2,r3, pc}
+	ldmfd	sp!, {r1,r2,r3, pc}
 
 
 /* ascii2byte
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *      On exit:
+ *          R0[7:0]: Byte value
+ *          R1: Address of next char slot in buffer
+ *
  *		This routine accepts an ASCII buffer pointer in R0,
- *		and returns the byte value in R0(7:0).
+ *		and returns the byte value in R0[7:0].
  *		Note: On return, R1 points to the ASCII buffer location after the current 2 chars.
  *		WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
  *				 otherwise it will return invalid results.
@@ -231,8 +262,14 @@ ascii2byte:
 	b		_conv_ascii2byte
 
 /* ascii2halfword
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *      On exit:
+ *          R0[15:0]: Halfword value
+ *          R1: Address of next char slot in buffer
+ *
  *		This routine accepts an ASCII buffer pointer in R0,
- *		and returns the word value in R0(15:0).
+ *		and returns the Halfword value in R0[15:0].
  *		Note: On return, R1 points to the ASCII buffer location after the current 4 chars.
  *		WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
  *				 otherwise it will return invalid results.
@@ -246,8 +283,14 @@ ascii2halfword:
 
 
 /* ascii2word
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *      On exit:
+ *          R0[31:0]: Word value
+ *          R1: Address of next char slot in buffer
+ *
  *		This routine accepts an ASCII buffer pointer in R0,
- *		and returns the word value in R0(31:0).
+ *		and returns the word value in R0[31:0].
  *		Note: On return, R1 points to the ASCII buffer location after the current 8 chars.
  *		WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
  *				 otherwise it will return invalid results.
@@ -263,7 +306,7 @@ ascii2word:
 _conv_ascii2byte:
 	teq		r0, #0
 	beq		_exit_conv_ascii2byte	/* exit if NULL pointer in R0 */
-	mov		r0, r1					/* Copy of ASCII buffer pointer */
+	mov		r1, r0					/* Copy of ASCII buffer pointer */
 	mov		r2, #0					/* Initialize results */
 2:	ldrb	r0, [r1], #1			/* Load ASCII char */
 	bl		char2hex				/* on return, hex value in R0 */
@@ -308,7 +351,7 @@ _exit_conv_ascii2byte:
  *				Offset M-2: MSB of Checksum
  *				Offset M-1: LSB of Checksum
  *
- *		The maximum size of a GDB Command packet is MSGBUF_SIZE - 5 ('$', '#', 2 byte checksum, trailing NULL char)
+ *		The maximum size of a GDB Command packet is MSGBUF_SIZE - 4 ('$', '#', 2 byte checksum)
  *
  *		GDB Response
  *		============
@@ -325,10 +368,10 @@ _exit_conv_ascii2byte:
  *				Offset M-2: MSB of Checksum
  *				Offset M-1: LSB of Checksum
  *
- *		The maximum size of a GDB Response packet is MSGBUF_SIZE - 6 ('-'/'+', '$', '#', 2 byte checksum, trailing NULL char)
+ *		The maximum size of a GDB Response packet is MSGBUF_SIZE - 5 ('-'/'+', '$', '#', 2 byte checksum)
  *
  *		Note: The Telegram Size is the actual size of the Message Data portion
- *			  (i.e., excludes the three header bytes, includes the GDB Command/Response Packet trailing NULL character
+ *			  (i.e., excludes the three header bytes, includes the GDB Command/Response Packet checksum bytes
  *					 in the last segment)
  */
 
@@ -459,31 +502,37 @@ _exit_copy_msg_from_usbbuf:
  *      On exit:
  *          r0: pointer to character buffer after ASCIIZ
  *          r1: checksum (8-bit binary)
- *          r2: Destroyed
+ *          r2: message length
+ *          r3: destroyed
  */
 _msgbuf_checksum:
     mov     r1, #0                              /* clear checksum */
-1:  ldrb    r2, [r0], #1                        /* Iterate through buffer */
-    add     r1, r1, r2                          /* cummulative sum of char */
-    teq     r2, #0
+    mov     r2, #0                              /* clear length */
+1:  ldrb    r3, [r0], #1                        /* Iterate through buffer */
+    add     r1, r1, r3                          /* cummulative sum of char */
+    teq     r3, #0
+    addne   r2, r2, #1                          /* increment message length */
     bne     1b                                  /* until ASCIIZ found */
     and     r1, #BYTE0                          /* Modulo 256 */
     mov     pc, lr
 
     .global dbg__getDebugMsg
 /* dbg__getDebugMsg
- *      Retrieve pending Debugger Message (Non-Blocking).
+ *      Retrieve pending Debugger Message if available (Non-Blocking).
+ *      On entry:
+ *          No parameters (assume pointers were initialized previously using dbg__comm_init)
  *      On exit:
- *          r0: !0: Valid GDB Message Size (excluding '#' and checksum), 0: no valid message (yet)
+ *          r0: >0 = Valid GDB Message Length (incl '$', excluding '#' and checksum),
+  *             0 = no valid message (yet), -1 = error
  *          r1, r2, r3: Destroyed
- *      Note: If GDB Message exists, it is ASCIIZ terminated (referenced via pointer initialized using dbg__comm_init)
+ *      Note: If GDB Message were returned, it is ASCIIZ terminated, does not include '#' and checksum
  */
 dbg__getDebugMsg:
 #ifdef __NXOS__
     stmfd   sp!, {r4,lr}
     bl      _dbg__usbHasMsg                     /* r0: message length, r1: segment number */
     teq     r0, #0
-    beq     exit_dbg__hasDebugMsg               /* no valid message, exit */
+    beq     exit_dbg__hasDebugMsg               /* no new message, exit with R0 = 0 */
 
     ldr     r4, =debug_segmentRxNum
     ldr     r2, [r4]                            /* Get current Segment Number */
@@ -499,14 +548,15 @@ dbg__getDebugMsg:
 _invalid_segment:
     bl      _dbg__usbbuf_reset                  /* Invalid, Next USB telegram transaction */
     mov     r0, #0                              /* Reset Segment Number */
-    str     r0, [r4]                            /* Update current Segment Number with 0 since it is the last segment */
-    b       exit_dbg__hasDebugMsg               /* Exit using R0 = 0 (no message) */
+    str     r0, [r4]                            /* Update current Segment Number with 0 to prepare for new message */
+    b       exit_dbg__debugMsgError             /* Exit with error */
 
 _hasMsg2Copy:
     str     r1, [r4]                            /* Update current Segment Number */
     bl      _copy_msg_from_usbbuf               /* r0: cummulative message length, r1: segment number */
     teq     r1, #0
-    bne     exit_dbg__hasNoDebugMsg             /* Message not complete yet, exit */
+    movne   r0, #0                              /* Incomplete message, ignore for now */
+    bne     exit_dbg__hasDebugMsg               /* Message not complete yet, exit */
 
     /* Check for valid GDB message */
     mov     r4, r0                              /* keep message length in R4, assume to be within MSGBUF_SIZE */
@@ -515,25 +565,29 @@ _hasMsg2Copy:
 
     ldrb    r0, [r3]
     teq     r0, #MSGBUF_STARTCHAR               /* Look for '$' */
-    bne     exit_dbg__hasNoDebugMsg             /* No start char '$', exit */
+    bne     exit_dbg__debugMsgError             /* No start char '$', exit with error */
 
     sub     r2, r4, #MSGBUF_CHKSUMOFFSET        /* Look for '#': Message Length - 3 = '#' offset */
     ldrb    r0, [r3, r2]
     teq     r0, #MSGBUF_CHKSUMCHAR
-    bne     exit_dbg__hasNoDebugMsg             /* No checksum char '#', exit */
+    bne     exit_dbg__debugMsgError             /* No checksum char '#', exit with error */
 
     mov     r1, #0
     strb    r1, [r3, r2]                        /* Zero out '#' char for checksum calc later */
 
     add     r0, r3, #1                          /* Checksum packet data (excl '$') */
-    bl      _msgbuf_checksum                    /* R1: calculated checksum, R0: pointer to checksum in receive buffer */
+    bl      _msgbuf_checksum                    /* R2: length (excl '$'), R1: calculated checksum, R0: pointer to checksum in receive buffer */
     bl      ascii2byte                          /* R0: received checksum */
     teq     r0, r1
-    subeq   r0, r4, #MSGBUF_CHKSUMOFFSET        /* Update length value to return */
-    beq     exit_dbg__hasDebugMsg               /* Valid Checksum, return */
+    bne     exit_dbg__debugMsgError             /* Checksums do not match, exit with error */
 
-exit_dbg__hasNoDebugMsg:
-    mov     r0, #0                              /* Incomplete, invalid or wrong checksum */
+    subeq   r0, r4, #MSGBUF_CHKSUMOFFSET        /* Update message length (incl '$') as return parameter */
+    add     r2, r2, #1                          /* expected message length (from _msgbuf_checksum) */
+    teq     r0, r2
+    beq     exit_dbg__hasDebugMsg               /* Valid length, return */
+
+exit_dbg__debugMsgError:
+    mov     r0, #MSGBUF_MSGERROR
 exit_dbg__hasDebugMsg:
 	ldmfd	sp!, {r4,pc}
 #else
@@ -542,23 +596,34 @@ exit_dbg__hasDebugMsg:
 #endif
 
 
-
-@@@@@@@@@@@@@@@@@
-
 	.global dbg__putDebugMsg
 /* dbg__putDebugMsg
  *		Sends Debugger Message from calling routine after appending checksum (Blocking) .
  *		On entry:
- *			r0: address of message buffer with ASCIIZ terminated message, without '#<checksum>'
+ *			No parameters (assume pointers were initialized previously using dbg__comm_init)
  *		On exit:
  *			r0: status (0: success, -1: error)
+ *      Note: GDB Message to be sent must be ASCIIZ terminated, does not include '#' and checksum
+ *            Response packets start with '+'/'-' followed by '$' (2 bytes prefix)
  */
 dbg__putDebugMsg:
 #ifdef __NXOS__
 	stmfd	sp!, {r4,lr}
 	/* Perform Checksum Calculation */
-	ldr		r4, =debug_OutUSBBuf
-	bl		_dbg__calcChecksum		/* Checksum in R0 */
+    ldr     r4, =debug_msgTxBufPtr
+    ldr     r4, [r4]                            /* Tx buffer Start Address */
+    add     r0, r4, #2                          /* skip '+'/'-' and '$' */
+    bl      _msgbuf_checksum                    /* R2: length (excl '+'/'-' and '$'), R1: calculated checksum, R0: pointer to checksum in tx buffer */
+#ifdef CHECK_TXLEN
+    add     r2, r2, #2
+#endif
+    mov     r3, #MSGBUF_CHKSUMCHAR
+    strb    r3, [r0, #-1]                       /* Insert '#' */
+    bl      byte2ascii                          /* On return, R1 points to location after checksum bytes */
+    sub     r0, r1, r4                          /* Calculate total message length (incl '+'/'-' and '$', '#' and checksum bytes */
+
+
+@@@@@@@@@@@@
 
 	/* At this point, we have the checksum of characters in R0, and R1 points to Outgoing Checksum char(s) */
 	mov		r2, #MSGBUF_CHKSUMCHAR
