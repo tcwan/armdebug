@@ -532,7 +532,7 @@ dbg__getDebugMsg:
     stmfd   sp!, {r4,lr}
     bl      _dbg__usbHasMsg                     /* r0: message length, r1: segment number */
     teq     r0, #0
-    beq     exit_dbg__hasDebugMsg               /* no new message, exit with R0 = 0 */
+    beq     exit_dbg__getDebugMsg               /* no new message, exit with R0 = 0 */
 
     ldr     r4, =debug_segmentRxNum
     ldr     r2, [r4]                            /* Get current Segment Number */
@@ -549,14 +549,14 @@ _invalid_segment:
     bl      _dbg__usbbuf_reset                  /* Invalid, Next USB telegram transaction */
     mov     r0, #0                              /* Reset Segment Number */
     str     r0, [r4]                            /* Update current Segment Number with 0 to prepare for new message */
-    b       exit_dbg__debugMsgError             /* Exit with error */
+    b       exit_dbg__getMsgError               /* Exit with error */
 
 _hasMsg2Copy:
     str     r1, [r4]                            /* Update current Segment Number */
     bl      _copy_msg_from_usbbuf               /* r0: cummulative message length, r1: segment number */
     teq     r1, #0
     movne   r0, #0                              /* Incomplete message, ignore for now */
-    bne     exit_dbg__hasDebugMsg               /* Message not complete yet, exit */
+    bne     exit_dbg__getDebugMsg               /* Message not complete yet, exit */
 
     /* Check for valid GDB message */
     mov     r4, r0                              /* keep message length in R4, assume to be within MSGBUF_SIZE */
@@ -565,30 +565,31 @@ _hasMsg2Copy:
 
     ldrb    r0, [r3]
     teq     r0, #MSGBUF_STARTCHAR               /* Look for '$' */
-    bne     exit_dbg__debugMsgError             /* No start char '$', exit with error */
+    bne     exit_dbg__getMsgError               /* No start char '$', exit with error */
 
     sub     r2, r4, #MSGBUF_CHKSUMOFFSET        /* Look for '#': Message Length - 3 = '#' offset */
     ldrb    r0, [r3, r2]
     teq     r0, #MSGBUF_CHKSUMCHAR
-    bne     exit_dbg__debugMsgError             /* No checksum char '#', exit with error */
+    bne     exit_dbg__getMsgError               /* No checksum char '#', exit with error */
 
     mov     r1, #0
     strb    r1, [r3, r2]                        /* Zero out '#' char for checksum calc later */
 
     add     r0, r3, #1                          /* Checksum packet data (excl '$') */
     bl      _msgbuf_checksum                    /* R2: length (excl '$'), R1: calculated checksum, R0: pointer to checksum in receive buffer */
-    bl      ascii2byte                          /* R0: received checksum */
-    teq     r0, r1
-    bne     exit_dbg__debugMsgError             /* Checksums do not match, exit with error */
+    mov     r3, r1                              /* Keep calculated checksum in R3 (R1 destroyed by ascii2byte) */
+    bl      ascii2byte                          /* R0: received checksum, R1: address of next buffer location */
+    teq     r0, r3                              /* Compare calculated checksum in R3 against received checksum in R0 */
+    bne     exit_dbg__getMsgError               /* Checksums do not match, exit with error */
 
     subeq   r0, r4, #MSGBUF_CHKSUMOFFSET        /* Update message length (incl '$') as return parameter */
     add     r2, r2, #1                          /* expected message length (from _msgbuf_checksum) */
     teq     r0, r2
-    beq     exit_dbg__hasDebugMsg               /* Valid length, return */
+    beq     exit_dbg__getDebugMsg               /* Valid length, return */
 
-exit_dbg__debugMsgError:
+exit_dbg__getMsgError:
     mov     r0, #MSGBUF_MSGERROR
-exit_dbg__hasDebugMsg:
+exit_dbg__getDebugMsg:
 	ldmfd	sp!, {r4,pc}
 #else
 	/* FIXME: NXT Firmware support */
@@ -615,12 +616,15 @@ dbg__putDebugMsg:
     add     r0, r4, #2                          /* skip '+'/'-' and '$' */
     bl      _msgbuf_checksum                    /* R2: length (excl '+'/'-' and '$'), R1: calculated checksum, R0: pointer to checksum in tx buffer */
 #ifdef CHECK_TXLEN
-    add     r2, r2, #2
+    add     r2, r2, #2                          /* r2: returned length from _msgbuf_checksum, added with prefix length */
+    sub     r3, r0, r4                          /* r3: calculated length from pointers (incl. prefix length) */
+    teq     r2, r3
+    bne     exit_dbg__putMsgError
 #endif
     mov     r3, #MSGBUF_CHKSUMCHAR
     strb    r3, [r0, #-1]                       /* Insert '#' */
-    bl      byte2ascii                          /* On return, R1 points to location after checksum bytes */
-    sub     r0, r1, r4                          /* Calculate total message length (incl '+'/'-' and '$', '#' and checksum bytes */
+    bl      byte2ascii                          /* On return, R0 points to location after checksum bytes, R1 is original pointer to checksum */
+    sub     r0, r0, r4                          /* Calculate total message length (incl '+'/'-' and '$', '#' and checksum bytes */
 
 
 @@@@@@@@@@@@
@@ -643,7 +647,10 @@ dbg__putDebugMsg:
 	add		r1, r4, #USB_GDBMSG_START
 	_dbg_memcpy	r1, r2, r3			/* This copies over the message + checksum which follows */
 
-	/* Message Buffer copy */
+
+exit_dbg__putMsgError:
+    mov     r0, #MSGBUF_MSGERROR
+exit_dbg__putDebugMsg:
 	ldmfd	sp!, {r4,pc}
 #else
 	/* FIXME: NXT Firmware support */
