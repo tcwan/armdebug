@@ -469,12 +469,11 @@ dbg__bkpt_offset_outofrange:
  *
  ****************************************************************************/
 dbg__bkpt_waitCMD:
-1:	bl		dbg__hasDebugMsg				/* Check for messages */
-	beq		1b								/* Busy wait */
-	bl		dbg__getDebugMsg				/* Read new message from Debugger, message buffer addr in R0, NULL if error */
-	teq		r0, #0
-	moveq	r0, #MSG_ERRCHKSUM				/* Message invalid, checksum error? */
-	beq		_dbg__cmdError					/* Send response to GDB server */
+1:	bl		dbg__getDebugMsg				/* Read new message from Debugger, message buffer addr in R0, NULL if error */
+	cmp		r0, #0
+	beq     1b                              /* No message yet, keep checking */
+	movlt	r0, #MSG_ERRCHKSUM				/* Message invalid, checksum error? */
+	blt		_dbg__cmdError					/* Send response to GDB server */
 /* Message now has $<packet info>\0 */
 	mov		r4, r0							/* Use R4 as Message Buffer pointer */
 	ldrb	r0, [r4], #1					/* Look for '$' */
