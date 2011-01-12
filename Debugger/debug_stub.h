@@ -51,6 +51,7 @@
 #define MSGBUF_SIZE     (MSG_SEGMENTSIZE*MSG_NUMSEGMENTS)       /* Debug Message Buffer Size, 61 x 3 = 183 chars = ~80 bytes of actual data */
 #define MSGBUF_CHKSUMOFFSET             3                       /* to be subtracted from message length */
 
+#define MSGBUF_CTRLC     0x03                                   /* For Out of Band Signaling: not implemented yet */
 #define MSGBUF_STARTCHAR '$'
 #define MSGBUF_ACKCHAR   '+'
 #define MSGBUF_NAKCHAR   '-'
@@ -59,6 +60,7 @@
 #define MSGBUF_CPSRREG   '!'
 #define MSGBUF_SETCHAR   '='
 #define MSGBUF_CHKSUMCHAR '#'
+#define MSGBUF_MSGERROR  -1
 #define MSGBUF_CMDINDEX_OUTOFRANGE_VAL     -1
 
 /*@}*/
