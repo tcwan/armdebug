@@ -597,6 +597,65 @@ exit_dbg__getDebugMsg:
 #endif
 
 
+/* _dbg__usbSendMsg
+ *      Internal Segment Fragmentation Routine.
+ *      On exit:
+ *          r0: >0 = number of bytes sent
+ *               0 = USB Tx busy
+ *              -1 = error
+ *          r1: message segment number
+ */
+_dbg__usbSendMsg:
+#ifdef __NXOS__
+    stmfd   sp!, {lr}
+    ldmfd   sp!, {pc}
+#else
+    /* FIXME: NXT Firmware support */
+    bx      lr
+#endif
+
+/* _copy_msg_to_usbbuf
+ *      Internal USB buffer copy routine, handles segment fragmentation.
+ *      On entry:
+ *          r0: number of bytes to copy
+ *          r1: segment number
+ *      On exit:
+ *          r0: cummulative message length
+ *          r1: segment number
+ *          r2, r3: Destroyed
+ */
+_copy_msg_to_usbbuf:
+    stmfd   sp!, {r1,r4,r5,r6,lr}
+    movs    r4, r0
+    beq     _exit_copy_msg_to_usbbuf
+
+@@@@@@@  needs to be revised
+
+    ldr     r6, =debug_msgTxBufPtr              /* Address of Pointers */
+    ldr     r5, [r6]                            /* Rx buffer Start Address */
+    ldr     r2, [r6, #TXAPPENDPTR_OFFSET]       /* Append Pointer */
+
+    sub     r3, r2, r5                          /* r3: current length of message */
+    add     r3, r3, r4                          /* new cummulative length of message */
+    cmp     r3, #MSGBUF_SIZE
+    movhi   r4, #0                              /* Buffer overflow! */
+    strhi   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Reset AppendPtr to beginning of Tx Buffer */
+    bhi     _exit_copy_msg_to_usbbuf
+
+    ldr     r3, =debug_OutUSBBuf
+    add     r3, r3, #USB_GDBMSG_START
+    _dbg_memcpy r3, r2, r4                      /* r2 updated to point to next empty char slot in Tx buffer */
+    sub     r4, r2, r5                          /* r4: cummulative length of message */
+
+    /* Update debug_msgRxBuf_AppendPtr */
+    teq     r1, #0                              /* Check if this is last segment (segment 0) */
+    streq   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Reset AppendPtr to beginning of Tx Buffer if so */
+    strne   r2, [r6, #TXAPPENDPTR_OFFSET]       /* Otherwise, update Append Pointer to receive next segment */
+
+_exit_copy_msg_to_usbbuf:
+    mov     r0, r4                              /* Return cummulative message length in R0 */
+    ldmfd   sp!, {r1,r4,r5,r6,pc}               /* Return segment number in R1 */
+
 	.global dbg__putDebugMsg
 /* dbg__putDebugMsg
  *		Sends Debugger Message from calling routine after appending checksum (Blocking) .
@@ -615,18 +674,24 @@ dbg__putDebugMsg:
     ldr     r4, [r4]                            /* Tx buffer Start Address */
     add     r0, r4, #2                          /* skip '+'/'-' and '$' */
     bl      _msgbuf_checksum                    /* R2: length (excl '+'/'-' and '$'), R1: calculated checksum, R0: pointer to checksum in tx buffer */
+
 #ifdef CHECK_TXLEN
     add     r2, r2, #2                          /* r2: returned length from _msgbuf_checksum, added with prefix length */
     sub     r3, r0, r4                          /* r3: calculated length from pointers (incl. prefix length) */
     teq     r2, r3
     bne     exit_dbg__putMsgError
 #endif
+
     mov     r3, #MSGBUF_CHKSUMCHAR
     strb    r3, [r0, #-1]                       /* Insert '#' */
     bl      byte2ascii                          /* On return, R0 points to location after checksum bytes, R1 is original pointer to checksum */
-    sub     r0, r0, r4                          /* Calculate total message length (incl '+'/'-' and '$', '#' and checksum bytes */
-
-
+    sub     r4, r0, r4                          /* R4 = Calculated total message length (incl '+'/'-' and '$', '#' and checksum bytes */
+    mov     r0, #0                              /* initial cummulative message length */
+_cont_putMsg:
+    cmp     r4, r0                              /* Check total message length against cummulative message length */
+    movlo   r0, r4                              /* if message length < MSG_SEGMENTSIZE, update number of bytes to send */
+    movhs   r0, #MSG_SEGMENTSIZE                /* else send MSG_SEGMENTSIZE bytes */
+    bl      _copy_msg_to_usbbuf
 @@@@@@@@@@@@
 
 	/* At this point, we have the checksum of characters in R0, and R1 points to Outgoing Checksum char(s) */
