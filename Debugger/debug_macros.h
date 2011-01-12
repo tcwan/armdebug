@@ -75,13 +75,14 @@
 
 
 /* _dbg_stpcpy
- *	_dbg_stpcpy macro
- *	On entry:
- *	  deststrptr: Destination string [Cannot be R0]
- *	  sourcestrptr: Source string [Cannot be R0]
- *	On exit:
- *	  deststrptr: Pointer to NULL character in destination string
- *	  R0: destroyed
+ *		_dbg_stpcpy macro
+ *		On entry:
+ *	  	  deststrptr: Destination string [Cannot be R0]
+ *		  sourcestrptr: Source string [Cannot be R0]
+ *		On exit:
+ *		  deststrptr: Pointer to NULL character in destination string
+ *	      sourcestrptr: Pointer to NULL character slot in source string
+ *		  R0: destroyed
  */
 	.macro  _dbg_stpcpy	 deststrptr, sourcestrptr
 1:	ldrb	r0, [\sourcestrptr], #1
@@ -98,7 +99,8 @@
  *        sourcestrptr: Source string [Cannot be R0]
  *        sizereg: Number of bytes to copy [Cannot be R0]
  *      On exit:
- *        deststrptr: Pointer to NULL character in destination string
+ *        deststrptr: Pointer to next character slot in destination string
+ *        sourcestrptr: Pointer to next character slot in source string
  *        R0: destroyed
  */
         .macro  _dbg_memcpy      deststrptr, sourcestrptr, sizereg
