@@ -630,6 +630,26 @@ _copy_msg_to_usbbuf:
     beq     _exit_copy_msg_to_usbbuf
 
 @@@@@@@  needs to be revised
+@@@@@@@@@@@@
+
+    /* At this point, we have the checksum of characters in R0, and R1 points to Outgoing Checksum char(s) */
+    mov     r2, #MSGBUF_CHKSUMCHAR
+    strb    r2, [r1, #-1]           /* Store checksum char '#' into buffer (overwriting ASCIIZ character) */
+    bl      byte2ascii              /* On return, R1 points to ASCIIZ character */
+
+    /* Calculate size of message to copy */
+    ldr     r2, =debug_msgTxBufPtr
+    ldr     r2, [r2]
+    sub     r3, r1, r2              /* calculate length of message */
+    add     r3, #1                  /* length is 1 more */
+    ldr     r1, =nxt_usbcmd_header
+    ldr     r0, [r1]
+    str     r0, [r4]                /* Straight copy of the header (Endianness issues?) */
+    /* FIXME: handle multiple segments */
+    strb    r3, [r4, #USB_NXT_TELEGRAMSIZE_OFFSET]  /* Update the size field */
+    add     r1, r4, #USB_GDBMSG_START
+    _dbg_memcpy r1, r2, r3          /* This copies over the message + checksum which follows */
+@@@@@@@@@@@@@@
 
     ldr     r6, =debug_msgTxBufPtr              /* Address of Pointers */
     ldr     r5, [r6]                            /* Rx buffer Start Address */
@@ -668,10 +688,11 @@ _exit_copy_msg_to_usbbuf:
  */
 dbg__putDebugMsg:
 #ifdef __NXOS__
-	stmfd	sp!, {r4,lr}
+	stmfd	sp!, {r4,r5,lr}
 	/* Perform Checksum Calculation */
-    ldr     r4, =debug_msgTxBufPtr
-    ldr     r4, [r4]                            /* Tx buffer Start Address */
+    ldr     r5, =debug_msgTxBufPtr              /* R5: data structure base pointer */
+    ldr     r4, [r5]                            /* Tx buffer Start Address */
+    str     r4, [r5, #TXAPPENDPTR_OFFSET]       /* Reset Tx buffer Append Pointer */
     add     r0, r4, #2                          /* skip '+'/'-' and '$' */
     bl      _msgbuf_checksum                    /* R2: length (excl '+'/'-' and '$'), R1: calculated checksum, R0: pointer to checksum in tx buffer */
 
@@ -686,37 +707,28 @@ dbg__putDebugMsg:
     strb    r3, [r0, #-1]                       /* Insert '#' */
     bl      byte2ascii                          /* On return, R0 points to location after checksum bytes, R1 is original pointer to checksum */
     sub     r4, r0, r4                          /* R4 = Calculated total message length (incl '+'/'-' and '$', '#' and checksum bytes */
-    mov     r0, #0                              /* initial cummulative message length */
+    cmp     r4, #MSG_SEGMENTSIZE                /* If total message length > MSG_SEGMENTSIZE */
+    mov     r1, #0                              /* Initialize Segment Number = 0 (last segment) first */
+    mov     r0, #0                              /* Initial cummulative message length */
+
+    /* We assume unsigned message lengths, so the arithmetic MUST NOT result in negative values */
 _cont_putMsg:
-    cmp     r4, r0                              /* Check total message length against cummulative message length */
-    movlo   r0, r4                              /* if message length < MSG_SEGMENTSIZE, update number of bytes to send */
-    movhs   r0, #MSG_SEGMENTSIZE                /* else send MSG_SEGMENTSIZE bytes */
+    cmp     r4, r0
+    movls   r0, #0                              /* R0: Exit status (success) */
+    bls     exit_dbg__putDebugMsg               /* If Total message length (r4) <= Cummulative message length (r0), we're done */
+    add     r2, r0, #MSG_SEGMENTSIZE            /* R2: calculate new Max cummulative message length */
+    cmp     r4, r2                              /* Check total message length (R4) against new Max cummulative message length (R2) */
+    subls   r0, r4, r0                          /* if total message length (R4) <= new Max cummulative message length (R2), send remainder */
+    movls   r1, #0                              /* Flag as last segment (Segment Number = 0) */
+    movhi   r0, #MSG_SEGMENTSIZE                /* else send MSG_SEGMENTSIZE bytes */
+    addhi   r1, r1, #1                          /* Increment Segment Number */
     bl      _copy_msg_to_usbbuf
-@@@@@@@@@@@@
-
-	/* At this point, we have the checksum of characters in R0, and R1 points to Outgoing Checksum char(s) */
-	mov		r2, #MSGBUF_CHKSUMCHAR
-	strb	r2, [r1, #-1]			/* Store checksum char '#' into buffer (overwriting ASCIIZ character) */
-	bl		byte2ascii				/* On return, R1 points to ASCIIZ character */
-
-	/* Calculate size of message to copy */
-	ldr		r2, =debug_msgTxBufPtr
-	ldr		r2, [r2]
-	sub		r3, r1, r2				/* calculate length of message */
-	add		r3, #1					/* length is 1 more */
-	ldr		r1, =nxt_usbcmd_header
-	ldr		r0, [r1]
-	str		r0, [r4]				/* Straight copy of the header (Endianness issues?) */
-	/* FIXME: handle multiple segments */
-	strb	r3, [r4, #USB_NXT_TELEGRAMSIZE_OFFSET]	/* Update the size field */
-	add		r1, r4, #USB_GDBMSG_START
-	_dbg_memcpy	r1, r2, r3			/* This copies over the message + checksum which follows */
-
+    b       _cont_putMsg
 
 exit_dbg__putMsgError:
     mov     r0, #MSGBUF_MSGERROR
 exit_dbg__putDebugMsg:
-	ldmfd	sp!, {r4,pc}
+	ldmfd	sp!, {r4,r5,pc}
 #else
 	/* FIXME: NXT Firmware support */
 	bx		lr
