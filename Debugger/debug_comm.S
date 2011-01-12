@@ -44,8 +44,6 @@ debug_msgTxBuf_AppendPtr:
 
 debug_segmentRxNum:				/* Current Rx Segment Number */
 	.word	0x0
-debug_segmentTxNum:				/* Current Tx Segment Number */
-	.word	0x0
 
 .data
 .align 4
@@ -626,54 +624,51 @@ _dbg__usbSendMsg:
  */
 _copy_msg_to_usbbuf:
     stmfd   sp!, {r1,r4,r5,r6,lr}
+    ldr     r6, =debug_msgTxBufPtr              /* Address of Pointers */
+    ldr     r5, [r6, #TXAPPENDPTR_OFFSET]       /* Retrieve Tx Append Pointer */
+
     movs    r4, r0
     beq     _exit_copy_msg_to_usbbuf
 
-@@@@@@@  needs to be revised
-@@@@@@@@@@@@
+#ifdef CHECK_TXLEN
+    add     r0, r4, #USB_GDBMSG_START   /* offset = header size */
+    cmp     r0, #USB_BUFSIZE
+    bhi     _exit_copy_msg_to_usbbuf    /* We let calling routine detect problem (segment number will increment) */
+#endif
 
-    /* At this point, we have the checksum of characters in R0, and R1 points to Outgoing Checksum char(s) */
-    mov     r2, #MSGBUF_CHKSUMCHAR
-    strb    r2, [r1, #-1]           /* Store checksum char '#' into buffer (overwriting ASCIIZ character) */
-    bl      byte2ascii              /* On return, R1 points to ASCIIZ character */
-
-    /* Calculate size of message to copy */
-    ldr     r2, =debug_msgTxBufPtr
-    ldr     r2, [r2]
-    sub     r3, r1, r2              /* calculate length of message */
-    add     r3, #1                  /* length is 1 more */
-    ldr     r1, =nxt_usbcmd_header
-    ldr     r0, [r1]
-    str     r0, [r4]                /* Straight copy of the header (Endianness issues?) */
-    /* FIXME: handle multiple segments */
-    strb    r3, [r4, #USB_NXT_TELEGRAMSIZE_OFFSET]  /* Update the size field */
-    add     r1, r4, #USB_GDBMSG_START
-    _dbg_memcpy r1, r2, r3          /* This copies over the message + checksum which follows */
-@@@@@@@@@@@@@@
-
-    ldr     r6, =debug_msgTxBufPtr              /* Address of Pointers */
-    ldr     r5, [r6]                            /* Rx buffer Start Address */
-    ldr     r2, [r6, #TXAPPENDPTR_OFFSET]       /* Append Pointer */
-
-    sub     r3, r2, r5                          /* r3: current length of message */
-    add     r3, r3, r4                          /* new cummulative length of message */
-    cmp     r3, #MSGBUF_SIZE
-    movhi   r4, #0                              /* Buffer overflow! */
-    strhi   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Reset AppendPtr to beginning of Tx Buffer */
-    bhi     _exit_copy_msg_to_usbbuf
-
+    /* Fill in USB Message Header */
     ldr     r3, =debug_OutUSBBuf
-    add     r3, r3, #USB_GDBMSG_START
-    _dbg_memcpy r3, r2, r4                      /* r2 updated to point to next empty char slot in Tx buffer */
-    sub     r4, r2, r5                          /* r4: cummulative length of message */
+    mov     r2, #USB_NXT_TELEGRAMTYPE
+    strb    r2, [r3], #1            /* Telegram type */
+    strb    r1, [r3], #1            /* Segment Number */
+    strb    r0, [r3], #1            /* Message Length */
 
-    /* Update debug_msgRxBuf_AppendPtr */
-    teq     r1, #0                              /* Check if this is last segment (segment 0) */
-    streq   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Reset AppendPtr to beginning of Tx Buffer if so */
-    strne   r2, [r6, #TXAPPENDPTR_OFFSET]       /* Otherwise, update Append Pointer to receive next segment */
+    mov     r2, r5                              /* Copy to R2 for updating */
+    _dbg_memcpy r3, r2, r4                      /* This copies over the message fragment, r3, r2 updated */
+    mov     r5, r2                              /* Updated Tx Append Pointer, keep in R5 for now */
+
+    /* Check USB bus status, transmit message if possible */
+    bl      nx_usb_is_connected                 /* R0 = True if USB is ready */
+    cmp     r0, #TRUE
+    ldrne   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Retrieve Original Tx Append Pointer */
+    bne     _exit_copy_msg_to_usbbuf
+
+    /* Actual transmission (blocking) */
+    ldr     r0, =debug_OutUSBBuf                /* data pointer parameter */
+    add     r1, r4, #USB_GDBMSG_START           /* USB buffer length (offset = header size) */
+    bl      nx_usb_write
+
+1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
+    cmp     r0, #TRUE
+    /* FIXME: implement timeout */
+    bne     1b                                  /* Busy Wait Loop */
+
+    /* successful transmission */
+    str     r5, [r6, #TXAPPENDPTR_OFFSET]       /* Update Tx Append Pointer to new position */
 
 _exit_copy_msg_to_usbbuf:
-    mov     r0, r4                              /* Return cummulative message length in R0 */
+    ldr     r6, [r6]                            /* Retrieve Tx Buffer Start Address */
+    sub     r0, r5, r6                          /* Return calculated cummulative message length (R0) */
     ldmfd   sp!, {r1,r4,r5,r6,pc}               /* Return segment number in R1 */
 
 	.global dbg__putDebugMsg
@@ -710,6 +705,7 @@ dbg__putDebugMsg:
     cmp     r4, #MSG_SEGMENTSIZE                /* If total message length > MSG_SEGMENTSIZE */
     mov     r1, #0                              /* Initialize Segment Number = 0 (last segment) first */
     mov     r0, #0                              /* Initial cummulative message length */
+    mov     r5, #0                              /* Previous cummulative message length */
 
     /* We assume unsigned message lengths, so the arithmetic MUST NOT result in negative values */
 _cont_putMsg:
@@ -722,7 +718,12 @@ _cont_putMsg:
     movls   r1, #0                              /* Flag as last segment (Segment Number = 0) */
     movhi   r0, #MSG_SEGMENTSIZE                /* else send MSG_SEGMENTSIZE bytes */
     addhi   r1, r1, #1                          /* Increment Segment Number */
-    bl      _copy_msg_to_usbbuf
+    cmp     r1, #MSG_NUMSEGMENTS
+    bhs     exit_dbg__putMsgError               /* If Segment Number >= MSG_NUMSEGMENTS, flag error */
+    bl      _copy_msg_to_usbbuf                 /* R0: cummulative message length, R1: segment number */
+    teq     r5, r0                              /* Check if we managed to transmit the previous message */
+    beq     exit_dbg__putMsgError               /* No, flag error */
+    movne   r5, r0                              /* Update previous cummulative message length */
     b       _cont_putMsg
 
 exit_dbg__putMsgError:

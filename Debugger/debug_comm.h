@@ -27,7 +27,7 @@
 
 #ifdef __NXOS__
 
-  .extern       nx_usb_is_connected
+  .extern		nx_usb_is_connected
   .extern       nx_usb_can_write
   .extern       nx_usb_write
   .extern       nx_usb_data_written
