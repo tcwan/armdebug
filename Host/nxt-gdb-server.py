@@ -55,9 +55,9 @@ class NXTGDBServer:
             return ''
         header, body = data[0:3], data[3:]
         command, segment_no, length = struct.unpack ('BBB', header)
-        if command != self.debug_command or length != len (body) or segment_no != 0:
-            return ''
-        return body
+        if command != self.debug_command or length != len (body):
+            return '', segment_no
+        return body, segment_no
 
     def segment (self, data):
         """Split datas in GDB commands and make segments with each command."""
@@ -79,7 +79,19 @@ class NXTGDBServer:
             # Look for next one.
             end = self.in_buf.find ('#')
         return segs
-
+        
+    def reassemble (self, sock):
+        msg = ''
+        prev_segno = 0
+        segno = 1  # force initial pass through while loop
+        while (segno != 0):
+            s, segno = self.unpack (sock.recv ())
+            if (segno != 0):
+                assert(segno == (prev_segno + 1)), "segno = %s, prev_segno = %s" % (segno, prev_segno)
+                prev_segno = segno
+            msg.append(s)              
+        return msg
+        
     def run (self):
         """Endless run loop."""
         # Create the listening socket.
@@ -113,10 +125,10 @@ class NXTGDBServer:
                         client = None
                 # Is there something from NXT brick?
                 try:
-                    data = self.unpack (brick.sock.recv ())
-                    # We don't handle segmented messages yet!
+                    data = reassemble(brick.sock)
                     if data:
                         client.send (data)
+                        data = ''
                 except usb.USBError as e:
                     # Some pyusb are buggy, ignore some "errors".
                     if e.args != ('No error', ):
