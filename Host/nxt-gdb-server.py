@@ -25,6 +25,7 @@ import struct
 DEFAULT_PORT = 2828
 SELECT_TIMEOUT = 0.1
 DEBUG = True
+NXT_RECV_ERR = -1
 
 class NXTGDBServer:
 
@@ -52,11 +53,11 @@ class NXTGDBServer:
         """Return unpacked data from NXT."""
         # May be improved, for now, check command and announced length.
         if len (data) < 3:
-            return ''
+            return '', NXT_RECV_ERR
         header, body = data[0:3], data[3:]
         command, segment_no, length = struct.unpack ('BBB', header)
         if command != self.debug_command or length != len (body):
-            return '', segment_no
+            return '', NXT_RECV_ERR
         return body, segment_no
 
     def segment (self, data):
@@ -83,13 +84,18 @@ class NXTGDBServer:
     def reassemble (self, sock):
         msg = ''
         prev_segno = 0
-        segno = 1  # force initial pass through while loop
-        while (segno != 0):
-            s, segno = self.unpack (sock.recv ())
-            if (segno != 0):
-                assert(segno == (prev_segno + 1)), "segno = %s, prev_segno = %s" % (segno, prev_segno)
-                prev_segno = segno
-            msg.append(s)              
+        segno = NXT_RECV_ERR  # force initial pass through while loop
+        while segno != 0:
+            try:
+                s, segno = self.unpack (sock.recv ())
+                if segno >= 0:
+                    assert segno == (prev_segno + 1), "segno = %s, prev_segno = %s" % (segno, prev_segno)
+                    prev_segno = segno
+                    msg.append(s)              
+            except usb.USBError as e:
+                # Some pyusb are buggy, ignore some "errors".
+                if e.args != ('No error', ):
+                    raise e
         return msg
         
     def run (self):
@@ -117,6 +123,8 @@ class NXTGDBServer:
                     # Data from client, read it and forward it to NXT brick.
                     data = client.recv (self.recv_size)
                     if data:
+                        if DEBUG:
+                            print "[GDB->NXT] %s" % data
                         segments = self.segment (data)
                         for s in segments:
                             brick.sock.send (s)
@@ -124,15 +132,12 @@ class NXTGDBServer:
                         client.close ()
                         client = None
                 # Is there something from NXT brick?
-                try:
-                    data = reassemble(brick.sock)
-                    if data:
-                        client.send (data)
-                        data = ''
-                except usb.USBError as e:
-                    # Some pyusb are buggy, ignore some "errors".
-                    if e.args != ('No error', ):
-                        raise e
+                data = reassemble(brick.sock)
+                if data:
+                    if DEBUG:
+                        print "[NXT->GDB] %s" % data
+                    client.send (data)
+                    data = ''
             print "Connection closed, waiting for GDB connection on port %s..." % self.port
 
 if __name__ == '__main__':
