@@ -52,6 +52,8 @@ class NXTGDBServer:
     def unpack (self, data):
         """Return unpacked data from NXT."""
         # May be improved, for now, check command and announced length.
+        if len (data) == 0:
+            return '', 0  # No message, exit
         if len (data) < 3:
             return '', NXT_RECV_ERR
         header, body = data[0:3], data[3:]
@@ -84,12 +86,20 @@ class NXTGDBServer:
     def reassemble (self, sock):
         msg = ''
         prev_segno = 0
-        segno = NXT_RECV_ERR  # force initial pass through while loop
+        segno = NXT_RECV_ERR                    # force initial pass through while loop
         while segno != 0:
             try:
                 s, segno = self.unpack (sock.recv ())
+                if len (s) == 0:
+                    if segno == 0 && prev_segno == 0:
+                        return ''               # No message pending
+                    else
+                        segno = NXT_RECV_ERR    # Keep waiting for segments
+                # Ignore error packets
                 if segno >= 0:
-                    assert segno == (prev_segno + 1), "segno = %s, prev_segno = %s" % (segno, prev_segno)
+                    # Check segno, if non-zero it must be monotonically increasing from 1, otherwise 0
+                    if segno > 0:
+                       assert segno == (prev_segno + 1), "segno = %s, prev_segno = %s" % (segno, prev_segno)
                     prev_segno = segno
                     msg.append(s)              
             except usb.USBError as e:
