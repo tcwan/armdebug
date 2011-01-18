@@ -809,17 +809,17 @@ _exit_dbg__proc_brkpt_params:
 _dbg__cmd_insert_breakpoint:
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
-    teq     r1, #CMD_BKPT_INSERT_PARAMLEN    /* Check for correct length */
-    bne     __dbg__procCmdParamError         /* Unexpected input, report error */
-    bl      _dbg__proc_brkpt_params     /* R0: Breakpoint Address */
+    teq     r1, #CMD_BKPT_INSERT_PARAMLEN   /* Check for correct length */
+    bne     __dbg__procCmdParamError        /* Unexpected input, report error */
+    bl      _dbg__proc_brkpt_params         /* R0: Breakpoint Address */
     teq     r0, #0
-    beq     __dbg__procBreakpointAddrError    /* Thumb2 instructions, or unknown kind */
-    mov     r3, r0                      /* Keep breakpoint address in R3 */
-    mov     r0, #0                      /* Empty Breakpoint entry */
-    bl      _dbg_find_breakpoint_slot   /* Look for an available breakpoint slot, return index in R0 */
+    beq     __dbg__procBreakpointAddrError  /* Thumb2 instructions, or unknown kind */
+    mov     r3, r0                          /* Keep breakpoint address in R3 */
+    mov     r0, #0                          /* Empty Breakpoint entry */
+    bl      _dbg_find_breakpoint_slot       /* Look for an available breakpoint slot, return index in R0 */
     cmp     r0, #CMD_BKPT_NOTFOUND
     beq     __dbg__procBreakpointAddrError  /* No empty slot! */
-    mov     r1, r3                      /* Move breakpoint address to R1 */
+    mov     r1, r3                          /* Move breakpoint address to R1 */
 	bl     _dbg__install_one_breakpoint		/*	r0: index, r1: instruction address */
     b       __dbg__procCmdOk
 
@@ -834,16 +834,17 @@ _dbg__cmd_insert_breakpoint:
 _dbg__cmd_remove_breakpoint:
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
-    teq     r1, #CMD_BKPT_REMOVE_PARAMLEN    /* Check for correct length */
-    bne     __dbg__procCmdParamError         /* Unexpected input, report error */
-    bl      _dbg__proc_brkpt_params     /* R0: Breakpoint Address */
+    teq     r1, #CMD_BKPT_REMOVE_PARAMLEN  /* Check for correct length */
+    bne     __dbg__procCmdParamError       /* Unexpected input, report error */
+    bl      _dbg__proc_brkpt_params        /* R0: Breakpoint Address */
     teq     r0, #0
-    beq     __dbg__procBreakpointAddrError    /* Thumb2 instructions, or unknown kind */
-    bl      _dbg_find_breakpoint_slot   /* Look for matching breakpoint slot, return index in R0 */
+    beq     __dbg__procBreakpointAddrError /* Thumb2 instructions, or unknown kind */
+    bl      _dbg_find_breakpoint_slot      /* Look for matching breakpoint slot, return index in R0 */
     cmp     r0, #CMD_BKPT_NOTFOUND
-    beq     __dbg__procBreakpointAddrError  /* Specified Breakpoint not found! */
-	_index2bkptindex_addr	r0, r0		/* Calculate Breakpoint Entry Address */
-	bl	    _dbg__clear_one_breakpoint  /* R0: address of breakpoint to clear */
+    beq     __dbg__procBreakpointAddrError /* Specified Breakpoint not found! */
+	_index2bkptindex_addr	r0, r1		   /* Calculate Breakpoint Entry Address */
+	mov     r0, r1                         /* Move it to R0 for subroutine call */
+	bl	    _dbg__clear_one_breakpoint     /* R0: address of breakpoint to clear */
     b       __dbg__procCmdOk
 
 
