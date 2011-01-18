@@ -126,6 +126,38 @@
 #include "debug_stub.h"
 #include "debug_macros.h"
 
+/* Macro definitions */
+
+/* _check_msgseparator
+ *      Look for separator ','
+ *  On entry:
+ *    bufferptr: points to the parameter buffer [can't be R0]
+ *  On exit:
+ *    R0: destroyed
+ *    bufferptr: points to the next character location in the parameter buffer
+ *    Flags: Updated
+ */
+
+    .macro  _check_msgseparator bufferptr
+    ldrb    r0, [\bufferptr], #1                /* get separator */
+    cmp     r0, #MSGBUF_SEPCHAR
+    .endm
+
+/* _check_msgassignment
+ *      Look for assignment '='
+ *  On entry:
+ *    bufferptr: points to the parameter buffer [can't be R0]
+ *  On exit:
+ *    R0: destroyed
+ *    bufferptr: points to the next character location in the parameter buffer
+ *    Flags: Updated
+ */
+
+    .macro  _check_msgassignment bufferptr
+    ldrb    r0, [\bufferptr], #1                /* get separator */
+    cmp     r0, #MSGBUF_SETCHAR
+    .endm
+
 .bss
 .align 4
 debug_state:
@@ -160,17 +192,17 @@ debug_cmdIndexTable:
  *		R0: Input Message Parameter Buffer address pointer (points to contents after '$' and '<cmdchar>')
  */
 debug_cmdJumpTable:
-	.word	_dbg__procGetRegs					/* 'g' */
-	.word	_dbg__procSetRegs					/* 'G' */
-	.word	_dbg__procGetOneReg					/* 'p' */
-	.word	_dbg__procSetOneReg					/* 'P' */
+	.word	_dbg__cmd_GetAllRegs				/* 'g' */
+	.word	_dbg__cmd_SetAllRegs	   			/* 'G' */
+	.word	_dbg__cmd_GetOneReg				    /* 'p' */
+	.word	_dbg__cmd_SetOneReg				    /* 'P' */
 	.word	_dbg__nop							/* 'm' */
 	.word	_dbg__nop							/* 'M' */
 	.word	_dbg__nop							/* 'c' */
 	.word	_dbg__nop							/* 's' */
 	.word	_dbg__nop							/* 'k' */
-	.word	_dbg__nop							/* 'z' */
-	.word	_dbg__nop							/* 'Z' */
+	.word	_dbg__cmd_remove_breakpoint			/* 'z' */
+	.word	_dbg__cmd_insert_breakpoint			/* 'Z' */
 	.word	_dbg__nop							/* '?' */
 	.word	0
 
@@ -482,7 +514,7 @@ dbg__bkpt_waitCMD:
 	bne		_dbg__cmdError					/* Shouldn't happen */
 	ldrb	r0, [r4], #1					/* Look for command char */
 	bl		_dbg__cmdChar2Index				/* Index in R0 */
-	ldr		r1, =MSGBUF_CMDINDEX_OUTOFRANGE_VAL
+	mov		r1, #CMDINDEX_OUTOFRANGE
 	teq		r0, r1
 	moveq	r0, #MSG_UNKNOWNCMD				/* Out of range, Command character not recognized */
 	beq		_dbg__cmdError					/* Send response to GDB server */
@@ -515,7 +547,7 @@ _dbg__cmdChar2Index:
 	ldr		r3, =debug_cmdIndexTable		/* Convert command to index using r3 as Index Lookup Address Pointer */
 1:	ldrb	r2, [r3, r0]					/* Get table entry */
 	teq		r2, #0
-	moveq	r0, #MSGBUF_CMDINDEX_OUTOFRANGE_VAL	/* End of Index Table, Not found */
+	moveq	r0, #CMDINDEX_OUTOFRANGE	    /* End of Index Table, Not found */
 	beq		_exit_cmdIndexTable
 	teq		r1, r2
 	addne	r0, #1							/* Increment Index */
@@ -523,98 +555,200 @@ _dbg__cmdChar2Index:
 _exit_cmdIndexTable:
 	bx		lr
 
+/* __dbg__cmdParamLen
+ *   Determines the length of the parameter buffer for a given command
+ *   On entry:
+ *      R0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *   On exit:
+ *      R0: Address of parameter buffer (preserved)
+ *      R1: length
+ */
+__dbg__cmdParamLen:
+    stmfd   sp!, {r0,r2,lr}     /* R2: scratch register */
+    mov     r1, #0
+1:  ldrb    r2, [r0], #1
+    teq     r2, #0
+    addne   r1, r1, #1
+    bne     1b
+    ldmfd   sp!, {r0,r2,pc}
+
+/* __dbg__procCmdOk
+ *      Common subroutine exit stub to return Command Ok Status for Command Handlers
+ *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
+ *
+ */
+__dbg__procCmdOk:
+    _dbg_outputMsgStatusOk
+    bl      dbg__putDebugMsg                /* Send error response to the GDB server */
+    ldmfd   sp!, {pc}
+
 /* __dbg__procCmdParamError
  *		Common subroutine exit stub to handle Command Parameter Error for Command Handlers
  *		DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
  *
  */
-
 __dbg__procCmdParamError:
 	_dbg_outputMsgStatusErrCode MSG_UNKNOWNPARAM
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
 	ldmfd	sp!, {pc}
 
 
-
-/* _dbg__procGetOneReg
- *		Get One Register Value Command Handler
- *		Valid register parameter is from '0' to 'F' for User Mode Registers R0-R15
- *		CPSR register parameer is '!'
- *		On entry:
- *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+/* __dbg__procBreakpointAddrError
+ *      Common subroutine exit stub to handle Breakpoint Address Error for Breakpoint Insert/Remove Handlers
+ *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
  *
  */
-_dbg__procGetOneReg:
+__dbg__procBreakpointAddrError:
+    _dbg_outputMsgStatusErrCode MSG_UNKNOWNBRKPT
+    bl      dbg__putDebugMsg                /* Send error response to the GDB server */
+    ldmfd   sp!, {pc}
+
+
+
+/* _dbg__cmd_GetOneReg
+ *		Get One Register Value Command Handler
+ *		Valid command parameter x is from '0' to 'F' for User Mode Registers R0-R15
+ *		                             CPSR register is '!'
+ *		On entry:
+ *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              x
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
+ *
+ */
+_dbg__cmd_GetOneReg:
 	stmfd	sp!, {lr}
-	ldrb	r2, [r0, #1]					/* char after parameter value (Should be NULL character) */
-	ldrb	r0, [r0]						/* Retrieve register index parameter to R0 */
-	teq		r2, #0							/* Check for NULL */
+	bl      __dbg__cmdParamLen
+	teq		r1, #CMD_REG_GETONE_PARAMLEN	/* Check for correct length */
 	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
+	ldrb    r0, [r0]                        /* Load Register index parameter */
 	teq		r0, #MSGBUF_CPSRREG				/* Check for CPSR register indicator */
 	moveq	r0, #DBGSTACK_USERCPSR_OFFSET	/* Put offset from User Registers (-1) into index, so that after adjustment it points to CPSR slot */
-	beq		_dbg__procRegister				/* Handle User CPSR */
+	beq		_dbg__proc_getRegister			/* Handle User CPSR */
 	bl		char2hex						/* Convert to Hex value (assume input is valid) */
 	cmp		r0, #NIBBLE0					/* sanity check, (though it is not foolproof as input char in 0x0-0xF (ctrl-chars) will pass through) */
 	bhi		__dbg__procCmdParamError		/* Non-hex char, report error */
 
-_dbg__procRegister:
+_dbg__proc_getRegister:
 	mov		r3, r0							/* Keep register index safe */
-	_dbg_outputMsgValidResponse				/* Setup R1 with address of output message buffer data pointer (after response prefix) */
-	mov		r0, r3							/* Restore register index value */
+	_dbg_outputMsgValidResponse				/* R0: address of output message buffer data pointer (after response prefix) */
+	mov		r1, r3							/* Move register index value to R1 */
 	bl		_dbg_outputOneRegValue			/* update output buffer */
+	_asciiz r0, r1
 	bl		dbg__putDebugMsg				/* Send response to the GDB server */
 	ldmfd	sp!, {pc}
 
 /* _dbg_outputOneRegValue
  *		Given Register Index (-1: CPSR, 0-F: R0-R15), output hex char to buffer
  *		On entry:
- *			r0: register index (-1, 0-F)
- *			r1: output message buffer pointer
+ *          r0: output message buffer pointer
+ *			r1: register index (-1, 0-F)
  *		On exit:
- *			r0: output message buffer pointer
- *			r1: updated (points to NULL character at end of Output Buffer)
+ *			r0: updated (points to next character slot at end of Output Buffer)
+ *			r1: original output message buffer pointer
  *			r2: destroyed
  */
 _dbg_outputOneRegValue:
 	stmfd	sp!, {lr}
-	add		r2, r0, #DBGSTACK_USERREG_INDEX	/* Convert register index to Debug Stack index */
-	_getdbgregisterfromindex r2, r0			/* Retrieve Register contents into R0 */
-	ldr		r0, [r0]
+	add		r2, r1, #DBGSTACK_USERREG_INDEX	/* Convert register index to Debug Stack index */
+	_getdbgregisterfromindex r2, r1			/* Retrieve Register contents into R1 */
 	bl		word2ascii						/* Convert and put hex chars into Output Message Buffer */
 	ldmfd	sp!, {pc}
 
-/* _dbg__procGetRegs
+/* _dbg__cmd_GetAllRegs
  *		Get All Register Values Command Handler
  *		Output Buffer returns register values in the order: User CPSR, R0, R1, R2, ..., R15
  *		On entry:
  *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              <NULL> (no parameters)
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
  */
-_dbg__procGetRegs:
+_dbg__cmd_GetAllRegs:
 	stmfd	sp!, {lr}
-	ldrb	r0, [r0]						/* Retrieve register index parameter to R0 */
-	teq		r0, #0							/* Check for NULL */
+    bl      __dbg__cmdParamLen
+    teq     r1, #CMD_REG_GETALL_PARAMLEN    /* Check for correct length */
 	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
 
 	_dbg_outputMsgValidResponse				/* Setup R1 with address of output message buffer data pointer (after response prefix) */
 	mov		r3, #DBGSTACK_USERCPSR_OFFSET	/* Output User CPSR Value first */
-1:  mov		r0, r3
+1:  mov		r1, r3
 	bl		_dbg_outputOneRegValue			/* update output buffer */
 	add		r3, r3, #1						/* increment index */
 	cmp		r3, #0xF
 	ble		1b								/* process all the registers */
 
+    _asciiz r0, r1
 	bl		dbg__putDebugMsg				/* Send response to the GDB server */
 	ldmfd	sp!, {pc}
 
+/* _dbg__cmd_SetOneReg
+ *      Set One Register Value Command Handler
+ *      Valid command parameter x is from '0' to 'F' for User Mode Registers R0-R15
+ *                                   CPSR register is '!'
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              x=rrrr
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
+ *
+ */
 
-_dbg__procSetOneReg:
-_dbg__procSetRegs:
-	bx		lr
+_dbg__cmd_SetOneReg:
+    stmfd   sp!, {lr}
+    bl      __dbg__cmdParamLen
+    teq     r1, #CMD_REG_SETONE_PARAMLEN    /* Check for correct length */
+    bne     __dbg__procCmdParamError        /* Unexpected input, report error */
+    mov     r3, r0                          /* Keep parameter buffer address in R3 */
+    ldrb    r1, [r3], #1                    /* Load Register index parameter */
+    _check_msgassignment r3
+    bne     __dbg__procCmdParamError        /* Can't find '=' */
+    mov     r0, r1                          /* Move register index to R0 for subsequent processing */
+    teq     r0, #MSGBUF_CPSRREG             /* Check for CPSR register indicator */
+    moveq   r0, #DBGSTACK_USERCPSR_OFFSET   /* Put offset from User Registers (-1) into index, so that after adjustment it points to CPSR slot */
+    beq     _dbg__proc_setRegister          /* Handle User CPSR */
+    bl      char2hex                        /* Convert to Hex value (assume input is valid) */
+    cmp     r0, #NIBBLE0                    /* sanity check, (though it is not foolproof as input char in 0x0-0xF (ctrl-chars) will pass through) */
+    bhi     __dbg__procCmdParamError        /* Non-hex char, report error */
+
+_dbg__proc_setRegister:
+    add     r2, r0, #DBGSTACK_USERREG_INDEX /* Convert register index to Debug Stack index, keep in R2 */
+    mov     r0, r3                          /* Retrieve parameter buffer pointer */
+    bl      ascii2word
+    _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+    b       __dbg__procCmdOk
+
+/* _dbg__cmd_SetAllReg
+ *      Set All Register Values Command Handler
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              rrrrRRRRrrrr... (17 registers)
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
+ *
+ */
+_dbg__cmd_SetAllRegs:
+/* FIXME: Assumes that the registers are in the sequence CPSR, R0, R1, ... R15 -- May not be GDB ordering */
+    stmfd   sp!, {lr}
+    bl      __dbg__cmdParamLen              /* R0: pointer to parameters in buffer */
+    teq     r1, #CMD_REG_SETALL_PARAMLEN    /* Check for correct length */
+    bne     __dbg__procCmdParamError        /* Unexpected input, report error */
+    mov     r2, #DBGSTACK_USERCPSR_INDEX    /* R2: register index, starting with CPSR */
+1:  bl      ascii2word                      /* R0: value, R1: pointer to next char in buffer */
+    _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+    add     r2, r2, #1                      /* increment index */
+    ldrb    r0, [r1]
+    teq     r0, #0                          /* Look for ASCIIZ character to terminate loop */
+    mov     r0, r1                          /* setup R0 for next ascii2word call */
+    bne     1b                              /* continue only if ASCIIZ not found */
+    b       __dbg__procCmdOk
 
 /* _dbg__nop
  *		NOP Command Handler (placeholder)
  *		On entry:
  *			r0: parameter buffer (contents after '$' and '<cmdchar>')
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
  */
 _dbg__nop:
 	stmfd	sp!, {lr}
@@ -623,51 +757,120 @@ _dbg__nop:
 	ldmfd	sp!, {pc}
 
 
-/* dbg__cmd_install_breakpoint
- *		Configure Breakpoint
- *		On entry:
- *			r0: index of breakpoint to install
- *			r1: instruction address to install
- */
-dbg__cmd_install_breakpoint:
-	bl _dbg__install_one_breakpoint		/*	r0: index, r1: instruction address */
-	b dbg__bkpt_waitCMD
 
-/* dbg__cmd_clear_breakpoint
- *		Clear Breakpoint
- *		On entry:
- *			r0: index of breakpoint to clear
+/* _dbg__proc_brkpt_params
+ *      Process Breakpoint Parameters
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              t,AA..AA,k
+ *      On exit:
+ *          r0: non-zero = breakpoint address; 0 = parameter error
+ *          r1: destroyed
+ *          r2: destroyed
+ *          r3: destroyed
  */
-dbg__cmd_clear_breakpoint:
+_dbg__proc_brkpt_params:
+    /* FIXME: Add support for watchpoints */
+    stmfd   sp!, {lr}
+    mov     r3, r0                          /* Keep parameter buffer address in R3 */
+    ldrb    r0, [r3], #1                    /* get breakpoint type t */
+    bl      char2hex
+    cmp     r0, #CMD_BKPT_TYPE_BREAK_MEMORY
+    bne     _dbg__proc_brkpt_params_error   /* We only support memory breakpoints for now */
+    _check_msgseparator r3
+    bne     _dbg__proc_brkpt_params_error   /* Something wrong with the parameters */
+    mov     r0, r3                          /* Check Address */
+    bl      ascii2word                      /* R0: value, R1: pointer to next char slot */
+    mov     r3, r0                          /* Keep breakpoint address in R3 */
+    _check_msgseparator r1
+    bne     _dbg__proc_brkpt_params_error   /* Something wrong with the parameters */
+    ldrb    r0, [r1], #1                    /* get breakpoint kind k */
+    bl      char2hex
+    cmp     r0, #CMD_BKPT_KIND_THUMB
+    orreq   r3, r3, #1                      /* Mark Thumb breakpoints */
+    beq     _exit_dbg__proc_brkpt_params
+    cmp     r0, #CMD_BKPT_KIND_ARM
+    beq     _exit_dbg__proc_brkpt_params    /* ARM breakpoint */
+
+_dbg__proc_brkpt_params_error:
+    mov     r3, #0                          /* Unrecognized breakpoint type */
+_exit_dbg__proc_brkpt_params:
+    mov     r0, r3                          /* return breakpoint address */
+    ldmfd   sp!, {pc}
+
+/* _dbg__cmd_insert_breakpoint
+ *		Add Breakpoint
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              t,AA..AA,k
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
+ */
+_dbg__cmd_insert_breakpoint:
+    stmfd   sp!, {lr}
+    bl      __dbg__cmdParamLen
+    teq     r1, #CMD_BKPT_INSERT_PARAMLEN    /* Check for correct length */
+    bne     __dbg__procCmdParamError         /* Unexpected input, report error */
+    bl      _dbg__proc_brkpt_params     /* R0: Breakpoint Address */
+    teq     r0, #0
+    beq     __dbg__procBreakpointAddrError    /* Thumb2 instructions, or unknown kind */
+    mov     r3, r0                      /* Keep breakpoint address in R3 */
+    mov     r0, #0                      /* Empty Breakpoint entry */
+    bl      _dbg_find_breakpoint_slot   /* Look for an available breakpoint slot, return index in R0 */
+    cmp     r0, #CMD_BKPT_NOTFOUND
+    beq     __dbg__procBreakpointAddrError  /* No empty slot! */
+    mov     r1, r3                      /* Move breakpoint address to R1 */
+	bl     _dbg__install_one_breakpoint		/*	r0: index, r1: instruction address */
+    b       __dbg__procCmdOk
+
+/* _dbg__cmd_remove_breakpoint
+ *		Remove Breakpoint
+ *		On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              t,AA..AA,k
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
+ */
+_dbg__cmd_remove_breakpoint:
+    stmfd   sp!, {lr}
+    bl      __dbg__cmdParamLen
+    teq     r1, #CMD_BKPT_REMOVE_PARAMLEN    /* Check for correct length */
+    bne     __dbg__procCmdParamError         /* Unexpected input, report error */
+    bl      _dbg__proc_brkpt_params     /* R0: Breakpoint Address */
+    teq     r0, #0
+    beq     __dbg__procBreakpointAddrError    /* Thumb2 instructions, or unknown kind */
+    bl      _dbg_find_breakpoint_slot   /* Look for matching breakpoint slot, return index in R0 */
+    cmp     r0, #CMD_BKPT_NOTFOUND
+    beq     __dbg__procBreakpointAddrError  /* Specified Breakpoint not found! */
 	_index2bkptindex_addr	r0, r0		/* Calculate Breakpoint Entry Address */
-	bl	_dbg__clear_one_breakpoint
-	b dbg__bkpt_waitCMD
+	bl	    _dbg__clear_one_breakpoint  /* R0: address of breakpoint to clear */
+    b       __dbg__procCmdOk
 
 
-/* dbg__cmd_run
+/* _dbg__cmd_run
  *		Continue execution of program
  */
-dbg__cmd_run:
+_dbg__cmd_run:
 	bl	_dbg__activate_breakpoints
 	b	__dbg__resume_execution
 
-/* dbg__cmd_step
+/* _dbg__cmd_step
  *		Single Step execution of program
  */
-dbg__cmd_step:
+_dbg__cmd_step:
 	bl	_dbg_next_instruction_addr					/* next instruction address returned in r1 */
 	bl	_dbg__install_singlestep					/* Setup Single Step */
 	bl	_dbg__activate_singlestep
 	b	__dbg__resume_execution
 
-/* dbg__cmd_cont
+/* _dbg__cmd_cont
  *		Continue execution of program.
  *		If this is a Normal Breakpoint, then we need to install an Autobreakpoint at next instruction address
  *			and resume from current (Breakpoint) exception address
  *		Else (it is a Manual Breakpoint)
  *			We need to resume from the next instruction address
  */
-dbg__cmd_cont:
+_dbg__cmd_cont:
 /* FIXME: What happens if we call this when we did not stop at a Breakpoint previously? */
 	_dbg_getstate	r0
 	ldr	r1, =DBG_MANUAL_BKPT_ARM
@@ -1343,6 +1546,38 @@ _thumb_long_b_handler:				/* Long BL or BLX (4 bytes) Note: b11 (H) indicates 1s
  * Breakpoint Manipulation Routines
  *
  ****************************************************************************/
+/* _dbg_find_breakpoint_slot
+ *      Find the matching Breakpoint Slot.
+ *      This is both used to find empty slots (pass R0=0x0000) or
+ *      occupied slots (pass R0=<brkpt addr>)
+ *
+ *  On Entry:
+ *      R0: Breakpoint Address
+ *  On Exit:
+ *      R0: Matching Index (-1: not found)
+ *
+ *  NOTE: This routine performs exact match, i.e., breakpoint address MUST be configured
+ *        for ARM or Thumb (bit 0 clear/set) as appropriate
+ */
+
+_dbg_find_breakpoint_slot:
+    stmfd   sp!, {r1,r2,r3, lr}
+    mov     r1, #1                      /* Only consider Breakpoints 1-7 */
+    ldr     r3, =__breakpoints_num__
+1:
+    _index2bkptindex_addr   r1, r2      /* Calculate Breakpoint Entry Address */
+    ldr     r2, [r2]                    /* Get actual breakpoint entry (instruction address) */
+    cmp     r0, r2
+    beq     _found_breakpoint_slot
+    add     r1, r1, #1                  /* no match, check next */
+    cmp     r1, r3
+    blo     1b                          /* continue checking only if we don't exceed __breakpoints_num__ */
+
+_notfound_breakpoint_slot:
+    mov     r1, #CMD_BKPT_NOTFOUND
+_found_breakpoint_slot:
+    mov     r0, r1                      /* Return value in R0 */
+    ldmfd   sp!, {r1,r2,r3, pc}
 
 /* _dbg__clear_singlestep
  *		Clear the Single Step Breakpoint

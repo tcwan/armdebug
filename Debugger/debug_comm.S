@@ -470,7 +470,7 @@ _copy_msg_from_usbbuf:
 
     ldr     r3, =debug_InUSBBuf
     add     r3, r3, #USB_GDBMSG_START
-    _dbg_memcpy r2, r3, r4                      /* r2 updated to point to next empty char slot in Rx buffer */
+    _dbg_memcpy r2, r3, r4, r0                  /* r2 updated to point to next empty char slot in Rx buffer */
     sub     r4, r2, r5                          /* r4: cummulative length of message */
 
     /* Update debug_msgRxBuf_AppendPtr */
@@ -635,7 +635,7 @@ _copy_msg_to_usbbuf:
     strb    r0, [r3], #1            /* Message Length */
 
     mov     r2, r5                              /* Copy to R2 for updating */
-    _dbg_memcpy r3, r2, r4                      /* This copies over the message fragment, r3, r2 updated */
+    _dbg_memcpy r3, r2, r4, r0                  /* This copies over the message fragment, r3, r2 updated */
     mov     r5, r2                              /* Updated Tx Append Pointer, keep in R5 for now */
 
     /* Check USB bus status, transmit message if possible */

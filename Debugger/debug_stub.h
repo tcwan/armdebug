@@ -60,9 +60,57 @@
 #define MSGBUF_CPSRREG   '!'
 #define MSGBUF_SETCHAR   '='
 #define MSGBUF_CHKSUMCHAR '#'
+#define MSGBUF_SEPCHAR   ','
 #define MSGBUF_MSGERROR  -1
+/*@}*/
+
+/** @name Debug Command Lookup Constants.
+ *
+ * Debug Command Lookup
+ */
+/*@{*/
+
+#define CMDINDEX_OUTOFRANGE -1
+/*@}*/
+
+/** @name Debug Register Command Constants.
+ *
+ * Debug Register Command
+ */
+/*@{*/
+#define CMD_REG_NUMREGS             17
+#define CMD_REG_GETONE_PARAMLEN     1
+#define CMD_REG_GETALL_PARAMLEN     0
+#define CMD_REG_SETONE_PARAMLEN     6
+#define CMD_REG_SETALL_PARAMLEN     (CMD_REG_NUMREGS*4)
+
 
 /*@}*/
+
+/** @name Debug Breakpoint Command Constants.
+ *
+ * Debug Breakpoint Command
+ */
+/*@{*/
+
+#define CMD_BKPT_INSERT_PARAMLEN     12
+#define CMD_BKPT_REMOVE_PARAMLEN     12
+
+
+#define CMD_BKPT_TYPE_BREAK_MEMORY  0
+#define CMD_BKPT_TYPE_BREAK_HARD    1   /* Not supported */
+#define CMD_BKPT_TYPE_WATCH_WRITE   2   /* Not supported (yet) */
+#define CMD_BKPT_TYPE_WATCH_READ    3   /* Not supported (yet) */
+#define CMD_BKPT_TYPE_WATCH_ACCESS  4   /* Not supported (yet) */
+
+#define CMD_BKPT_KIND_THUMB         2
+#define CMD_BKPT_KIND_THUMB2        3   /* Not supported */
+#define CMD_BKPT_KIND_ARM           4
+
+#define CMD_BKPT_NOTFOUND           -1
+
+/*@}*/
+
 /** @name Debug Stack Constants.
  *
  * Debug Stack Manipulation Values
@@ -158,6 +206,7 @@ ENUM_VAL(MSG_ERRCHKSUM)           /**< Checksum Error. */
 ENUM_VAL(MSG_ERRFORMAT)           /**< Message Format Error. */
 ENUM_VAL(MSG_UNKNOWNCMD)          /**< Unrecognized Command Error. */
 ENUM_VAL(MSG_UNKNOWNPARAM)        /**< Unrecognized Parameter Error. */
+ENUM_VAL(MSG_UNKNOWNBRKPT)        /**< Unrecognized Breakpoint Error. */
 ENUM_END(dbg_msg_errno)
 
 

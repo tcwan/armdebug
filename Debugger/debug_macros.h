@@ -73,48 +73,50 @@
         .endm
 
 /* _asciiz
- *		Terminate string given string buffer pointer in \addrptr
- *		reg is used as a scratch register (destroyed)
+ *	Terminate string given string buffer pointer in \strptr
+ *	scratchreg is used as a scratch register (destroyed)
  *
  */
-	.macro	_asciiz	reg, strptr
-	mov		\reg, #0					/* NULL character */
-	strb	\reg, [\strptr]				/* Terminate ASCIIZ string */
+	.macro	_asciiz	strptr, scratchreg
+	mov	\scratchreg, #0				/* ASCIIZ character */
+	strb	\scratchreg, [\strptr]			/* Terminate ASCII string */
  	.endm
 
 
 /* _dbg_stpcpy
- *		_dbg_stpcpy macro
- *		On entry:
- *	  	  deststrptr: Destination string [Cannot be R0]
- *		  sourcestrptr: Source string [Cannot be R0]
- *		On exit:
- *		  deststrptr: Pointer to NULL character in destination string
- *	      sourcestrptr: Pointer to NULL character slot in source string
- *		  R0: destroyed
+ *	_dbg_stpcpy macro
+ *	On entry:
+ *	  deststrptr: Destination string
+ *	  sourcestrptr: Source string
+ *	  scratchreg: scratch register for copying
+ *	On exit:
+ *	  deststrptr: Pointer to ASCIIZ character in destination string
+ *	  sourcestrptr: Pointer to next character slot in source string (after ASCIIZ)
+ *	  scratchreg: destroyed
  */
-	.macro  _dbg_stpcpy	 deststrptr, sourcestrptr
-1:	ldrb	r0, [\sourcestrptr], #1
-	strb	r0, [\deststrptr], #1
-	teq	 r0, #0
+	.macro  _dbg_stpcpy	 deststrptr, sourcestrptr, scratchreg
+1:	ldrb	\scratchreg, [\sourcestrptr], #1
+	strb	\scratchreg, [\deststrptr], #1
+	teq	 \scratchreg, #0
 	bne	 1b
-	sub	 \deststrptr, \deststrptr, #1	/* Adjust Destination string pointer to point at NULL character */
+	sub	 \deststrptr, \deststrptr, #1	/* Adjust Destination string pointer to point at ASCIIZ character */
 	.endm
 
 /* _dbg_memcpy
  *      _dbg_stpcpy macro
  *      On entry:
- *        deststrptr: Destination string [Cannot be R0]
- *        sourcestrptr: Source string [Cannot be R0]
- *        sizereg: Number of bytes to copy [Cannot be R0]
+ *        deststrptr: Destination string
+ *        sourcestrptr: Source string
+ *        sizereg: Number of bytes to copy
+ *        scratchreg: scratch register for copying
  *      On exit:
  *        deststrptr: Pointer to next character slot in destination string
  *        sourcestrptr: Pointer to next character slot in source string
  *        R0: destroyed
  */
-        .macro  _dbg_memcpy      deststrptr, sourcestrptr, sizereg
-1:      ldrb    r0, [\sourcestrptr], #1
-        strb    r0, [\deststrptr], #1
+        .macro  _dbg_memcpy      deststrptr, sourcestrptr, sizereg, scratchreg
+1:      ldrb    \scratchreg, [\sourcestrptr], #1
+        strb    \scratchreg, [\deststrptr], #1
         subs    \sizereg, \sizereg, #1
         bne      1b
         .endm
@@ -122,28 +124,28 @@
 /* _dbg_outputMsgValidResponse
  *	Return Message with valid response ('+$')
  *	On exit:
- *	  R0: destroyed
- *	  R1: Pointer to Output Buffer next character slot location
+ *	  R0: Pointer to Output Buffer next character slot location
+ *        R1: destroyed
  *	  R2: destroyed
  */
 	.macro  _dbg_outputMsgValidResponse
-	ldr	 r1, =debug_OutMsgBuf
-	ldr	 r2, =debug_ValidResponsePrefix
-	_dbg_stpcpy	 r1, r2
+	ldr	 r0, =debug_OutMsgBuf
+	ldr	 r1, =debug_ValidResponsePrefix
+	_dbg_stpcpy	 r0, r1, r2
 	.endm
 
 
 /* _dbg_outputMsgStatusOk
  *	Return Message with Ok ('+$OK') status
  *	On exit:
- *	  R0: destroyed
- *	  R1: Pointer to Output Buffer ASCIIZ location
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *	  R1: destroyed
  *	  R2: destroyed
  */
 	.macro  _dbg_outputMsgStatusOk
-	ldr	 r1, =debug_OutMsgBuf
-	ldr	 r2, =debug_OkResponse			/* ASCIIZ terminated */
-	_dbg_stpcpy	r1, r2
+	ldr	 r0, =debug_OutMsgBuf
+	ldr	 r1, =debug_OkResponse			/* ASCIIZ terminated */
+	_dbg_stpcpy	r0, r1, r2
 	.endm
 
 /* _dbg_outputMsgStatusErr
@@ -151,61 +153,58 @@
  *	On entry:
  *	  R0: error code
  *	On exit:
- *	  R0: destroyed
- *	  R1: Pointer to Output Buffer ASCIIZ location
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *	  R1: destroyed
  *	  R2: destroyed
  *	  R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusErr
-	mov		r3, r0
-	ldr	 r1, =debug_OutMsgBuf
-	ldr	 r2, =debug_ErrorResponsePrefix
-	_dbg_stpcpy	 r1, r2
-	mov	 r0, r1
-	mov	 r1, r3
-	bl	  byte2ascii	  /* R0 points to buffer position after byte value */
-	_asciiz		r1, r0
+	mov	r3, r0
+	ldr	r0, =debug_OutMsgBuf
+	ldr	r1, =debug_ErrorResponsePrefix
+	_dbg_stpcpy	 r0, r1, r2
+	mov	r1, r3
+	bl	byte2ascii	  /* R0 points to buffer position after byte value */
+	_asciiz	r0, r1
 	.endm
 
 /* _dbg_outputMsgStatusErrCode
  *	Return Message with Error ('-$ENN') status
  *	On exit:
- *	  R0: destroyed
- *	  R1: Pointer to Output Buffer ASCIIZ location
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *	  R1: destroyed
  *	  R2: destroyed
  */
-	.macro  _dbg_outputMsgStatusErrCode	errcode
-	ldr	 r1, =debug_OutMsgBuf
-	ldr	 r2, =debug_ErrorResponsePrefix
-	_dbg_stpcpy	 r1, r2
-	mov	 r0, r1
-	mov	 r1, #errcode
-	bl	  byte2ascii	  /* R0 points to buffer position after byte value */
-	_asciiz		r1, r0
+	.macro  _dbg_outputMsgStatusErrCode errcode
+	ldr	r0, =debug_OutMsgBuf
+	ldr	r1, =debug_ErrorResponsePrefix
+	_dbg_stpcpy	 r0, r1, r2
+	mov	r1, #\errcode
+	bl	byte2ascii	  /* R0 points to buffer position after byte value */
+	_asciiz	r0, r1
 	.endm
 
 /* _dbg_outputMsgStatusSig
  *	Return Message with Signal ('+$SNN') status
  *	On exit:
- *	  R0: destroyed
- *	  R1: Pointer to Output Buffer ASCIIZ location
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *	  R1: destroyed
  *	  R2: destroyed
  */
 	.macro  _dbg_outputMsgStatusSig statuscode
-	ldr	 r1, =debug_OutMsgBuf
-	ldr	 r2, =debug_SignalResponsePrefix
-	_dbg_stpcpy	 r1, r2
-	mov	 r0, r1
-	mov	 r1, #statuscode
-	bl	  byte2ascii	  /* R0 points to buffer position after byte value */
-	_asciiz		r1, r0
+	ldr	r0, =debug_OutMsgBuf
+	ldr	r1, =debug_SignalResponsePrefix
+	_dbg_stpcpy	 r0, r1, r2
+	mov	r1, #\statuscode
+	bl	byte2ascii	  /* R0 points to buffer position after byte value */
+	_asciiz	r0, r1
 	.endm
 
 /* _getdbgregisterfromindex
  *      Retrieve register contents from debugger stack given index
  *
  *      On entry:
- *        indexreg contains debugger stack index value (0-max entries)
+ *        indexreg contains debugger stack index value (0-max index)
  *      On exit:
  *        indexreg: Breakpoint index (preserved)
  *        contentsreg: Register Contents for given index
@@ -213,6 +212,22 @@
         .macro  _getdbgregisterfromindex  indexreg, contentsreg
         ldr      \contentsreg, =__debugger_stack_bottom__
         ldr      \contentsreg, [\contentsreg, \indexreg, lsl #2]
+        .endm
+
+/* _setdbgregisterfromindex
+ *      Store register contents to debugger stack given index
+ *
+ *      On entry:
+ *        indexreg contains debugger stack index value (0-max index)
+ *        contentsreg: Register Contents for given index
+ *        addressreg: Scratch register for address pointer
+ *      On exit:
+ *        indexreg: Breakpoint index (preserved)
+ *        contentsreg: Register Contents for given index
+ */
+        .macro  _setdbgregisterfromindex  indexreg, contentsreg, addressreg
+        ldr      \addressreg, =__debugger_stack_bottom__
+        str      \contentsreg, [\addressreg, \indexreg, lsl #2]
         .endm
 
 
