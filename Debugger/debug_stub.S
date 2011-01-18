@@ -530,8 +530,7 @@ _exit_cmdIndexTable:
  */
 
 __dbg__procCmdParamError:
-	mov		r0, #MSG_UNKNOWNPARAM
-	_dbg_outputMsgStatusErr
+	_dbg_outputMsgStatusErrCode MSG_UNKNOWNPARAM
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
 	ldmfd	sp!, {pc}
 
@@ -619,9 +618,8 @@ _dbg__procSetRegs:
  */
 _dbg__nop:
 	stmfd	sp!, {lr}
-	mov		r0, #MSG_ERRIMPL				/* Stub, not implemented yet */
-	_dbg_outputMsgStatusErr
-	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
+	_dbg_outputMsgStatusErrCode MSG_ERRIMPL    /* Stub, not implemented yet */
+	bl		dbg__putDebugMsg				   /* Send error response to the GDB server */
 	ldmfd	sp!, {pc}
 
 

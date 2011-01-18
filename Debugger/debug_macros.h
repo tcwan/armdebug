@@ -72,6 +72,15 @@
         ldm      \instrmask, {\instrreg, \instrmask, \codehandler}
         .endm
 
+/* _asciiz
+ *		Terminate string given string buffer pointer in \addrptr
+ *		reg is used as a scratch register (destroyed)
+ *
+ */
+	.macro	_asciiz	reg, strptr
+	mov		\reg, #0					/* NULL character */
+	strb	\reg, [\strptr]				/* Terminate ASCIIZ string */
+ 	.endm
 
 
 /* _dbg_stpcpy
@@ -114,7 +123,7 @@
  *	Return Message with valid response ('+$')
  *	On exit:
  *	  R0: destroyed
- *	  R1: points to NULL character after the prefix
+ *	  R1: Pointer to Output Buffer next character slot location
  *	  R2: destroyed
  */
 	.macro  _dbg_outputMsgValidResponse
@@ -125,54 +134,71 @@
 
 
 /* _dbg_outputMsgStatusOk
- *	Return Message with Ok ('+OK') status
+ *	Return Message with Ok ('+$OK') status
  *	On exit:
  *	  R0: destroyed
- *	  R1: destroyed
+ *	  R1: Pointer to Output Buffer ASCIIZ location
  *	  R2: destroyed
  */
 	.macro  _dbg_outputMsgStatusOk
 	ldr	 r1, =debug_OutMsgBuf
-	ldr	 r2, =debug_OkResponse
-	_dbg_stpcpy	 r1, r2
+	ldr	 r2, =debug_OkResponse			/* ASCIIZ terminated */
+	_dbg_stpcpy	r1, r2
 	.endm
 
 /* _dbg_outputMsgStatusErr
- *	Return Message with Error ('-ENN') status
+ *	Return Message with Error ('-$ENN') status
  *	On entry:
- *	  R0: register containing error value (byte)
+ *	  R0: error code
  *	On exit:
  *	  R0: destroyed
- *	  R1: destroyed
+ *	  R1: Pointer to Output Buffer ASCIIZ location
  *	  R2: destroyed
  *	  R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusErr
-	mov	 r3, r0
+	mov		r3, r0
 	ldr	 r1, =debug_OutMsgBuf
 	ldr	 r2, =debug_ErrorResponsePrefix
 	_dbg_stpcpy	 r1, r2
-	mov	 r0, r3
-	bl	  byte2ascii	  /* R1 points to NULL character after the prefix */
+	mov	 r0, r1
+	mov	 r1, r3
+	bl	  byte2ascii	  /* R0 points to buffer position after byte value */
+	_asciiz		r1, r0
+	.endm
+
+/* _dbg_outputMsgStatusErrCode
+ *	Return Message with Error ('-$ENN') status
+ *	On exit:
+ *	  R0: destroyed
+ *	  R1: Pointer to Output Buffer ASCIIZ location
+ *	  R2: destroyed
+ */
+	.macro  _dbg_outputMsgStatusErrCode	errcode
+	ldr	 r1, =debug_OutMsgBuf
+	ldr	 r2, =debug_ErrorResponsePrefix
+	_dbg_stpcpy	 r1, r2
+	mov	 r0, r1
+	mov	 r1, #errcode
+	bl	  byte2ascii	  /* R0 points to buffer position after byte value */
+	_asciiz		r1, r0
 	.endm
 
 /* _dbg_outputMsgStatusSig
- *	Return Message with Signal ('+SNN') status
- *	On entry:
- *	  R0: register containing error value (byte)
+ *	Return Message with Signal ('+$SNN') status
  *	On exit:
  *	  R0: destroyed
- *	  R1: destroyed
+ *	  R1: Pointer to Output Buffer ASCIIZ location
  *	  R2: destroyed
- *	  R3: destroyed
  */
-	.macro  _dbg_outputMsgStatusSig
-	mov	 r3, r0
+	.macro  _dbg_outputMsgStatusSig statuscode
 	ldr	 r1, =debug_OutMsgBuf
 	ldr	 r2, =debug_SignalResponsePrefix
 	_dbg_stpcpy	 r1, r2
-	mov	 r0, r3
-	bl	  byte2ascii	  /* R1 points to NULL character after the prefix */
+	mov	 r0, r1
+	mov	 r1, #statuscode
+	bl	  byte2ascii	  /* R0 points to buffer position after byte value */
+	_asciiz		r1, r0
 	.endm
 
 /* _getdbgregisterfromindex

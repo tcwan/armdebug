@@ -57,15 +57,6 @@ hex2char_lut:
 /* Macros
  */
 
-/* _asciiz
- *		Terminate string given string buffer pointer in \addrptr
- *		reg is used as a scratch register (destroyed)
- *
- */
-	.macro	_asciiz	reg, strptr
-	mov		\reg, #0					/* NULL character */
-	strb		\reg, [\strptr]				/* Terminate ASCIIZ string */
- 	.endm
 
 /* _hex2char_lut
  *		Internal routine to intialize the LUT address pointer

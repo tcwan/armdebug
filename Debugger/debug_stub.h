@@ -61,7 +61,6 @@
 #define MSGBUF_SETCHAR   '='
 #define MSGBUF_CHKSUMCHAR '#'
 #define MSGBUF_MSGERROR  -1
-#define MSGBUF_CMDINDEX_OUTOFRANGE_VAL     -1
 
 /*@}*/
 /** @name Debug Stack Constants.
