@@ -99,7 +99,7 @@ class NXTGDBServer:
                 if segno >= 0:
                     # Check segno, if non-zero it must be monotonically increasing from 1, otherwise 0
                     if segno > 0:
-                       assert segno == (prev_segno + 1), "segno = %s, prev_segno = %s" % (segno, prev_segno)
+                       assert segno == prev_segno + 1, "segno = %s, prev_segno = %s" % (segno, prev_segno)
                     prev_segno = segno
                     msg.append(s)              
             except usb.USBError as e:
