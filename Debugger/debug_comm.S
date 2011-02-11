@@ -3,7 +3,7 @@
  *
  */
 
-/* Copyright (C) 2007-2010 the NxOS developers
+/* Copyright (C) 2007-2011 the NxOS developers
  *
  * Module Developed by: TC Wan <tcwan@cs.usm.my>
  *

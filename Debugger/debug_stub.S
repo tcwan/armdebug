@@ -3,7 +3,7 @@
  *
  */
 
-/* Copyright (C) 2007-2010 the NxOS developers
+/* Copyright (C) 2007-2011 the NxOS developers
  *
  * Module Developed by: TC Wan <tcwan@cs.usm.my>
  *
@@ -320,6 +320,7 @@ debug_armComplexCCTable:
 	.extern dbg__hasDebugMsg			/* Check for message from the communications link */
 	.extern dbg__getDebugMsg			/* Read a message from the communications link */
 	.extern	dbg__putDebugMsg			/* Write a message to the communications link */
+	.extern dbg__runloopTasks           /* Platform specific Run Loop processing */
 
 
 /* The Debugger Interface can handle a total of (n-1) Breakpoint States and 1 Single Stepping State,
@@ -501,7 +502,7 @@ dbg__bkpt_offset_outofrange:
  *
  ****************************************************************************/
 dbg__bkpt_waitCMD:
-1:	bl		dbg__getDebugMsg				/* Read new message from Debugger, message buffer addr in R0, NULL if error */
+1:	bl		dbg__getDebugMsg				/* Read new message from Debugger, message buffer addr in R0, 0 if none, -1 if error */
 	cmp		r0, #0
 	beq     1b                              /* No message yet, keep checking */
 	movlt	r0, #MSG_ERRCHKSUM				/* Message invalid, checksum error? */
@@ -528,6 +529,7 @@ _dbg__cmdExists:
 _dbg__cmdError:
 	_dbg_outputMsgStatusErr
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
+	bl      dbg__runloopTasks               /* Execute platform run loop tasks while in ABRT mode */
 	b 		dbg__bkpt_waitCMD
 
 
