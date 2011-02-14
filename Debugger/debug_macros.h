@@ -112,7 +112,7 @@
  *      On exit:
  *        deststrptr: Pointer to next character slot in destination string
  *        sourcestrptr: Pointer to next character slot in source string
- *        R0: destroyed
+ *        sizereg, scratchreg: destroyed
  */
         .macro  _dbg_memcpy      deststrptr, sourcestrptr, sizereg, scratchreg
 1:      ldrb    \scratchreg, [\sourcestrptr], #1

@@ -45,6 +45,11 @@ debug_msgTxBuf_AppendPtr:
 debug_segmentRxNum:				/* Current Rx Segment Number */
 	.word	0x0
 
+#ifndef __NXOS__
+debug_nxtMsgLength:            /* NXT Firmware Received USB Message Length */
+    .word   0x0
+#endif
+
 .data
 .align 4
 
@@ -391,7 +396,28 @@ _dbg__usbbuf_reset:
 	ldmfd	sp!, {pc}
 #else
 	/* FIXME: NXT Firmware support */
+    ldr     r1, =debug_nxtMsgLength
+    mov     r0, #0
+    str     r0, [r1]                        /* Clear NXT USB Received Message Length */
 	bx		lr
+
+    .global dbg__copyNxtDebugMsg
+/* dbg__copyNxtDebugMsg
+ *      Copy NXT Firmware Debug Message to our own Buffers, indicate Msg Received status.
+ *      On Entry:
+ *          R0: NXT USB Input Buf Pointer
+ *          R1: USB Command Bit
+ *          R2: USB Raw Message Length
+ *      On Exit:
+ *          R0-R3: Destroyed
+ */
+
+dbg__copyNxtDebugMsg:
+    ldr     r1, =debug_nxtMsgLength
+    str     r2, [r1]
+    ldr     r1, =debug_InUSBBuf
+    _dbg_memcpy r1, r0, r2, r3                  /* r3: scratch register */
+    bx      lr
 #endif
 
 /* _dbg_reset_msgTxBuf_AppendPtr

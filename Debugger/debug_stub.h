@@ -222,6 +222,13 @@ ENUM_END(dbg_msg_errno)
  */
 FUNCDEF void dbg__bkpt_init(void);
 
+#ifndef __NXOS__
+/** Switch Mode to Debugger.
+ * 		Used by NXT Firmware only
+ */
+FUNCDEF UWORD cCommHandleDebug(UBYTE *pInBuf, UBYTE CmdBit, UWORD MsgLength);
+#endif
+
 /** Debugger Handler Routine (called by Exception Handler Trap).
  * 		Equivalent to GDB handle_exception() routine
  */

@@ -377,12 +377,42 @@ debug_armComplexCCTable:
  /* FIXME: The Debugger Stack Frame is probably not 100% consistent with the order that
     GDB expects in the g/G messages. CSPR is probably located above R15 */
 
+#ifndef __NXOS__
+/****************************************************************************
+ *
+ * GDB Debugger Invocation Routine for NXT Firmware
+ *
+ ****************************************************************************/
+    .code 16
+    .align 2
+    .global cCommHandleDebug
+    .thumb_func
+/* cCommHandleDebug
+ * Switch Mode to Debugger.
+ *      Used by NXT Firmware only
+ *
+ * UWORD cCommHandleDebug(UBYTE *pInBuf, UBYTE CmdBit, UWORD MsgLength);
+ *
+ * On Entry, we're in SVC mode. We need to setup the USB Buffers, and switch mode to
+ * ABORT mode to handle the incoming message using a Manual Breakpoint instruction.
+ * When DEBUG is exited, the execution resumes from the instruction following the Breakpoint.
+ */
+cCommHandleDebug:
+        push  {r0-r3}               /* store all argX registers */
+        bl    dbg__copyNxtDebugMsg  /* setup Debugger Message Buffers, validate input */
+        pop   {r0-r3}               /* restore all values */
+        dbg__bkpt_thumb
+        mov   r0, #0                /* FIXME: Return Status */
+        bx    lr
+#endif
+
 /****************************************************************************
  *
  * GDB Debugger Init and Breakpoint Handler Routines
  *
  ****************************************************************************/
-
+    .code 32
+    .align 4
  	.global dbg__bkpt_init
 /* dbg__bkpt_init
  * 		GDB set_debug_traps() routine
