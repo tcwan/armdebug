@@ -396,6 +396,10 @@ _dbg__usbbuf_reset:
 	ldmfd	sp!, {pc}
 #else
 	/* FIXME: NXT Firmware support */
+    bl      _dbg__usbbuf_reset
+    bx      lr
+
+_dbg__usbbuf_reset:
     ldr     r1, =debug_nxtMsgLength
     mov     r0, #0
     str     r0, [r1]                        /* Clear NXT USB Received Message Length */
@@ -612,23 +616,6 @@ exit_dbg__getDebugMsg:
 #endif
 
 
-/* _dbg__usbSendMsg
- *      Internal Segment Fragmentation Routine.
- *      On exit:
- *          r0: >0 = number of bytes sent
- *               0 = USB Tx busy
- *              -1 = error
- *          r1: message segment number
- */
-_dbg__usbSendMsg:
-#ifdef __NXOS__
-    stmfd   sp!, {lr}
-    ldmfd   sp!, {pc}
-#else
-    /* FIXME: NXT Firmware support */
-    bx      lr
-#endif
-
 /* _copy_msg_to_usbbuf
  *      Internal USB buffer copy routine, handles segment fragmentation.
  *      On entry:
@@ -640,6 +627,7 @@ _dbg__usbSendMsg:
  *          r2, r3: Destroyed
  */
 _copy_msg_to_usbbuf:
+#ifdef __NXOS__
     stmfd   sp!, {r1,r4,r5,r6,lr}
     ldr     r6, =debug_msgTxBufPtr              /* Address of Pointers */
     ldr     r5, [r6, #TXAPPENDPTR_OFFSET]       /* Retrieve Tx Append Pointer */
@@ -687,6 +675,10 @@ _exit_copy_msg_to_usbbuf:
     ldr     r6, [r6]                            /* Retrieve Tx Buffer Start Address */
     sub     r0, r5, r6                          /* Return calculated cummulative message length (R0) */
     ldmfd   sp!, {r1,r4,r5,r6,pc}               /* Return segment number in R1 */
+#else
+    /* FIXME: NXT Firmware support */
+    bx      lr
+#endif
 
 	.global dbg__putDebugMsg
 /* dbg__putDebugMsg
