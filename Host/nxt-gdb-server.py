@@ -91,7 +91,7 @@ class NXTGDBServer:
             try:
                 s, segno = self.unpack (sock.recv ())
                 if len (s) == 0:
-                    if segno == 0 & prev_segno == 0:
+                    if segno == 0 and prev_segno == 0:
                         return ''               # No message pending
                     else:
                         segno = NXT_RECV_ERR    # Keep waiting for segments
