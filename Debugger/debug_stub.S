@@ -533,9 +533,9 @@ dbg__bkpt_offset_outofrange:
  *
  ****************************************************************************/
 dbg__bkpt_waitCMD:
-1:	bl		dbg__getDebugMsg				/* Read new message from Debugger, message buffer addr in R0, 0 if none, -1 if error */
+	bl		dbg__getDebugMsg				/* Read new message from Debugger, message buffer addr in R0, 0 if none, -1 if error */
 	cmp		r0, #0
-	beq     1b                              /* No message yet, keep checking */
+	beq     _dbg__housekeeping              /* No message yet, do housekeeping tasks */
 	movlt	r0, #MSG_ERRCHKSUM				/* Message invalid, checksum error? */
 	blt		_dbg__cmdError					/* Send response to GDB server */
 /* Message now has $<packet info>\0 */
@@ -560,6 +560,7 @@ _dbg__cmdExists:
 _dbg__cmdError:
 	_dbg_outputMsgStatusErr
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
+_dbg__housekeeping:
 	bl      dbg__runloopTasks               /* Execute platform run loop tasks while in ABRT mode */
 	b 		dbg__bkpt_waitCMD
 
