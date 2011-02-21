@@ -619,7 +619,7 @@ _dbg__sendUSBMsg:
 #ifdef __NXOS__
     /* Check USB bus status, transmit message if possible */
     bl      nx_usb_is_connected                 /* R0 = True if USB is ready */
-    teq     r0, #TRUE
+    cmp     r0, #TRUE
     bne     _exit_dbg__sendUSBMsg
 
     /* Actual transmission (blocking) */
@@ -628,7 +628,7 @@ _dbg__sendUSBMsg:
     bl      nx_usb_write
 
 1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
-    teq     r0, #TRUE
+    cmp     r0, #TRUE
     /* FIXME: implement timeout */
     bne     1b                                  /* Busy Wait Loop */
 #else
@@ -689,7 +689,7 @@ _copy_msg_to_usbbuf:
 
     add     r0, r4, #USB_GDBMSG_START           /* Total USB Buffer Size for Tx (USB_GDBMSG_START offset = header size) */
     bl      _dbg__sendUSBMsg                    /* Common interface routine to USB drivers */
-    teq     r0, #TRUE
+    cmp     r0, #TRUE
     ldrne   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Tx failed, Retrieve Original Tx Append Pointer */
     streq   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Tx succeeded, Update Tx Append Pointer to new position */
 
