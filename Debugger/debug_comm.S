@@ -378,15 +378,15 @@ _exit_conv_ascii2byte:
  */
 
 dbg__comm_init:
-#ifdef __NXOS__
 	stmfd	sp!, {lr}
 	ldr     r2, =debug_msgRxBufPtr
 	stmia   r2!, {r0, r1}          /* debug_msgRxBufPtr and debug_msgTxBufPtr */
 	stmia   r2!, {r0, r1}          /* debug_msgRxBuf_AppendPtr and debug_msgTxBuf_AppendPtr */
-	bl		_dbg__usbbuf_reset
+	bl		_dbg__usb_readbuf_reset
 	ldmfd	sp!, {pc}
 
-_dbg__usbbuf_reset:
+_dbg__usb_readbuf_reset:
+#ifdef __NXOS__
 	stmfd	sp!, {lr}
 	ldr		r0, =debug_InUSBBuf
 	mov		r1, #USB_BUFSIZE
@@ -395,11 +395,6 @@ _dbg__usbbuf_reset:
 	bx		r2
 	ldmfd	sp!, {pc}
 #else
-	/* FIXME: NXT Firmware support */
-    bl      _dbg__usbbuf_reset
-    bx      lr
-
-_dbg__usbbuf_reset:
     ldr     r1, =debug_nxtMsgLength
     mov     r0, #0
     str     r0, [r1]                        /* Clear NXT USB Received Message Length */
@@ -624,7 +619,7 @@ _dbg__sendUSBMsg:
 #ifdef __NXOS__
     /* Check USB bus status, transmit message if possible */
     bl      nx_usb_is_connected                 /* R0 = True if USB is ready */
-    cmp     r0, #TRUE
+    teq     r0, #TRUE
     bne     _exit_dbg__sendUSBMsg
 
     /* Actual transmission (blocking) */
@@ -633,12 +628,23 @@ _dbg__sendUSBMsg:
     bl      nx_usb_write
 
 1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
-    cmp     r0, #TRUE
+    teq     r0, #TRUE
     /* FIXME: implement timeout */
     bne     1b                                  /* Busy Wait Loop */
 #else
-    /* FIXME: NXT Firmware support */
-    bx      lr
+    /* Check USB bus status, transmit message if possible */
+    bl      dUsbIsConfigured                    /* R0: UByte status, TRUE / FALSE */
+    teq     r0, #nxt_UBYTE_TRUE
+    movne   r0, #FALSE
+    bne     _exit_dbg__sendUSBMsg
+
+    /* Actual transmission (blocking) */
+    ldr     r0, =debug_OutUSBBuf                /* data pointer parameter */
+    mov     r1, r4                              /* USB buffer length */
+    bl      dUsbWrite                           /* call NXT Firmware USB driver, return 0: done, !0: remaining chars */
+    teq     r0, #0                              /* Tx done if returned length is 0 */
+    movne   r0, #FALSE
+    moveq   r0, #TRUE                           /* Convert NXT firmware return value to our Status (TRUE/FALSE) */
 #endif
 
 _exit_dbg__sendUSBMsg:
@@ -656,7 +662,6 @@ _exit_dbg__sendUSBMsg:
  *          r2, r3: Destroyed
  */
 _copy_msg_to_usbbuf:
-#ifdef __NXOS__
     stmfd   sp!, {r1,r4,r5,r6,lr}
     ldr     r6, =debug_msgTxBufPtr              /* Address of Pointers */
     ldr     r5, [r6, #TXAPPENDPTR_OFFSET]       /* Retrieve Tx Append Pointer */
@@ -684,39 +689,14 @@ _copy_msg_to_usbbuf:
 
     add     r0, r4, #USB_GDBMSG_START           /* Total USB Buffer Size for Tx (USB_GDBMSG_START offset = header size) */
     bl      _dbg__sendUSBMsg                    /* Common interface routine to USB drivers */
-    cmp     r0, #TRUE
+    teq     r0, #TRUE
     ldrne   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Tx failed, Retrieve Original Tx Append Pointer */
-    bne     _exit_copy_msg_to_usbbuf
-
-#if 0 /* original NxOS code */
-    /* Check USB bus status, transmit message if possible */
-    bl      nx_usb_is_connected                 /* R0 = True if USB is ready */
-    cmp     r0, #TRUE
-    ldrne   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Retrieve Original Tx Append Pointer */
-    bne     _exit_copy_msg_to_usbbuf
-
-    /* Actual transmission (blocking) */
-    ldr     r0, =debug_OutUSBBuf                /* data pointer parameter */
-    add     r1, r4, #USB_GDBMSG_START           /* USB buffer length (offset = header size) */
-    bl      nx_usb_write
-
-1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
-    cmp     r0, #TRUE
-    /* FIXME: implement timeout */
-    bne     1b                                  /* Busy Wait Loop */
-#endif
-
-    /* successful transmission */
-    str     r5, [r6, #TXAPPENDPTR_OFFSET]       /* Update Tx Append Pointer to new position */
+    streq   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Tx succeeded, Update Tx Append Pointer to new position */
 
 _exit_copy_msg_to_usbbuf:
     ldr     r6, [r6]                            /* Retrieve Tx Buffer Start Address */
     sub     r0, r5, r6                          /* Return calculated cummulative message length (R0) */
     ldmfd   sp!, {r1,r4,r5,r6,pc}               /* Return segment number in R1 */
-#else
-    /* FIXME: NXT Firmware support */
-    bx      lr
-#endif
 
 	.global dbg__putDebugMsg
 /* dbg__putDebugMsg

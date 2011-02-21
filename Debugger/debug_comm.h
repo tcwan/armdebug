@@ -41,6 +41,9 @@
   .extern      cCommExit
   .extern      dUsbWrite
   .extern      dUsbRead
+  .extern      dUsbIsConfigured
+  .equ         nxt_UBYTE_TRUE, 1
+  .equ         nxt_UBYTE_FALSE, 0
 
 #endif
 
