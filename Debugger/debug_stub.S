@@ -418,7 +418,7 @@ cCommHandleDebug:
  * 		GDB set_debug_traps() routine
  */
 dbg__bkpt_init:
-	stmfd	sp!, {lr}
+    push    {lr}
 	bl		_dbg__clear_breakpoints
 	mov		r2, #0
 	ldr		r1, =debug_curr_breakpoint
@@ -431,7 +431,8 @@ dbg__bkpt_init:
 
 /* FIXME: Initialize other stuff here */
 	_dbg_setstate DBG_INIT
-	ldmfd	sp!, {pc}
+    pop     {lr}
+    bx      lr                          /* Must return via BX; may have been called from Thumb mode (NXT Firmware) */
 
 
 /* _dbg__flush_icache
