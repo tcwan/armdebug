@@ -505,7 +505,7 @@ _copy_msg_from_usbbuf:
     strne   r2, [r6, #RXAPPENDPTR_OFFSET]       /* Otherwise, update Append Pointer to receive next segment */
 
 _exit_copy_msg_from_usbbuf:
-    bl      _dbg__usbbuf_reset                  /* Next USB telegram transaction */
+    bl      _dbg__usb_readbuf_reset             /* Next USB telegram transaction */
     mov     r0, r4                              /* Return cummulative message length in R0 */
     ldmfd   sp!, {r1,r4,r5,r6,pc}               /* Return segment number in R1 */
 
@@ -560,7 +560,7 @@ dbg__getDebugMsg:
     beq     _hasMsg2Copy                        /* Segment Number matches Expected Segment Number, update buffers */
 
 _invalid_segment:
-    bl      _dbg__usbbuf_reset                  /* Invalid, Next USB telegram transaction */
+    bl      _dbg__usb_readbuf_reset             /* Invalid, Next USB telegram transaction */
     mov     r0, #0                              /* Reset Segment Number */
     str     r0, [r4]                            /* Update current Segment Number with 0 to prepare for new message */
     b       exit_dbg__getMsgError               /* Exit with error */
