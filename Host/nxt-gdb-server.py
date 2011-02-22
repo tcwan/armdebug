@@ -25,7 +25,9 @@ import struct
 DEFAULT_PORT = 2828
 SELECT_TIMEOUT = 0.1
 DEBUG = True
+DEBUG2 = False              # Low Level Debug Output
 NXT_RECV_ERR = -1
+TIMEOUT_RETRIES_MAX = 3
 
 class NXTGDBServer:
 
@@ -70,6 +72,8 @@ class NXTGDBServer:
         # Is # found and enough place for the checkum?
         while end >= 0 and end < len (self.in_buf) - 2:
             msg, self.in_buf = self.in_buf[0:end + 3], self.in_buf[end + 3:]
+            if DEBUG2:
+                print "Message : '0x%02x'" % ord(msg[0])
             assert msg[0] == '$', "not a GDB command"
             # Make segments.
             seg_no = 0
@@ -85,6 +89,7 @@ class NXTGDBServer:
         
     def reassemble (self, sock):
         msg = ''
+        timeout_retries = 0
         prev_segno = 0
         segno = NXT_RECV_ERR                    # force initial pass through while loop
         while segno != 0:
@@ -104,8 +109,13 @@ class NXTGDBServer:
                     msg.append(s)              
             except usb.USBError as e:
                 # Some pyusb are buggy, ignore some "errors".
-                if e.args != ('No error', ):
-                    raise e
+                if e.args == ('Operation timed out', ) and segno > 0 and timeout_retries < TIMEOUT_RETRIES_MAX:
+                    timeout_retries += 1
+                    if DEBUG2:
+                        print "Timeout %d waiting for brick.sock.recv() for segment %d" % (timeout_retries, segno)
+                else:
+                    if e.args != ('No error', ):
+                        raise e
         return msg
         
     def run (self):
@@ -125,30 +135,39 @@ class NXTGDBServer:
             print "Client from", addr
             # Work loop, wait for a message from client socket or NXT brick.
             while client is not None:
-                # Wait for a message from client/brick or timeout.
-                rlist, wlist, xlist = select.select ([ client, brick.sock ], [ ], [ ],
+                # Wait for a message from client or timeout.
+                rlist, wlist, xlist = select.select ([ client ], [ ], [ ],
                         SELECT_TIMEOUT)
-                for fd in rlist:
-                    if fd is client:
-                        # Data from client, read it and forward it to NXT brick.
-                        data = client.recv (self.recv_size)
-                        if data:
-                            if DEBUG:
-                                print "[GDB->NXT] %s" % data
-                            segments = self.segment (data)
-                            for s in segments:
-                                 brick.sock.send (s)
-                        else:
-                          client.close ()
-                          client = None
-                    if fd is brick.sock:
-                    # Is there something from NXT brick?
-                        data = self.reassemble (brick.sock)
-                        if data:
-                           if DEBUG:
-                              print "[NXT->GDB] %s" % data
-                           client.send (data)
-                           data = ''
+                for c in rlist:
+                    assert c is client
+                    # Data from client, read it and forward it to NXT brick.
+                    data = client.recv (self.recv_size)
+                    data = data.strip()         # Remove leading and training EOL character(s) and whitespace
+                    if data:
+                        if DEBUG:
+                            print "[GDB->NXT] %s" % data
+                        segments = self.segment (data)
+                        for s in segments:
+                            brick.sock.send (s)
+                    else:
+                        client.close ()
+                        client = None
+                # We can't select() on brick.sock. Is there something from NXT brick?
+                try:
+                    data = self.reassemble (brick.sock)
+                    if data:
+                        if DEBUG:
+                            print "[NXT->GDB] %s" % data
+                        client.send (data)
+                        data = ''
+                except usb.USBError as e:
+                    # Some pyusb are buggy, ignore some "errors".
+                    if e.args == ('Operation timed out', ):
+                        if DEBUG:
+                            print "run(): No incoming messages from NXT"
+                    elif e.args != ('No error', ):
+                        raise e
+    
             print "Connection closed, waiting for GDB connection on port %s..." % self.port
 
 if __name__ == '__main__':
