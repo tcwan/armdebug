@@ -142,7 +142,7 @@ class NXTGDBServer:
                         client.close ()
                         client = None
                 # Is there something from NXT brick?
-                data = reassemble(brick.sock)
+                data = self.reassemble (brick.sock)
                 if data:
                     if DEBUG:
                         print "[NXT->GDB] %s" % data
