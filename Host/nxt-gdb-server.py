@@ -125,29 +125,30 @@ class NXTGDBServer:
             print "Client from", addr
             # Work loop, wait for a message from client socket or NXT brick.
             while client is not None:
-                # Wait for a message from client or timeout.
-                rlist, wlist, xlist = select.select ([ client ], [ ], [ ],
+                # Wait for a message from client/brick or timeout.
+                rlist, wlist, xlist = select.select ([ client, brick.sock ], [ ], [ ],
                         SELECT_TIMEOUT)
-                for c in rlist:
-                    assert c is client
-                    # Data from client, read it and forward it to NXT brick.
-                    data = client.recv (self.recv_size)
-                    if data:
-                        if DEBUG:
-                            print "[GDB->NXT] %s" % data
-                        segments = self.segment (data)
-                        for s in segments:
-                            brick.sock.send (s)
-                    else:
-                        client.close ()
-                        client = None
-                # Is there something from NXT brick?
-                data = self.reassemble (brick.sock)
-                if data:
-                    if DEBUG:
-                        print "[NXT->GDB] %s" % data
-                    client.send (data)
-                    data = ''
+                for fd in rlist:
+                    if fd is client:
+                        # Data from client, read it and forward it to NXT brick.
+                        data = client.recv (self.recv_size)
+                        if data:
+                            if DEBUG:
+                                print "[GDB->NXT] %s" % data
+                            segments = self.segment (data)
+                            for s in segments:
+                                 brick.sock.send (s)
+                        else:
+                          client.close ()
+                          client = None
+                    if fd is brick.sock:
+                    # Is there something from NXT brick?
+                        data = self.reassemble (brick.sock)
+                        if data:
+                           if DEBUG:
+                              print "[NXT->GDB] %s" % data
+                           client.send (data)
+                           data = ''
             print "Connection closed, waiting for GDB connection on port %s..." % self.port
 
 if __name__ == '__main__':
