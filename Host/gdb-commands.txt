@@ -1,0 +1,16 @@
+# This file contains hand coded GDB commands for testing the GDB Server <-> NXT interface
+
+# Display all Registers
+$g#67
+
+# Display R0
+$p0#A0
+
+# Display PC
+$pF#B6
+
+# Display User CPSR
+$p!#91
+
+# Set R0 to 0xAA
+$P1=000000AA#80
