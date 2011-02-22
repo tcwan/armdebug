@@ -36,13 +36,16 @@ dbg__test_arm_bkpt:
 	.global dbg__test_thumb_bkpt
 dbg__test_thumb_bkpt:
 	stmfd sp!,{lr}
-	ldr r0, =_thumb_entry
-	orr	r0, r0, #1					/* set Thumb mode */
+/*	ldr r0, =_thumb_entry
+	orr	r0, r0, #1					@ Set Thumb mode
 	mov	lr, pc
 	bx	r0
+*/
+    bl  _thumb_entry
 	ldmfd sp!,{pc}
 
 .code 16
+.thumb_func
 _thumb_entry:
 	dbg__bkpt_thumb
 	bx	lr
