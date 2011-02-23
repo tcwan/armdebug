@@ -101,7 +101,7 @@ class NXTGDBServer:
                     if segno > 0:
                        assert segno == prev_segno + 1, "segno = %s, prev_segno = %s" % (segno, prev_segno)
                     prev_segno = segno
-                    msg.append(s)              
+                    msg += s               
             except usb.USBError as e:
                 # Some pyusb are buggy, ignore some "errors".
                 if e.args != ('No error', ):
