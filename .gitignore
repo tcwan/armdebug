@@ -21,6 +21,10 @@ MASTER-REPO_DO-NOT-DELETE
 # Python distutils creates this when building.
 pynxt/build/
 
+# XCode build stuff
+FantomModule/build/
+*mode1v3
+*pbxuser
 
 # SCons cruft
 .sconsign.dblite
