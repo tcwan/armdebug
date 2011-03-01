@@ -1,15 +1,20 @@
 from distutils.core import setup, Extension
 import sys
+import os
 
 def getextensions():
     mac_ext = Extension("FantomModule",
         define_macros=[('PYFANTOM_DEBUG', '0')],    # set to '1' to print debug messges
         include_dirs=['.'],
-        extra_compile_args=['-arch i386'],
-        libraries=["Fantom"],
+        extra_compile_args=["-Wno-strict-prototypes"],
+        extra_link_args=["-framework Fantom"],
         sources=["FantomModule.cpp"]
         )
     return [mac_ext]
+
+# Must specify i386 arch via environment variable since Fantom libraries are i386 only
+# Order of gcc flags is important, it can't be specified via Extension() module
+os.environ['ARCHFLAGS'] = '-arch i386'
 
 # install the main library
 setup(name="pyfantom",
