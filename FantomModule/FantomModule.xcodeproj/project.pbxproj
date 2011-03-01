@@ -1,0 +1,293 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 45;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		43B531D2131C92690016BF14 /* Python in Frameworks */ = {isa = PBXBuildFile; fileRef = 43B531D1131C92690016BF14 /* Python */; };
+		43B531F2131C962E0016BF14 /* iFile.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531EA131C962E0016BF14 /* iFile.h */; };
+		43B531F3131C962E0016BF14 /* iFileIterator.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531EB131C962E0016BF14 /* iFileIterator.h */; };
+		43B531F4131C962E0016BF14 /* iModule.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531EC131C962E0016BF14 /* iModule.h */; };
+		43B531F5131C962E0016BF14 /* iModuleIterator.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531ED131C962E0016BF14 /* iModuleIterator.h */; };
+		43B531F6131C962E0016BF14 /* iNXT.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531EE131C962E0016BF14 /* iNXT.h */; };
+		43B531F7131C962E0016BF14 /* iNXTIterator.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531EF131C962E0016BF14 /* iNXTIterator.h */; };
+		43B531F8131C962E0016BF14 /* platform.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531F0131C962E0016BF14 /* platform.h */; };
+		43B531F9131C962E0016BF14 /* tStatus.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531F1131C962E0016BF14 /* tStatus.h */; };
+		43B531FB131C963A0016BF14 /* visatype.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531FA131C963A0016BF14 /* visatype.h */; };
+		43B5320A131C975B0016BF14 /* Fantom in Frameworks */ = {isa = PBXBuildFile; fileRef = 43B53209131C975B0016BF14 /* Fantom */; };
+		50149BDA09E781A5002DEE6A /* FantomModule.h in Headers */ = {isa = PBXBuildFile; fileRef = 50149BD909E781A5002DEE6A /* FantomModule.h */; };
+		5073E0CB09E734E500EC74B6 /* FantomModule.cp in Sources */ = {isa = PBXBuildFile; fileRef = 5073E0C409E734A800EC74B6 /* FantomModule.cp */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		32BAE0B70371A74B00C91783 /* FantomModule_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FantomModule_Prefix.pch; sourceTree = "<group>"; };
+		43B531D1131C92690016BF14 /* Python */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = Python; path = /System/Library/Frameworks/Python.framework/Python; sourceTree = "<absolute>"; };
+		43B531EA131C962E0016BF14 /* iFile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iFile.h; sourceTree = "<group>"; };
+		43B531EB131C962E0016BF14 /* iFileIterator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iFileIterator.h; sourceTree = "<group>"; };
+		43B531EC131C962E0016BF14 /* iModule.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iModule.h; sourceTree = "<group>"; };
+		43B531ED131C962E0016BF14 /* iModuleIterator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iModuleIterator.h; sourceTree = "<group>"; };
+		43B531EE131C962E0016BF14 /* iNXT.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iNXT.h; sourceTree = "<group>"; };
+		43B531EF131C962E0016BF14 /* iNXTIterator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iNXTIterator.h; sourceTree = "<group>"; };
+		43B531F0131C962E0016BF14 /* platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = platform.h; sourceTree = "<group>"; };
+		43B531F1131C962E0016BF14 /* tStatus.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = tStatus.h; sourceTree = "<group>"; };
+		43B531FA131C963A0016BF14 /* visatype.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = visatype.h; sourceTree = "<group>"; };
+		43B53209131C975B0016BF14 /* Fantom */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = Fantom; path = /Library/Frameworks/Fantom.framework/Fantom; sourceTree = "<absolute>"; };
+		50149BD909E781A5002DEE6A /* FantomModule.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FantomModule.h; sourceTree = "<group>"; };
+		5073E0C409E734A800EC74B6 /* FantomModule.cp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = FantomModule.cp; sourceTree = "<group>"; };
+		5073E0C609E734A800EC74B6 /* FantomModuleProj.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; path = FantomModuleProj.xcconfig; sourceTree = "<group>"; };
+		5073E0C709E734A800EC74B6 /* FantomModuleTarget.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; path = FantomModuleTarget.xcconfig; sourceTree = "<group>"; };
+		50B2938909F016FC00694E55 /* FantomModulePriv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FantomModulePriv.h; sourceTree = "<group>"; };
+		D2AAC09D05546B4700DB518D /* libFantomModule.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libFantomModule.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D2AAC09B05546B4700DB518D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				43B531D2131C92690016BF14 /* Python in Frameworks */,
+				43B5320A131C975B0016BF14 /* Fantom in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		034768DDFF38A45A11DB9C8B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D2AAC09D05546B4700DB518D /* libFantomModule.dylib */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0867D691FE84028FC02AAC07 /* FantomModule */ = {
+			isa = PBXGroup;
+			children = (
+				43B531FA131C963A0016BF14 /* visatype.h */,
+				43B531E9131C962E0016BF14 /* fantom */,
+				5073E0CA09E734BC00EC74B6 /* Configuration Files */,
+				08FB77ACFE841707C02AAC07 /* Source */,
+				0867D69AFE84028FC02AAC07 /* External Frameworks and Libraries */,
+				034768DDFF38A45A11DB9C8B /* Products */,
+			);
+			name = FantomModule;
+			sourceTree = "<group>";
+		};
+		0867D69AFE84028FC02AAC07 /* External Frameworks and Libraries */ = {
+			isa = PBXGroup;
+			children = (
+				43B53209131C975B0016BF14 /* Fantom */,
+				43B531D1131C92690016BF14 /* Python */,
+			);
+			name = "External Frameworks and Libraries";
+			sourceTree = "<group>";
+		};
+		08FB77ACFE841707C02AAC07 /* Source */ = {
+			isa = PBXGroup;
+			children = (
+				32BAE0B70371A74B00C91783 /* FantomModule_Prefix.pch */,
+				50149BD909E781A5002DEE6A /* FantomModule.h */,
+				50B2938909F016FC00694E55 /* FantomModulePriv.h */,
+				5073E0C409E734A800EC74B6 /* FantomModule.cp */,
+			);
+			name = Source;
+			sourceTree = "<group>";
+		};
+		43B531E9131C962E0016BF14 /* fantom */ = {
+			isa = PBXGroup;
+			children = (
+				43B531EA131C962E0016BF14 /* iFile.h */,
+				43B531EB131C962E0016BF14 /* iFileIterator.h */,
+				43B531EC131C962E0016BF14 /* iModule.h */,
+				43B531ED131C962E0016BF14 /* iModuleIterator.h */,
+				43B531EE131C962E0016BF14 /* iNXT.h */,
+				43B531EF131C962E0016BF14 /* iNXTIterator.h */,
+				43B531F0131C962E0016BF14 /* platform.h */,
+				43B531F1131C962E0016BF14 /* tStatus.h */,
+			);
+			path = fantom;
+			sourceTree = "<group>";
+		};
+		5073E0CA09E734BC00EC74B6 /* Configuration Files */ = {
+			isa = PBXGroup;
+			children = (
+				5073E0C609E734A800EC74B6 /* FantomModuleProj.xcconfig */,
+				5073E0C709E734A800EC74B6 /* FantomModuleTarget.xcconfig */,
+			);
+			name = "Configuration Files";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		D2AAC09905546B4700DB518D /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				50149BDA09E781A5002DEE6A /* FantomModule.h in Headers */,
+				43B531F2131C962E0016BF14 /* iFile.h in Headers */,
+				43B531F3131C962E0016BF14 /* iFileIterator.h in Headers */,
+				43B531F4131C962E0016BF14 /* iModule.h in Headers */,
+				43B531F5131C962E0016BF14 /* iModuleIterator.h in Headers */,
+				43B531F6131C962E0016BF14 /* iNXT.h in Headers */,
+				43B531F7131C962E0016BF14 /* iNXTIterator.h in Headers */,
+				43B531F8131C962E0016BF14 /* platform.h in Headers */,
+				43B531F9131C962E0016BF14 /* tStatus.h in Headers */,
+				43B531FB131C963A0016BF14 /* visatype.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		D2AAC09C05546B4700DB518D /* FantomModule */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1DEB916008733D950010E9CD /* Build configuration list for PBXNativeTarget "FantomModule" */;
+			buildPhases = (
+				D2AAC09905546B4700DB518D /* Headers */,
+				D2AAC09B05546B4700DB518D /* Frameworks */,
+				D2AAC09A05546B4700DB518D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FantomModule;
+			productName = libFantomModule;
+			productReference = D2AAC09D05546B4700DB518D /* libFantomModule.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0867D690FE84028FC02AAC07 /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = 1DEB916408733D950010E9CD /* Build configuration list for PBXProject "FantomModule" */;
+			compatibilityVersion = "Xcode 3.1";
+			developmentRegion = English;
+			hasScannedForEncodings = 1;
+			knownRegions = (
+				English,
+				Japanese,
+				French,
+				German,
+			);
+			mainGroup = 0867D691FE84028FC02AAC07 /* FantomModule */;
+			productRefGroup = 034768DDFF38A45A11DB9C8B /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D2AAC09C05546B4700DB518D /* FantomModule */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D2AAC09A05546B4700DB518D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5073E0CB09E734E500EC74B6 /* FantomModule.cp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1DEB916108733D950010E9CD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5073E0C709E734A800EC74B6 /* FantomModuleTarget.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = FantomModule_Prefix.pch;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(SYSTEM_LIBRARY_DIR)/Frameworks/Python.framework\"",
+					"\"$(LOCAL_LIBRARY_DIR)/Frameworks/Fantom.framework\"",
+				);
+			};
+			name = Debug;
+		};
+		1DEB916208733D950010E9CD /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5073E0C709E734A800EC74B6 /* FantomModuleTarget.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_MODEL_TUNING = G5;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = FantomModule_Prefix.pch;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(SYSTEM_LIBRARY_DIR)/Frameworks/Python.framework\"",
+					"\"$(LOCAL_LIBRARY_DIR)/Frameworks/Fantom.framework\"",
+				);
+				STRIP_INSTALLED_PRODUCT = YES;
+				STRIP_STYLE = "non-global";
+			};
+			name = Release;
+		};
+		1DEB916508733D950010E9CD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5073E0C609E734A800EC74B6 /* FantomModuleProj.xcconfig */;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = /usr/include/python2.6/;
+				ONLY_ACTIVE_ARCH = YES;
+				PREBINDING = NO;
+				SDKROOT = macosx10.6;
+			};
+			name = Debug;
+		};
+		1DEB916608733D950010E9CD /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5073E0C609E734A800EC74B6 /* FantomModuleProj.xcconfig */;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				PREBINDING = NO;
+				SDKROOT = macosx10.6;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1DEB916008733D950010E9CD /* Build configuration list for PBXNativeTarget "FantomModule" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DEB916108733D950010E9CD /* Debug */,
+				1DEB916208733D950010E9CD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1DEB916408733D950010E9CD /* Build configuration list for PBXProject "FantomModule" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DEB916508733D950010E9CD /* Debug */,
+				1DEB916608733D950010E9CD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0867D690FE84028FC02AAC07 /* Project object */;
+}
