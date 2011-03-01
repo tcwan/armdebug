@@ -10,7 +10,7 @@
 #ifndef FantomModule_
 #define FantomModule_
 
-#include <Python.h>
+#include "Python.h"
 #include "fantom/iNXT.h"
 #include "fantom/iNXTIterator.h"
 #include "fantom/tStatus.h"
@@ -23,7 +23,7 @@
 /* The classes below are exported */
 #pragma GCC visibility push(default)
 
-extern "C"  PyMODINIT_FUNC initspam(void);
+extern "C"  PyMODINIT_FUNC initfantom(void);
 
 extern "C"  PyObject *fantom_finddevices(PyObject *py_self, PyObject *py_args);
 extern "C"  PyObject *fantom_socket(PyObject *py_self, PyObject *py_args);

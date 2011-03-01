@@ -19,7 +19,7 @@
 		43B531FB131C963A0016BF14 /* visatype.h in Headers */ = {isa = PBXBuildFile; fileRef = 43B531FA131C963A0016BF14 /* visatype.h */; };
 		43B5320A131C975B0016BF14 /* Fantom in Frameworks */ = {isa = PBXBuildFile; fileRef = 43B53209131C975B0016BF14 /* Fantom */; };
 		50149BDA09E781A5002DEE6A /* FantomModule.h in Headers */ = {isa = PBXBuildFile; fileRef = 50149BD909E781A5002DEE6A /* FantomModule.h */; };
-		5073E0CB09E734E500EC74B6 /* FantomModule.cp in Sources */ = {isa = PBXBuildFile; fileRef = 5073E0C409E734A800EC74B6 /* FantomModule.cp */; };
+		5073E0CB09E734E500EC74B6 /* FantomModule.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5073E0C409E734A800EC74B6 /* FantomModule.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,8 +35,9 @@
 		43B531F1131C962E0016BF14 /* tStatus.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = tStatus.h; sourceTree = "<group>"; };
 		43B531FA131C963A0016BF14 /* visatype.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = visatype.h; sourceTree = "<group>"; };
 		43B53209131C975B0016BF14 /* Fantom */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = Fantom; path = /Library/Frameworks/Fantom.framework/Fantom; sourceTree = "<absolute>"; };
+		43DB2163131CBF18001443AF /* setup.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = setup.py; sourceTree = "<group>"; };
 		50149BD909E781A5002DEE6A /* FantomModule.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FantomModule.h; sourceTree = "<group>"; };
-		5073E0C409E734A800EC74B6 /* FantomModule.cp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = FantomModule.cp; sourceTree = "<group>"; };
+		5073E0C409E734A800EC74B6 /* FantomModule.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = FantomModule.cpp; sourceTree = "<group>"; };
 		5073E0C609E734A800EC74B6 /* FantomModuleProj.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; path = FantomModuleProj.xcconfig; sourceTree = "<group>"; };
 		5073E0C709E734A800EC74B6 /* FantomModuleTarget.xcconfig */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.xcconfig; path = FantomModuleTarget.xcconfig; sourceTree = "<group>"; };
 		50B2938909F016FC00694E55 /* FantomModulePriv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FantomModulePriv.h; sourceTree = "<group>"; };
@@ -73,6 +74,7 @@
 				08FB77ACFE841707C02AAC07 /* Source */,
 				0867D69AFE84028FC02AAC07 /* External Frameworks and Libraries */,
 				034768DDFF38A45A11DB9C8B /* Products */,
+				43DB2163131CBF18001443AF /* setup.py */,
 			);
 			name = FantomModule;
 			sourceTree = "<group>";
@@ -92,7 +94,7 @@
 				32BAE0B70371A74B00C91783 /* FantomModule_Prefix.pch */,
 				50149BD909E781A5002DEE6A /* FantomModule.h */,
 				50B2938909F016FC00694E55 /* FantomModulePriv.h */,
-				5073E0C409E734A800EC74B6 /* FantomModule.cp */,
+				5073E0C409E734A800EC74B6 /* FantomModule.cpp */,
 			);
 			name = Source;
 			sourceTree = "<group>";
@@ -191,7 +193,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5073E0CB09E734E500EC74B6 /* FantomModule.cp in Sources */,
+				5073E0CB09E734E500EC74B6 /* FantomModule.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

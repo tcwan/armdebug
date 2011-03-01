@@ -36,7 +36,7 @@ static PyMethodDef FantomMethods[] = {
 };
 
 extern "C"  PyMODINIT_FUNC
-initspam(void)
+initfantom(void)
 {
     (void) Py_InitModule("fantom", FantomMethods);
 }
