@@ -19,6 +19,8 @@
 #define FANTOM_USB "USB"
 #define FANTOM_BT_TIMEOUTSEC 2
 #define FANTOM_NXTNAME_LEN 256
+#define FANTOM_DATA_BUFLEN 256
+#define FANTOM_NXT_PASSKEY "1234"
 
 /* The classes below are exported */
 #pragma GCC visibility push(default)
@@ -35,12 +37,16 @@ extern "C"  PyObject *fantom_close(PyObject *py_self, PyObject *py_args);
 class FantomModule
 {
 		nFANTOM100::tStatus status;
-		nFANTOM100::iNXTIterator* nxtIteratorPtr;
 		nFANTOM100::iNXT* nxtPtr;
+		ViChar	pairedResourceName[FANTOM_NXTNAME_LEN];
 	
 	public:
 		PyObject *finddevices(PyObject *py_self, PyObject *py_args);
 		PyObject *socket(PyObject *py_self, PyObject *py_args);
+		PyObject *connect(PyObject *py_self, PyObject *py_args);
+		PyObject *send(PyObject *py_self, PyObject *py_args);
+		PyObject *recv(PyObject *py_self, PyObject *py_args);
+		PyObject *close(PyObject *py_self, PyObject *py_args);
 	
 		void HelloWorld(const char *);
 };
