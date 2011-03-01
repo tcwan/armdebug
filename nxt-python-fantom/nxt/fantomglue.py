@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-import fantom
+import pyfantom
 
 FANTOM_BT='BT'
 FANTOM_USB='USB'
@@ -22,7 +22,7 @@ FANTOM_USB='USB'
 
 def discover_devices(lookup_names=False):  # parameter is ignored
     pairs = []
-    d = fantom.finddevices(proto = FANTOM_BT)
+    d = pyfantom.finddevices(proto = FANTOM_BT)
     for p in d:
         h = p[0]
         n = p[1]
@@ -33,7 +33,7 @@ class BluetoothSocket:
 
     def __init__(self, proto = FANTOM_BT, _sock=None):
         if _sock is None:
-            _sock = fantom.socket(proto)
+            _sock = pyfantom.socket(proto)
         self._sock = _sock
         self._proto = proto
 
