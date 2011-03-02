@@ -6,11 +6,8 @@
  *  Copyright 2011 TC Wan. All rights reserved.
  *
  *  Based on code from Fantom Driver 1.0.2f0 Example
- *  © Copyright 2006,
- *  National Instruments Corporation.
- *  All rights reserved.
- * 
- *  Originated:  10 March 2006
+ *  © Copyright 2006, National Instruments Corporation.
+ *  All rights reserved. Originated:  10 March 2006
  *
  */
 
@@ -21,7 +18,9 @@
 
 static PyMethodDef FantomMethods[] = {
     {"finddevices",  fantom_finddevices, METH_VARARGS,
-		"Find a NXT Device"},
+		"Discover NXT Devices (BT Discovery)"},
+    {"find_bricks",  fantom_find_bricks, METH_VARARGS,
+		"Find and Create NXT Devices (BT & USB)"},
     {"socket",  fantom_socket, METH_VARARGS,
 		"Create a Socket for a NXT Brick"},
     {"connect",  fantom_connect, METH_VARARGS,
@@ -43,13 +42,18 @@ initfantom(void)
 
 extern "C"  PyObject *fantom_finddevices(PyObject *py_self, PyObject *py_args)
 {
-	FantomModule *fantomObject;
-	fantomObject = new FantomModule;
 	
-	PyObject *list = fantomObject->finddevices(py_self,py_args);
-	delete fantomObject;
+	PyObject *list = FantomModule::finddevices(py_self,py_args);
 	
-	return list;
+	return list;	// of resource names
+}
+
+extern "C"  PyObject *fantom_find_bricks(PyObject *py_self, PyObject *py_args)
+{
+
+	PyObject *list = FantomModule::find_bricks(py_self,py_args);
+	
+	return list;	// of FantomModule objects
 }
 
 extern "C"  PyObject *fantom_socket(PyObject *py_self, PyObject *py_args)
@@ -93,7 +97,10 @@ extern "C"  PyObject *fantom_close(PyObject *py_self, PyObject *py_args)
 	FantomModule *fantomObject;
 	// FIXME: Retrieve FantomObject from PyObject variable
 	
-	return fantomObject->close(py_self,py_args);
+	PyObject *status;
+	status = fantomObject->close(py_self,py_args);
+	delete fantomObject;
+	return status;
 }
 
 PyObject *FantomModule::finddevices(PyObject *py_self, PyObject *py_args)
@@ -108,18 +115,69 @@ PyObject *FantomModule::finddevices(PyObject *py_self, PyObject *py_args)
 	PyObject *list = NULL;
 	
 	nFANTOM100::iNXTIterator* nxtIteratorPtr;
+	nFANTOM100::tStatus status;
 	
 	// Create an NXT iterator object which is used to find all accessible NXT devices.
-	nxtIteratorPtr = nFANTOM100::iNXT::createNXTIterator(useBT, FANTOM_BT_TIMEOUTSEC, status);
+	nxtIteratorPtr = nFANTOM100::iNXT::createNXTIterator(useBT, (useBT ? FANTOM_BT_TIMEOUTSEC : 0), status);
 	
 	// Creating the NXT iterator object could fail, better check status before dereferencing a
 	//    potentially NULL pointer.
-	if( status.isNotFatal())
+	while (status.isNotFatal())
 	{
 		ViChar nxtName[FANTOM_NXTNAME_LEN];
 		nxtIteratorPtr->getName(nxtName, status);
-		if( status.isNotFatal())
+		if (status.isNotFatal())
 		{
+			// Split nxtName into NXT ID (h) and NXT Name (n)
+			// return as [(h,n),...]
+			// FIXME: Append to Python list
+			/*
+			 return Py_BuildValue("i", sts);
+			 */
+		}
+		nxtIteratorPtr->advance(status);
+		
+	}
+	// Destroy the NXT iterator object which we no longer need
+	nFANTOM100::iNXT::destroyNXTIterator( nxtIteratorPtr );
+	return list;
+	
+}
+
+PyObject *FantomModule::find_bricks(PyObject *py_self, PyObject *py_args)
+{
+	const char *host, *name;
+	if (!PyArg_ParseTuple(py_args, "ss", &host, &name))
+        return NULL;
+	
+	ViBoolean useBT;
+	useBT = false;
+	
+	PyObject *list = NULL;
+
+	
+	nFANTOM100::iNXTIterator* nxtIteratorPtr;
+	nFANTOM100::tStatus status;
+	
+	// Create an NXT iterator object which is used to find all accessible NXT devices.
+	nxtIteratorPtr = nFANTOM100::iNXT::createNXTIterator(useBT, (useBT ? FANTOM_BT_TIMEOUTSEC : 0), status);
+	
+	// Creating the NXT iterator object could fail, better check status before dereferencing a
+	//    potentially NULL pointer.
+	while (status.isNotFatal())
+	{
+		ViChar nxtName[FANTOM_NXTNAME_LEN];
+		nFANTOM100::iNXT* aNXT = NULL;
+		nxtIteratorPtr->getName(nxtName, status);
+		aNXT = nxtIteratorPtr->getNXT(status);
+		if (status.isNotFatal())
+		{
+			FantomModule *aFantomObject = new FantomModule;
+			aFantomObject->nxtPtr = aNXT;
+			if (strlcpy(aFantomObject->pairedResourceName, nxtName,FANTOM_NXTNAME_LEN) >= FANTOM_NXTNAME_LEN)
+				// Exceeded Name Length
+				exit;
+			
 			// FIXME: Append to Python list
 			/*
 			 return Py_BuildValue("i", sts);
@@ -137,7 +195,7 @@ PyObject *FantomModule::finddevices(PyObject *py_self, PyObject *py_args)
 PyObject *FantomModule::socket(PyObject *py_self, PyObject *py_args)
 {
 	// Internal class object setup
-	iNXT = NULL;
+	nxtPtr = NULL;
 	
 }
 
@@ -150,9 +208,11 @@ PyObject *FantomModule::connect(PyObject *py_self, PyObject *py_args)
 	ViConstString passkey[FANTOM_NXTNAME_LEN] = { FANTOM_NXT_PASSKEY };
 
 	// FIXME: Retrieve PyObject's proto setting
+	nFANTOM100::tStatus status;
+	const char *proto;
 	ViBoolean	  useBT;
 	useBT = strcmp(proto, FANTOM_BT) ? true : false;
-	if (useBT)
+	if (useBT and !nFANTOM100::iNXT::isPaired((ViConstString)resourceName,status))
 		nFANTOM100::iNXT::pairBluetooth((ViConstString) resourceName, (ViConstString) passkey, (ViChar *) pairedResourceName, status);
 	
 	if (status.isNotFatal())
@@ -165,6 +225,7 @@ PyObject *FantomModule::send(PyObject *py_self, PyObject *py_args)
 {
 	ViByte bufferPtr[FANTOM_DATA_BUFLEN];
 	ViUInt32 numberOfBytes;
+	nFANTOM100::tStatus status;
 	
 	nxtPtr->write(bufferPtr, numberOfBytes, status);
 }
@@ -174,22 +235,36 @@ PyObject *FantomModule::recv(PyObject *py_self, PyObject *py_args)
 	ViByte bufferPtr[FANTOM_DATA_BUFLEN];
 	ViUInt32 numberOfBytes;
 	ViUInt32 bytesRead;
+	nFANTOM100::tStatus status;
 	
 	bytesRead = nxtPtr->read(bufferPtr, numberOfBytes, status);
 }	
 
 PyObject *FantomModule::close(PyObject *py_self, PyObject *py_args)
 {
-	nFANTOM100::iNXT::destroyNXT(nxtPtr);
+	if (nxtPtr)
+		nFANTOM100::iNXT::destroyNXT(nxtPtr);
+	nxtPtr = NULL;
+	
 	// FIXME: Retrieve resource String
 	ViConstString resourceName[FANTOM_NXTNAME_LEN];
 
 	// FIXME: Retrieve PyObject's proto setting
+	nFANTOM100::tStatus status;
+	const char *proto;
 	ViBoolean	  useBT;
 	useBT = strcmp(proto, FANTOM_BT) ? true : false;
-	if (useBT)
+	if (useBT and nFANTOM100::iNXT::isPaired((ViConstString)resourceName,status))
 		nFANTOM100::iNXT::unpairBluetooth((ViConstString) resourceName, status);			// No Effect on Mac OSX
 	// FIXME: Set PyObject socket to None
+}
+
+FantomModule::~FantomModule()
+{
+	if (nxtPtr)
+		nFANTOM100::iNXT::destroyNXT(nxtPtr);
+	nxtPtr = NULL;
+
 }
 
 // Skeleton functions from Xcode

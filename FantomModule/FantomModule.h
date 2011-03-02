@@ -17,7 +17,7 @@
 
 #define FANTOM_BT "BT"
 #define FANTOM_USB "USB"
-#define FANTOM_BT_TIMEOUTSEC 2
+#define FANTOM_BT_TIMEOUTSEC 5
 #define FANTOM_NXTNAME_LEN 256
 #define FANTOM_DATA_BUFLEN 256
 #define FANTOM_NXT_PASSKEY "1234"
@@ -27,7 +27,8 @@
 
 extern "C"  PyMODINIT_FUNC initfantom(void);
 
-extern "C"  PyObject *fantom_finddevices(PyObject *py_self, PyObject *py_args);
+extern "C"  PyObject *fantom_finddevices(PyObject *py_self, PyObject *py_args); // BT Discovery function
+extern "C"  PyObject *fantom_find_bricks(PyObject *py_self, PyObject *py_args); // BT & USB function
 extern "C"  PyObject *fantom_socket(PyObject *py_self, PyObject *py_args);
 extern "C"  PyObject *fantom_connect(PyObject *py_self, PyObject *py_args);
 extern "C"  PyObject *fantom_send(PyObject *py_self, PyObject *py_args);
@@ -36,18 +37,18 @@ extern "C"  PyObject *fantom_close(PyObject *py_self, PyObject *py_args);
 
 class FantomModule
 {
-		nFANTOM100::tStatus status;
 		nFANTOM100::iNXT* nxtPtr;
 		ViChar	pairedResourceName[FANTOM_NXTNAME_LEN];
 	
 	public:
-		PyObject *finddevices(PyObject *py_self, PyObject *py_args);
+		static PyObject *finddevices(PyObject *py_self, PyObject *py_args);
+		static PyObject *find_bricks(PyObject *py_self, PyObject *py_args);
 		PyObject *socket(PyObject *py_self, PyObject *py_args);
 		PyObject *connect(PyObject *py_self, PyObject *py_args);
 		PyObject *send(PyObject *py_self, PyObject *py_args);
 		PyObject *recv(PyObject *py_self, PyObject *py_args);
 		PyObject *close(PyObject *py_self, PyObject *py_args);
-	
+		~FantomModule();
 		void HelloWorld(const char *);
 };
 
