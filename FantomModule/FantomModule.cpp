@@ -20,7 +20,7 @@ static PyMethodDef FantomMethods[] = {
     {"finddevices",  fantom_finddevices, METH_VARARGS,
 		"Discover NXT Devices (BT Discovery)"},
     {"find_bricks",  fantom_find_bricks, METH_VARARGS,
-		"Find and Create NXT Devices (BT & USB)"},
+		"Find and Create NXT Devices (USB)"},
     {"socket",  fantom_socket, METH_VARARGS,
 		"Create a Socket for a NXT Brick"},
     {"connect",  fantom_connect, METH_VARARGS,
@@ -59,37 +59,58 @@ extern "C"  PyObject *fantom_find_bricks(PyObject *py_self, PyObject *py_args)
 extern "C"  PyObject *fantom_socket(PyObject *py_self, PyObject *py_args)
 {
 	
+	ViChar  newPasskey[FANTOM_PASSKEY_LEN] = FANTOM_NXT_PASSKEY;	// Default Passkey
+
+	// FIXME: Retrieve PyObject's proto setting
+	const char *proto;
+	if (!PyArg_ParseTuple(py_args, "s", &proto))
+        return NULL;
+	ViBoolean enableBT = strcmp(proto, FANTOM_BT) ? true : false;
+	
+	// Get new passkey from Python args if specified
+	
 	// Create a FantomModule object, which has not been connected to an actual NXT yet
 	FantomModule *fantomObject;
 	fantomObject = new FantomModule;
 	
-	// FIXME: Attach fantomObject to PyObject variable.
-	fantomObject->socket(py_self,py_args);			// Internal object setup
-	
+	fantomObject->socket(enableBT, newPasskey);			// Internal object setup
+
+	// FIXME: Convert fantomObject to PyObject and return.
+
 }
 
 extern "C"  PyObject *fantom_connect(PyObject *py_self, PyObject *py_args)
 {
 	FantomModule *fantomObject;
 	// FIXME: Retrieve FantomObject from PyObject variable
+	ViChar resourceName[FANTOM_NXTNAME_LEN];
+	ViBoolean success;
 	
-	return fantomObject->connect(py_self,py_args);
+	success = fantomObject->connect(resourceName);
 }
 
 extern "C"  PyObject *fantom_send(PyObject *py_self, PyObject *py_args)
 {
 	FantomModule *fantomObject;
 	// FIXME: Retrieve FantomObject from PyObject variable
+
+	ViByte bufferPtr[FANTOM_DATA_BUFLEN];
+	ViUInt32 numberOfBytes;
+	ViUInt32 bytesSent;
 	
-	return fantomObject->send(py_self,py_args);
+	bytesSent = fantomObject->send(bufferPtr,numberOfBytes);
 }
 
 extern "C"  PyObject *fantom_recv(PyObject *py_self, PyObject *py_args)
 {
 	FantomModule *fantomObject;
 	// FIXME: Retrieve FantomObject from PyObject variable
+
+	ViByte bufferPtr[FANTOM_DATA_BUFLEN];
+	ViUInt32 numberOfBytes;
+	ViUInt32 bytesReceived;
 	
-	return fantomObject->recv(py_self,py_args);
+	bytesReceived = fantomObject->recv(bufferPtr,numberOfBytes);
 }
 
 extern "C"  PyObject *fantom_close(PyObject *py_self, PyObject *py_args)
@@ -97,20 +118,21 @@ extern "C"  PyObject *fantom_close(PyObject *py_self, PyObject *py_args)
 	FantomModule *fantomObject;
 	// FIXME: Retrieve FantomObject from PyObject variable
 	
-	PyObject *status;
-	status = fantomObject->close(py_self,py_args);
+	ViBoolean success = fantomObject->close();
 	delete fantomObject;
-	return status;
+	
+	// Return success/failure
 }
 
+
+// Static method called directly from C
 PyObject *FantomModule::finddevices(PyObject *py_self, PyObject *py_args)
 {
 	const char *proto;
 	if (!PyArg_ParseTuple(py_args, "s", &proto))
         return NULL;
 
-	ViBoolean useBT;
-	useBT = strcmp(proto, FANTOM_BT) ? true : false;
+	ViBoolean useBT = strcmp(proto, FANTOM_BT) ? true : false;
 	
 	PyObject *list = NULL;
 	
@@ -126,6 +148,9 @@ PyObject *FantomModule::finddevices(PyObject *py_self, PyObject *py_args)
 	{
 		ViChar nxtName[FANTOM_NXTNAME_LEN];
 		nxtIteratorPtr->getName(nxtName, status);
+		
+		std::cout << "Found: " << nxtName << std::endl;
+
 		if (status.isNotFatal())
 		{
 			// Split nxtName into NXT ID (h) and NXT Name (n)
@@ -144,14 +169,14 @@ PyObject *FantomModule::finddevices(PyObject *py_self, PyObject *py_args)
 	
 }
 
+// Static method called directly from C
 PyObject *FantomModule::find_bricks(PyObject *py_self, PyObject *py_args)
 {
 	const char *host, *name;
 	if (!PyArg_ParseTuple(py_args, "ss", &host, &name))
         return NULL;
 	
-	ViBoolean useBT;
-	useBT = false;
+	ViBoolean useBT = false;
 	
 	PyObject *list = NULL;
 
@@ -169,6 +194,7 @@ PyObject *FantomModule::find_bricks(PyObject *py_self, PyObject *py_args)
 		ViChar nxtName[FANTOM_NXTNAME_LEN];
 		nFANTOM100::iNXT* aNXT = NULL;
 		nxtIteratorPtr->getName(nxtName, status);
+		std::cout << "Found: " << nxtName << std::endl;
 		aNXT = nxtIteratorPtr->getNXT(status);
 		if (status.isNotFatal())
 		{
@@ -192,26 +218,23 @@ PyObject *FantomModule::find_bricks(PyObject *py_self, PyObject *py_args)
 	
 }
 
-PyObject *FantomModule::socket(PyObject *py_self, PyObject *py_args)
+ViBoolean FantomModule::socket(ViBoolean enableBT, ViConstString BTkey)
 {
 	// Internal class object setup
 	nxtPtr = NULL;
+	useBT = enableBT;
+	strlcpy(passkey, BTkey, FANTOM_PASSKEY_LEN);
+	return true;
 	
 }
 
-PyObject *FantomModule::connect(PyObject *py_self, PyObject *py_args)
+ViBoolean FantomModule::connect(ViConstString resourceName)
 {
 	// If a NXT is found over BT, the computer and the NXT must be paired before an NXT object can be
 	// created.  This can be done programatically using the iNXT::pairBluetooth method.
 	// FIXME: Retrieve resource String
-	ViConstString resourceName[FANTOM_NXTNAME_LEN];
-	ViConstString passkey[FANTOM_NXTNAME_LEN] = { FANTOM_NXT_PASSKEY };
+	
 
-	// FIXME: Retrieve PyObject's proto setting
-	nFANTOM100::tStatus status;
-	const char *proto;
-	ViBoolean	  useBT;
-	useBT = strcmp(proto, FANTOM_BT) ? true : false;
 	if (useBT and !nFANTOM100::iNXT::isPaired((ViConstString)resourceName,status))
 		nFANTOM100::iNXT::pairBluetooth((ViConstString) resourceName, (ViConstString) passkey, (ViChar *) pairedResourceName, status);
 	
@@ -221,42 +244,33 @@ PyObject *FantomModule::connect(PyObject *py_self, PyObject *py_args)
 		}
 }
 
-PyObject *FantomModule::send(PyObject *py_self, PyObject *py_args)
+ViUInt32 FantomModule::send(const ViByte *bufferPtr, ViUInt32 numberOfBytes)
 {
-	ViByte bufferPtr[FANTOM_DATA_BUFLEN];
-	ViUInt32 numberOfBytes;
 	nFANTOM100::tStatus status;
 	
-	nxtPtr->write(bufferPtr, numberOfBytes, status);
+	return nxtPtr->write(bufferPtr, numberOfBytes, status);
 }
 
-PyObject *FantomModule::recv(PyObject *py_self, PyObject *py_args)
+ViUInt32 FantomModule::recv(ViByte *bufferPtr, ViUInt32 numberOfBytes)
 {
-	ViByte bufferPtr[FANTOM_DATA_BUFLEN];
-	ViUInt32 numberOfBytes;
-	ViUInt32 bytesRead;
 	nFANTOM100::tStatus status;
 	
-	bytesRead = nxtPtr->read(bufferPtr, numberOfBytes, status);
+	return nxtPtr->read(bufferPtr, numberOfBytes, status);
 }	
 
-PyObject *FantomModule::close(PyObject *py_self, PyObject *py_args)
+ViBoolean FantomModule::close()
 {
+	
+	const char *proto;
+	useBT = strcmp(proto, FANTOM_BT) ? true : false;
+	if (useBT and nFANTOM100::iNXT::isPaired((ViConstString)pairedResourceName,status))
+		nFANTOM100::iNXT::unpairBluetooth((ViConstString) pairedResourceName, status);			// No Effect on Mac OSX
+
 	if (nxtPtr)
 		nFANTOM100::iNXT::destroyNXT(nxtPtr);
 	nxtPtr = NULL;
 	
-	// FIXME: Retrieve resource String
-	ViConstString resourceName[FANTOM_NXTNAME_LEN];
-
-	// FIXME: Retrieve PyObject's proto setting
-	nFANTOM100::tStatus status;
-	const char *proto;
-	ViBoolean	  useBT;
-	useBT = strcmp(proto, FANTOM_BT) ? true : false;
-	if (useBT and nFANTOM100::iNXT::isPaired((ViConstString)resourceName,status))
-		nFANTOM100::iNXT::unpairBluetooth((ViConstString) resourceName, status);			// No Effect on Mac OSX
-	// FIXME: Set PyObject socket to None
+	return true;
 }
 
 FantomModule::~FantomModule()

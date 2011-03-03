@@ -33,7 +33,7 @@ class BluetoothSocket:
 
     def __init__(self, proto = FANTOM_BT, _sock=None):
         if _sock is None:
-            _sock = pyfantom.socket(proto)
+            _sock = pyfantom.socket(proto, passkey = None)
         self._sock = _sock
         self._proto = proto
 
