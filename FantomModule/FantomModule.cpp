@@ -193,6 +193,7 @@ PyObject *FantomModule::find_bricks(PyObject *py_self, PyObject *py_args)
 	{
 		ViChar nxtName[FANTOM_NXTNAME_LEN];
 		nFANTOM100::iNXT* aNXT = NULL;
+		
 		nxtIteratorPtr->getName(nxtName, status);
 		std::cout << "Found: " << nxtName << std::endl;
 		aNXT = nxtIteratorPtr->getNXT(status);
@@ -200,14 +201,21 @@ PyObject *FantomModule::find_bricks(PyObject *py_self, PyObject *py_args)
 		{
 			FantomModule *aFantomObject = new FantomModule;
 			aFantomObject->nxtPtr = aNXT;
-			if (strlcpy(aFantomObject->pairedResourceName, nxtName,FANTOM_NXTNAME_LEN) >= FANTOM_NXTNAME_LEN)
+			aFantomObject->status.assign(status);
+			if (strlcpy(aFantomObject->pairedResourceName, nxtName, FANTOM_NXTNAME_LEN) >= FANTOM_NXTNAME_LEN)
+			{
 				// Exceeded Name Length
-				exit;
-			
-			// FIXME: Append to Python list
-			/*
-			 return Py_BuildValue("i", sts);
-			 */
+				std::cout << "NXTName Length Exceeded: " << nxtName << std::endl;
+				delete aFantomObject;
+			}
+			else 
+			{
+				// FIXME: Append to Python list
+				/*
+				 return Py_BuildValue("i", sts);
+				 */
+			}
+
 		}
 		nxtIteratorPtr->advance(status);
 		
@@ -223,7 +231,8 @@ ViBoolean FantomModule::socket(ViBoolean enableBT, ViConstString BTkey)
 	// Internal class object setup
 	nxtPtr = NULL;
 	useBT = enableBT;
-	strlcpy(passkey, BTkey, FANTOM_PASSKEY_LEN);
+	if (strlcpy(passkey, BTkey, FANTOM_PASSKEY_LEN) >= FANTOM_PASSKEY_LEN)
+		return false;
 	return true;
 	
 }
