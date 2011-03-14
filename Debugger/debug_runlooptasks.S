@@ -79,8 +79,9 @@ dbg__runloopTasks:
     .extern cCommCtrl
 
 dbg__runloopTasks:
+    push    {lr}
     /* FIXME: Add necessary cXXXCtrl calls here */
     bl      cCommCtrl
     /* OSWatchdogWrite is a NULL function in the NXT Firmware?! */
-    bx      lr
+    pop     {pc}
 #endif
