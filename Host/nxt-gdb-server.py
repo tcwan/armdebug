@@ -139,7 +139,7 @@ class NXTGDBServer:
                     data = data.strip()
                     if data:
                         if DEBUG:
-                            print "[GDB->NXT] %s\n" % data
+                            print "[GDB->NXT] %s" % data
                         segments = self.segment (data)
                         data = ''
                         for s in segments:
@@ -160,7 +160,7 @@ class NXTGDBServer:
                 # Is there something from NXT brick?
                 if data:
                     if DEBUG:
-                        print "[NXT->GDB] %s\n" % data
+                        print "[NXT->GDB] %s" % data
                     if client:
                         client.send (data)
                     data = ''
