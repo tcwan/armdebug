@@ -538,12 +538,13 @@ _msgbuf_checksum:
  *          No parameters (assume pointers were initialized previously using dbg__comm_init)
  *      On exit:
  *          r0: >0 = Valid GDB Message Length (incl '$', excluding '#' and checksum),
-  *             0 = no valid message (yet), -1 = error
- *          r1, r2, r3: Destroyed
+ *              0 = no valid message (yet), -1 = error
+ *          r1: GDB Message Buffer Pointer  (incl '$', excluding '#' and checksum)
+ *          r2, r3: Destroyed
  *      Note: If GDB Message were returned, it is ASCIIZ terminated, does not include '#' and checksum
  */
 dbg__getDebugMsg:
-    stmfd   sp!, {r4,lr}
+    stmfd   sp!, {r4,r5,lr}
     bl      _dbg__usbHasMsg                     /* r0: message length, r1: segment number */
     teq     r0, #0
     beq     exit_dbg__getDebugMsg               /* no new message, exit with R0 = 0 */
@@ -574,25 +575,25 @@ _hasMsg2Copy:
 
     /* Check for valid GDB message */
     mov     r4, r0                              /* keep message length in R4, assume to be within MSGBUF_SIZE */
-    ldr     r3, =debug_msgRxBufPtr
-    ldr     r3, [r3]                            /* Rx buffer Start Address */
+    ldr     r5, =debug_msgRxBufPtr
+    ldr     r5, [r5]                            /* Rx buffer Start Address */
 
 #ifdef CHECK_GDBSTARTCHAR
     /* Checked in dbg__bkpt_waitCMD */
-    ldrb    r0, [r3]
+    ldrb    r0, [r5]
     teq     r0, #MSGBUF_STARTCHAR               /* Look for '$' */
     bne     exit_dbg__getMsgError               /* No start char '$', exit with error */
 #endif
 
     sub     r2, r4, #MSGBUF_CHKSUMOFFSET        /* Look for '#': Message Length - 3 = '#' offset */
-    ldrb    r0, [r3, r2]
+    ldrb    r0, [r5, r2]
     teq     r0, #MSGBUF_CHKSUMCHAR
     bne     exit_dbg__getMsgError               /* No checksum char '#', exit with error */
 
     mov     r1, #0
-    strb    r1, [r3, r2]                        /* Zero out '#' char for checksum calc later */
+    strb    r1, [r5, r2]                        /* Zero out '#' char for checksum calc later */
 
-    add     r0, r3, #1                          /* Checksum packet data (excl '$') */
+    add     r0, r5, #1                          /* Checksum packet data (excl '$') */
     bl      _msgbuf_checksum                    /* R2: length (excl '$'), R1: calculated checksum, R0: pointer to checksum in receive buffer */
     mov     r3, r1                              /* Keep calculated checksum in R3 (R1 destroyed by ascii2byte) */
     bl      ascii2byte                          /* R0: received checksum, R1: address of next buffer location */
@@ -607,7 +608,8 @@ _hasMsg2Copy:
 exit_dbg__getMsgError:
     mov     r0, #MSGBUF_MSGERROR
 exit_dbg__getDebugMsg:
-	ldmfd	sp!, {r4,pc}
+    mov     r1, r5                              /* Return GDB Message Buffer Pointer in R1 */
+	ldmfd	sp!, {r4,r5,pc}
 
 /* _dbg__sendUSBMsg
  *      Internal USB send routine (interfaces with drivers).
