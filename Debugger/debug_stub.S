@@ -533,13 +533,14 @@ dbg__bkpt_offset_outofrange:
  *
  ****************************************************************************/
 dbg__bkpt_waitCMD:
-	bl		dbg__getDebugMsg				/* Read new message from Debugger, message buffer addr in R0, 0 if none, -1 if error */
+	bl		dbg__getDebugMsg				/* Read new message from Debugger, message buffer length in R0, 0 if none, -1 if error */
 	cmp		r0, #0
 	beq     _dbg__housekeeping              /* No message yet, do housekeeping tasks */
 	movlt	r0, #MSG_ERRCHKSUM				/* Message invalid, checksum error? */
 	blt		_dbg__cmdError					/* Send response to GDB server */
 /* Message now has $<packet info>\0 */
-	mov		r4, r0							/* Use R4 as Message Buffer pointer */
+    ldr     r4, =debug_msgRxBufPtr
+    ldr     r4, [r4]                        /* Rx buffer Start Address */
 	ldrb	r0, [r4], #1					/* Look for '$' */
 	teq		r0, #MSGBUF_STARTCHAR
 	movne	r0, #MSG_ERRFORMAT				/* Message Format invalid (not '$') */

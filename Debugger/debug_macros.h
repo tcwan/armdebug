@@ -159,11 +159,10 @@
  *	  R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusErr
-	mov	r3, r0
+	mov	r1, r0
 	ldr	r0, =debug_OutMsgBuf
-	ldr	r1, =debug_ErrorResponsePrefix
-	_dbg_stpcpy	 r0, r1, r2
-	mov	r1, r3
+	ldr	r2, =debug_ErrorResponsePrefix
+	_dbg_stpcpy	 r0, r2, r3
 	bl	byte2ascii	  /* R0 points to buffer position after byte value */
 	_asciiz	r0, r1
 	.endm

@@ -159,8 +159,8 @@ byte2ascii_cont:
 	lsl		r2, r1, #24			    /* Keep copy of input byte value R1[7:0], shifted to MSB R2[31:24] */
 	mov		r4, #2					/* Loop counter */
 	_hex2char_lut	r3				/* initialize LUT pointer */
-1:	ror		r1, r2, #28 			/* Rotate MSNibble R2[31:28] into LSNibble position R1[3:0] */
-	and		r1, r1, #NIBBLE0		/* Mask out everything else */
+1:	ror		r2, r2, #28 			/* Rotate MSNibble R2[31:28] into LSNibble position R2[3:0] */
+	and		r1, r2, #NIBBLE0		/* Mask out everything else, store Nibble in R1 */
 	_hex2char_cont	r1, r3			/* Convert nibble to ASCII char */
 	strb	r1, [r0], #1
 	subs	r4, r4, #1				/* decrement loop counter */
@@ -577,9 +577,12 @@ _hasMsg2Copy:
     ldr     r3, =debug_msgRxBufPtr
     ldr     r3, [r3]                            /* Rx buffer Start Address */
 
+#ifdef CHECK_GDBSTARTCHAR
+    /* Checked in dbg__bkpt_waitCMD */
     ldrb    r0, [r3]
     teq     r0, #MSGBUF_STARTCHAR               /* Look for '$' */
     bne     exit_dbg__getMsgError               /* No start char '$', exit with error */
+#endif
 
     sub     r2, r4, #MSGBUF_CHKSUMOFFSET        /* Look for '#': Message Length - 3 = '#' offset */
     ldrb    r0, [r3, r2]
