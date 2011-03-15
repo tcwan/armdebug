@@ -128,6 +128,7 @@ class NXTGDBServer:
             print "Client from", addr
             # Work loop, wait for a message from client socket or NXT brick.
             while client is not None:
+                data = ''
                 # Wait for a message from client or timeout.
                 rlist, wlist, xlist = select.select ([ client ], [ ], [ ],
                         SELECT_TIMEOUT)
