@@ -191,6 +191,7 @@ debug_cmdIndexTable:
  * On entry:
  *		R0: Input Message Parameter Buffer address pointer (points to contents after '$' and '<cmdchar>')
  */
+.align 4
 debug_cmdJumpTable:
 	.word	_dbg__cmd_GetAllRegs				/* 'g' */
 	.word	_dbg__cmd_SetAllRegs	   			/* 'G' */
