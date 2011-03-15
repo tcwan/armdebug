@@ -27,6 +27,9 @@ SELECT_TIMEOUT = 0.1
 DEBUG = True
 NXT_RECV_ERR = -1
 
+# Libusb 0.12.x blocks on USB reads
+LIBUSB_RECEIVE_BLOCKING = True
+
 class NXTGDBServer:
 
     # Socket read size.
@@ -132,21 +135,33 @@ class NXTGDBServer:
                     assert c is client
                     # Data from client, read it and forward it to NXT brick.
                     data = client.recv (self.recv_size)
+                    data = data.strip()
                     if data:
                         if DEBUG:
-                            print "[GDB->NXT] %s" % data
+                            print "[GDB->NXT] %s\n" % data
                         segments = self.segment (data)
+                        data = ''
                         for s in segments:
-                            brick.sock.send (s)
+                            try:
+                                brick.sock.send (s)
+                            except usb.USBError as e:
+                                # Some pyusb are buggy, ignore some "errors".
+                                if e.args != ('No error', ):
+                                    raise e
+                        if LIBUSB_RECEIVE_BLOCKING:
+                            data = self.reassemble (brick.sock)
                     else:
                         client.close ()
                         client = None
+                if not LIBUSB_RECEIVE_BLOCKING:
+                    data = self.reassemble (brick.sock)
+                    
                 # Is there something from NXT brick?
-                data = self.reassemble (brick.sock)
                 if data:
                     if DEBUG:
-                        print "[NXT->GDB] %s" % data
-                    client.send (data)
+                        print "[NXT->GDB] %s\n" % data
+                    if client:
+                        client.send (data)
                     data = ''
             print "Connection closed, waiting for GDB connection on port %s..." % self.port
 
