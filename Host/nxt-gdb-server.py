@@ -137,7 +137,7 @@ class NXTGDBServer:
                     # Data from client, read it and forward it to NXT brick.
                     data = client.recv (self.recv_size)
                     data = data.strip()
-                    if data:
+                    if len (data) > 0:
                         if DEBUG:
                             print "[GDB->NXT] %s" % data
                         segments = self.segment (data)
