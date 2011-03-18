@@ -401,7 +401,8 @@ debug_armComplexCCTable:
 cCommHandleDebug:
         push  {r0-r3}               /* store all argX registers */
         bl    dbg__copyNxtDebugMsg  /* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
- 		and   r0, r0, #CPSR_MODE	/* Check Current Mode */
+ 		mov   r1, #CPSR_MODE		/* Thumb mode can't handle immediate Operands for AND */
+ 		and   r0, r1				/* Check Current Mode */
  		cmp	  r0, #MODE_ABT			/* Debug Mode Check (Flags set) */
         pop   {r0-r3}               /* restore all values */
 
