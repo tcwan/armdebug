@@ -160,14 +160,17 @@
 
 .bss
 .align 4
-debug_state:
-	.word	0x0
 debug_curr_breakpoint:
 	.word	0x0
 debug_InMsgBuf:
 	.space	MSGBUF_SIZE,0
 debug_OutMsgBuf:
 	.space	MSGBUF_SIZE,0
+
+debug_state:
+    .byte   0x0
+debug_mode:
+    .byte   0x0                                 /* Boolean variable */
 
 .data
 .align 4
@@ -394,26 +397,29 @@ debug_armComplexCCTable:
  *
  * UWORD cCommHandleDebug(UBYTE *pInBuf, UBYTE CmdBit, UWORD MsgLength);
  *
- * On Entry, we're in SVC mode. We need to setup the USB Buffers, and switch mode to
+ * This routine is called from cCommInterprete either in normal operation mode (SVC)
+ * or else when we're in debug mode (ABORT) which uses the cCommCtrl() routine to handle
+ * I/O with the Host.
+ *
+ * On entry, the message is copied from the NXT buffer into our own buffers.
+ *
+ * If this is accessed from normal operation mode, we need to switch mode to
  * ABORT mode to handle the incoming message using a Manual Breakpoint instruction.
  * When DEBUG is exited, the execution resumes from the instruction following the Breakpoint.
  */
 cCommHandleDebug:
-        push  {r0-r3}               /* store all argX registers */
+/* Arg Registers are not preserved since this is invoked explicitly */
+        /* push  {r1-r3} */              /* store arg registers */
         bl    dbg__copyNxtDebugMsg  /* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
- 		mov   r1, #CPSR_MODE		/* Thumb mode can't handle immediate Operands for AND */
- 		and   r0, r1				/* Check Current Mode */
- 		cmp	  r0, #MODE_ABT			/* Debug Mode Check (Flags set) */
+        /* pop   {r1-r3} */              /* restore values */
+        _dbg_getmode r0             /* Get Debug Mode */
+        cmp   r0, #TRUE
 
-        /* If we're in ABT (Abort) mode, this means that we're already running the Debugger */
-		beq	  _in_debug
+        /* If Debug Mode is TRUE, this means that we're already running the Debugger */
+		beq	  _cCommHandleDebug_cont
         /* Else, we're in normal operation mode (SVC), or other mode (??!) and need to force a switch to Debug mode */
-        pop   {r0-r3}               /* restore all values */
         dbg__bkpt_thumb
-        b	  _cont_cCommHandleDebug
-_in_debug:
-        pop   {r0-r3}               /* restore all values */
-_cont_cCommHandleDebug:
+_cCommHandleDebug_cont:
         mov   r0, #0                /* FIXME: Return Status */
         bx    lr
 #endif
@@ -443,6 +449,7 @@ dbg__bkpt_init:
 
 /* FIXME: Initialize other stuff here */
 	_dbg_setstate DBG_INIT
+    _dbg_setmode FALSE                  /* Debug Mode = False */
     pop     {lr}
     bx      lr                          /* Must return via BX; may have been called from Thumb mode (NXT Firmware) */
 
@@ -545,6 +552,8 @@ dbg__bkpt_offset_outofrange:
  *
  ****************************************************************************/
 dbg__bkpt_waitCMD:
+    _dbg_setmode TRUE                       /* Debug Mode = True */
+dbg__bkpt_waitCMD_cont:
 	bl		dbg__getDebugMsg				/* Read new message from Debugger, buflen in R0, 0 if none, -1 if error, msgbuf pointer in R1 */
 	cmp		r0, #0
 	beq     _dbg__housekeeping              /* No message yet, do housekeeping tasks */
@@ -567,14 +576,14 @@ _dbg__cmdExists:
 	mov		r3, r0							/* put Command Handler Index in R3 */
 	mov		r0, r4							/* R0 now contains Input Message Buffer Parameter Pointer (previously in R4) */
 	_dbg_jumpTableHandler	debug_cmdJumpTable, r2, r3		/* Call Command Handler Routine, use R2 as jump address pointer */
-	b dbg__bkpt_waitCMD
+	b dbg__bkpt_waitCMD_cont
 
 _dbg__cmdError:
 	_dbg_outputMsgStatusErr
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
 _dbg__housekeeping:
 	bl      dbg__runloopTasks               /* Execute platform run loop tasks while in ABRT mode */
-	b 		dbg__bkpt_waitCMD
+	b 		dbg__bkpt_waitCMD_cont
 
 
 /* _dbg__cmdChar2Index

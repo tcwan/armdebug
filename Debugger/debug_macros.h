@@ -251,7 +251,7 @@
  */
 	.macro _dbg_getstate	reg
 	ldr	 \reg, =debug_state
-	ldr	 \reg, [\reg]
+	ldrb \reg, [\reg]
 	.endm
 
 /* _dbg_setstate
@@ -260,9 +260,30 @@
  *	  r0, r1: destroyed
  */
 	.macro _dbg_setstate	state
-	ldr	 r0, =\state
+	mov	 r0, #\state
 	ldr	 r1, =debug_state
-	str	 r0, [r1]
+	strb r0, [r1]
+	.endm
+
+/* _dbg_getmode
+ *	Get Debugger Mode
+ *	On exit:
+ *	  reg: Debugger Mode (Boolean)
+ */
+	.macro _dbg_getmode	reg
+	ldr	 \reg, =debug_mode
+	ldrb \reg, [\reg]
+	.endm
+
+/* _dbg_setmode
+ *	Set Debugger Mode to given value
+ *	On exit:
+ *	  r0, r1: destroyed
+ */
+	.macro _dbg_setmode	mode
+	mov	 r0, #\mode
+	ldr	 r1, =debug_mode
+	strb r0, [r1]
 	.endm
 
 /* _dbg_getcurrbkpt_index

@@ -408,8 +408,7 @@ _dbg__usb_readbuf_reset:
  *          R1: USB Command Bit
  *          R2: USB Raw Message Length
  *      On Exit:
- *			R0: CPSR
- *          R1-R3: Destroyed
+ *          R0-R3: Destroyed
  */
 
 dbg__copyNxtDebugMsg:
@@ -417,7 +416,6 @@ dbg__copyNxtDebugMsg:
     str     r2, [r1]
     ldr     r1, =debug_InUSBBuf
     _dbg_memcpy r1, r0, r2, r3                  /* r3: scratch register */
-    mrs     r0, cpsr
     bx      lr
 #endif
 
