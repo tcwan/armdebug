@@ -11,13 +11,6 @@
 #define __ASSEMBLY__
 #include "debug_stub.h"
 
-#define MODE_USR 0x10			/* User mode */
-#define MODE_FIQ 0x11			/* FIQ mode */
-#define MODE_IRQ 0x12			/* IRQ mode */
-#define MODE_SVC 0x13 			/* Supervisor mode */
-#define MODE_ABT 0x17			/* Abort mode */
-#define MODE_UND 0x1B			/* Undefined mode */
-#define MODE_SYS 0x1F			/* System mode */
 
 .text
 .code 32

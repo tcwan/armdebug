@@ -400,9 +400,16 @@ debug_armComplexCCTable:
  */
 cCommHandleDebug:
         push  {r0-r3}               /* store all argX registers */
-        bl    dbg__copyNxtDebugMsg  /* setup Debugger Message Buffers, validate input */
+        bl    dbg__copyNxtDebugMsg  /* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
+ 		and   r0, r0, #CPSR_MODE	/* Check Current Mode */
+ 		cmp	  r0, #MODE_ABT			/* Debug Mode Check (Flags set) */
         pop   {r0-r3}               /* restore all values */
+
+        /* If we're in ABT (Abort) mode, this means that we're already running the Debugger */
+		beq	  _in_debug
+        /* Else, we're in normal operation mode (SVC), or other mode (??!) and need to force a switch to Debug mode */
         dbg__bkpt_thumb
+_in_debug:
         mov   r0, #0                /* FIXME: Return Status */
         bx    lr
 #endif

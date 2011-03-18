@@ -155,6 +155,15 @@
 #define CPSR_IRQ        0x00000080
 #define CPSR_MODE       0x0000001F
 
+/* ARM Exception Modes */
+#define MODE_USR 0x10                   /* User mode */
+#define MODE_FIQ 0x11                   /* FIQ mode */
+#define MODE_IRQ 0x12                   /* IRQ mode */
+#define MODE_SVC 0x13                   /* Supervisor mode */
+#define MODE_ABT 0x17                   /* Abort mode */
+#define MODE_UND 0x1B                   /* Undefined mode */
+#define MODE_SYS 0x1F                   /* System mode */
+
 /*@}*/
 
 /** @name BKPT suppport constants
