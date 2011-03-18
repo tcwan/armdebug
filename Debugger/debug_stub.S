@@ -404,13 +404,16 @@ cCommHandleDebug:
  		mov   r1, #CPSR_MODE		/* Thumb mode can't handle immediate Operands for AND */
  		and   r0, r1				/* Check Current Mode */
  		cmp	  r0, #MODE_ABT			/* Debug Mode Check (Flags set) */
-        pop   {r0-r3}               /* restore all values */
 
         /* If we're in ABT (Abort) mode, this means that we're already running the Debugger */
 		beq	  _in_debug
         /* Else, we're in normal operation mode (SVC), or other mode (??!) and need to force a switch to Debug mode */
+        pop   {r0-r3}               /* restore all values */
         dbg__bkpt_thumb
+        b	  _cont_cCommHandleDebug
 _in_debug:
+        pop   {r0-r3}               /* restore all values */
+_cont_cCommHandleDebug:
         mov   r0, #0                /* FIXME: Return Status */
         bx    lr
 #endif
