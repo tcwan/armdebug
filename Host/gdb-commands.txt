@@ -12,5 +12,5 @@ $pF#B6
 # Display User CPSR
 $p!#91
 
-# Set R0 to 0xAA
-$P1=000000AA#80
+# Set R1 to 0xAA
+$P1=000000AA#60
