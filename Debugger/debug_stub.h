@@ -46,10 +46,11 @@
 
 #define USB_GDBMSG_START                3                       /* Offset into USB Telegram buffer */
 
-#define MSG_NUMSEGMENTS  3                                      /* For packet transfers */
+#define MSG_NUMSEGMENTS  				3                       /* For packet transfers */
 #define MSG_SEGMENTSIZE (USB_BUFSIZE - USB_GDBMSG_START)        /* 61 bytes per segment */
 #define MSGBUF_SIZE     (MSG_SEGMENTSIZE*MSG_NUMSEGMENTS)       /* Debug Message Buffer Size, 61 x 3 = 183 chars = ~80 bytes of actual data */
 #define MSGBUF_CHKSUMOFFSET             3                       /* to be subtracted from message length */
+#define MSGBUF_OVERHEADLEN				6						/* For calculating max message data length (include ASCIIZ char) */
 
 #define MSGBUF_CTRLC     0x03                                   /* For Out of Band Signaling: not implemented yet */
 #define MSGBUF_STARTCHAR '$'
@@ -84,8 +85,12 @@
 #define CMD_REG_REGPARAMLEN         8   /* 32-bit ASCII Hex Value */
 #define CMD_REG_SETONE_PARAMLEN     (2 + CMD_REG_REGPARAMLEN)
 #define CMD_REG_SETALL_PARAMLEN     (CMD_REG_NUMREGS*CMD_REG_REGPARAMLEN)
-
-
+#define CMD_NUMITEMS_PARAMLEN		4	/* 16-bit ASCII Hex Value */
+#define CMD_MEM_READ_PARAMLEN		(CMD_REG_REGPARAMLEN + CMD_NUMITEMS_PARAMLEN + 1)	/* Address length is equivalent to reg param len */
+#define CMD_MEM_WRITE_PARAMLEN		(CMD_REG_REGPARAMLEN + CMD_NUMITEMS_PARAMLEN + 1)	/* Address length is equivalent to reg param len */
+#define CMD_MEM_SEPCHAR_OFFSET		CMD_REG_REGPARAMLEN	/* Address length is equivalent to reg param len */
+#define CMD_MEM_MAXBUFLEN			(MSGBUF_SIZE - MSGBUF_OVERHEADLEN)
+#define CMD_MEM_MAXNUMBYTES			(CMD_MEM_MAXBUFLEN/2)
 /*@}*/
 
 /** @name Debug Breakpoint Command Constants.
@@ -214,6 +219,7 @@ ENUM_BEGIN
 ENUM_VALASSIGN(MSG_ERRIMPL, 0)    /**< Stub (not implemented) Error. */
 ENUM_VAL(MSG_ERRCHKSUM)           /**< Checksum Error. */
 ENUM_VAL(MSG_ERRFORMAT)           /**< Message Format Error. */
+ENUM_VAL(MSG_ERRLENGTH)      	  /**< Message Output Length Error. */
 ENUM_VAL(MSG_UNKNOWNCMD)          /**< Unrecognized Command Error. */
 ENUM_VAL(MSG_UNKNOWNPARAM)        /**< Unrecognized Parameter Error. */
 ENUM_VAL(MSG_UNKNOWNBRKPT)        /**< Unrecognized Breakpoint Error. */

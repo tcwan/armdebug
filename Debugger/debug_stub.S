@@ -122,6 +122,8 @@
   * Additional commands from GDB Reference Appendix D.2
   */
 
+/* FIXME: Format for Write bytes 'M' is incomplete */
+
 #define __ASSEMBLY__
 #include "debug_stub.h"
 #include "debug_macros.h"
@@ -200,8 +202,8 @@ debug_cmdJumpTable:
 	.word	_dbg__cmd_SetAllRegs	   			/* 'G' */
 	.word	_dbg__cmd_GetOneReg				    /* 'p' */
 	.word	_dbg__cmd_SetOneReg				    /* 'P' */
-	.word	_dbg__nop							/* 'm' */
-	.word	_dbg__nop							/* 'M' */
+	.word	_dbg__cmd_ReadMem					/* 'm' */
+	.word	_dbg__cmd_WriteMem					/* 'M' */
 	.word	_dbg__nop							/* 'c' */
 	.word	_dbg__nop							/* 's' */
 	.word	_dbg__nop							/* 'k' */
@@ -648,6 +650,16 @@ __dbg__procCmdParamError:
 	ldmfd	sp!, {pc}
 
 
+/* __dbg__procCmdReturnLengthError
+ *      Common subroutine exit stub to handle Command Return Length Error for Command Handlers
+ *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
+ *
+ */
+__dbg__procCmdReturnLengthError:
+    _dbg_outputMsgStatusErrCode MSG_ERRLENGTH
+    bl      dbg__putDebugMsg                /* Send error response to the GDB server */
+    ldmfd   sp!, {pc}
+
 /* __dbg__procBreakpointAddrError
  *      Common subroutine exit stub to handle Breakpoint Address Error for Breakpoint Insert/Remove Handlers
  *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
@@ -725,7 +737,7 @@ _dbg__cmd_GetAllRegs:
     teq     r1, #CMD_REG_GETALL_PARAMLEN    /* Check for correct length */
 	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
 
-	_dbg_outputMsgValidResponse				/* Setup R1 with address of output message buffer data pointer (after response prefix) */
+    _dbg_outputMsgValidResponse             /* R0: address of output message buffer data pointer (after response prefix) */
 	mov		r3, #DBGSTACK_USERCPSR_OFFSET	/* Output User CPSR Value first */
 1:  mov		r1, r3
 	bl		_dbg_outputOneRegValue			/* update output buffer */
@@ -811,6 +823,40 @@ _dbg__nop:
 	bl		dbg__putDebugMsg				   /* Send error response to the GDB server */
 	ldmfd	sp!, {pc}
 
+/* _dbg__cmd_ReadMem
+ *      Read Memory Contents Command Handler
+ *      Output Buffer returns memory contents
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              AA..AA,LLLL
+ *      On exit:
+ *          r0, r1, r2, r3, r4: destroyed
+ */
+_dbg__cmd_ReadMem:
+    stmfd   sp!, {lr}
+    bl      __dbg__cmdParamLen
+    teq     r1, #CMD_MEM_READ_PARAMLEN      /* Check for correct length */
+    bne     __dbg__procCmdParamError        /* Unexpected input, report error */
+    bl      ascii2word                      /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+    mov     r3, r0                          /* Keep Address location in R3 */
+    _check_msgseparator r1
+    bne     __dbg__procCmdParamError        /* Can't find ',' */
+    mov     r0, r1                          /* move buffer pointer to R0 for subsequent processing */
+    bl      ascii2halfword                  /* convert ASCII length to Hex (in R0), R1 has address of next buffer char */
+    cmp     r0, #CMD_MEM_MAXNUMBYTES
+    bhi     __dbg__procCmdReturnLengthError /* Requested Length greater than buffer size, return error */
+    mov     r4, r0                          /* Keep numbytes in R4 */
+    /* FIXME: Should validate the address? */
+
+    _dbg_outputMsgValidResponse             /* R0: address of output message buffer data pointer (after response prefix) */
+1:  ldrb    r1, [r3], #1
+    bl      byte2ascii                       /* update output buffer */
+    subs    r4, r4, #1
+    bne     1b
+
+    _asciiz r0, r1
+    bl      dbg__putDebugMsg                /* Send response to the GDB server */
+    ldmfd   sp!, {pc}
 
 
 /* _dbg__proc_brkpt_params
