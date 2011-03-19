@@ -6,6 +6,9 @@ $g#67
 # Display R0
 $p0#A0
 
+# Display R1
+$p1#A1
+
 # Display PC
 $pF#B6
 
