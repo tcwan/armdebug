@@ -75,7 +75,8 @@
  *					x = ['0','F'] for R0-R15, '!' for User CPSR
  *
  *    mAA..AA,LLLL  Read LLLL bytes at address AA..AA      hex data or ENN
- *    MAA..AA,LLLL: Write LLLL bytes at address AA.AA      OK or ENN
+ *    MAA..AA,LLLL:bb..bb
+ *                  Write LLLL bytes at address AA.AA      OK or ENN
  *
  *    c             Resume at current address              SNN   ( signal NN)
  *    cAA..AA       Continue at address AA..AA             SNN
@@ -122,8 +123,6 @@
   * Additional commands from GDB Reference Appendix D.2
   */
 
-/* FIXME: Format for Write bytes 'M' is incomplete */
-
 #define __ASSEMBLY__
 #include "debug_stub.h"
 #include "debug_macros.h"
@@ -143,6 +142,21 @@
     .macro  _check_msgseparator bufferptr
     ldrb    r0, [\bufferptr], #1                /* get separator */
     cmp     r0, #MSGBUF_SEPCHAR
+    .endm
+
+/* _check_msgargument
+ *      Look for argument ':'
+ *  On entry:
+ *    bufferptr: points to the parameter buffer [can't be R0]
+ *  On exit:
+ *    R0: destroyed
+ *    bufferptr: points to the next character location in the parameter buffer
+ *    Flags: Updated
+ */
+
+    .macro  _check_msgargument bufferptr
+    ldrb    r0, [\bufferptr], #1                /* get separator */
+    cmp     r0, #MSGBUF_ARGCHAR
     .endm
 
 /* _check_msgassignment
@@ -636,8 +650,7 @@ __dbg__cmdParamLen:
  */
 __dbg__procCmdOk:
     _dbg_outputMsgStatusOk
-    bl      dbg__putDebugMsg                /* Send error response to the GDB server */
-    ldmfd   sp!, {pc}
+    b       __dbg__sendDebugMsgExit
 
 /* __dbg__procCmdParamError
  *		Common subroutine exit stub to handle Command Parameter Error for Command Handlers
@@ -646,19 +659,26 @@ __dbg__procCmdOk:
  */
 __dbg__procCmdParamError:
 	_dbg_outputMsgStatusErrCode MSG_UNKNOWNPARAM
-	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
-	ldmfd	sp!, {pc}
+    b       __dbg__sendDebugMsgExit
 
 
-/* __dbg__procCmdReturnLengthError
- *      Common subroutine exit stub to handle Command Return Length Error for Command Handlers
+/* __dbg__procCmdReturnInputLengthError
+ *      Common subroutine exit stub to handle Command Input Length Error for Command Handlers
  *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
  *
  */
-__dbg__procCmdReturnLengthError:
-    _dbg_outputMsgStatusErrCode MSG_ERRLENGTH
-    bl      dbg__putDebugMsg                /* Send error response to the GDB server */
-    ldmfd   sp!, {pc}
+__dbg__procCmdReturnInputLengthError:
+    _dbg_outputMsgStatusErrCode MSG_ERRINLENGTH
+    b       __dbg__sendDebugMsgExit
+
+/* __dbg__procCmdReturnOutputLengthError
+ *      Common subroutine exit stub to handle Command Return Output Error for Command Handlers
+ *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
+ *
+ */
+__dbg__procCmdReturnOutputLengthError:
+    _dbg_outputMsgStatusErrCode MSG_ERROUTLENGTH
+    b       __dbg__sendDebugMsgExit
 
 /* __dbg__procBreakpointAddrError
  *      Common subroutine exit stub to handle Breakpoint Address Error for Breakpoint Insert/Remove Handlers
@@ -667,6 +687,8 @@ __dbg__procCmdReturnLengthError:
  */
 __dbg__procBreakpointAddrError:
     _dbg_outputMsgStatusErrCode MSG_UNKNOWNBRKPT
+
+__dbg__sendDebugMsgExit:
     bl      dbg__putDebugMsg                /* Send error response to the GDB server */
     ldmfd   sp!, {pc}
 
@@ -843,8 +865,8 @@ _dbg__cmd_ReadMem:
     bne     __dbg__procCmdParamError        /* Can't find ',' */
     mov     r0, r1                          /* move buffer pointer to R0 for subsequent processing */
     bl      ascii2halfword                  /* convert ASCII length to Hex (in R0), R1 has address of next buffer char */
-    cmp     r0, #CMD_MEM_MAXNUMBYTES
-    bhi     __dbg__procCmdReturnLengthError /* Requested Length greater than buffer size, return error */
+    cmp     r0, #CMD_MEM_MAXREADBYTES       /* Don't overflow our buffer (2 x CMD_MEM_MAXREADBYTES) */
+    bhi     __dbg__procCmdReturnOutLengthError /* Requested Length greater than buffer size, return error */
     mov     r4, r0                          /* Keep numbytes in R4 */
     /* FIXME: Should validate the address? */
 
@@ -858,6 +880,42 @@ _dbg__cmd_ReadMem:
     bl      dbg__putDebugMsg                /* Send response to the GDB server */
     ldmfd   sp!, {pc}
 
+
+/* _dbg__cmd_WriteMem
+ *      Write Memory Contents Command Handler
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              AA..AA,LLLL::bb..bb
+ *      On exit:
+ *          r0, r1, r2, r3, r4: destroyed
+ */
+_dbg__cmd_WriteMem:
+    stmfd   sp!, {lr}
+    bl      __dbg__cmdParamLen
+    cmp     r1, #CMD_MEM_WRITE_MINPARAMLEN  /* Check for correct (minimum) length */
+    blo     __dbg__procCmdParamError        /* Unexpected input, report error */
+    sub     r4, r1, #CMD_MEM_WRITE_MINPARAMLEN  /* R4: Number of ASCII Hex chars for byte writes */
+    bl      ascii2word                      /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+    mov     r3, r0                          /* Keep Address location in R3 */
+    _check_msgseparator r1
+    bne     __dbg__procCmdParamError        /* Can't find ',' */
+    mov     r0, r1                          /* move buffer pointer to R0 for subsequent processing */
+    bl      ascii2halfword                  /* convert ASCII length to Hex (in R0), R1 has address of next buffer char */
+    cmp     r0, r4, asr #1                  /* is Number of bytes to write == (number of ASCII Hex Chars / 2)? */
+    bne     __dbg__procCmdParamError        /* Number of bytes does not match argument length */
+    cmp     r0, #CMD_MEM_MAXWRITEBYTES      /* Don't overflow our buffer (2 x CMD_MEM_MAXWRITEBYTES) */
+    bhi     __dbg__procCmdReturnInLengthError /* Requested Length greater than buffer size, return error */
+    moveq     r4, r0                          /* Keep numbytes in R4 */
+    /* FIXME: Should validate the address? */
+    _check_msgargument r1
+    bne     __dbg__procCmdParamError        /* Can't find ':' */
+
+1:  mov     r0, r1
+    bl      ascii2byte                      /* convert ASCII Hex value into byte value */
+    strb    r0, [r3], #1                    /* Store into memory location */
+    subs    r4, r4, #1
+    bne     1b
+    b       __dbg__procCmdOk
 
 /* _dbg__proc_brkpt_params
  *      Process Breakpoint Parameters

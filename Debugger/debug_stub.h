@@ -50,7 +50,8 @@
 #define MSG_SEGMENTSIZE (USB_BUFSIZE - USB_GDBMSG_START)        /* 61 bytes per segment */
 #define MSGBUF_SIZE     (MSG_SEGMENTSIZE*MSG_NUMSEGMENTS)       /* Debug Message Buffer Size, 61 x 3 = 183 chars = ~80 bytes of actual data */
 #define MSGBUF_CHKSUMOFFSET             3                       /* to be subtracted from message length */
-#define MSGBUF_OVERHEADLEN				6						/* For calculating max message data length (include ASCIIZ char) */
+#define MSGBUF_IN_OVERHEADLEN			5						/* For calculating max message data length (include ASCIIZ char) */
+#define MSGBUF_OUT_OVERHEADLEN			6						/* For calculating max message data length (include ASCIIZ char) */
 
 #define MSGBUF_CTRLC     0x03                                   /* For Out of Band Signaling: not implemented yet */
 #define MSGBUF_STARTCHAR '$'
@@ -62,6 +63,7 @@
 #define MSGBUF_SETCHAR   '='
 #define MSGBUF_CHKSUMCHAR '#'
 #define MSGBUF_SEPCHAR   ','
+#define MSGBUF_ARGCHAR   ':'
 #define MSGBUF_MSGERROR  -1
 /*@}*/
 
@@ -87,10 +89,12 @@
 #define CMD_REG_SETALL_PARAMLEN     (CMD_REG_NUMREGS*CMD_REG_REGPARAMLEN)
 #define CMD_NUMITEMS_PARAMLEN		4	/* 16-bit ASCII Hex Value */
 #define CMD_MEM_READ_PARAMLEN		(CMD_REG_REGPARAMLEN + CMD_NUMITEMS_PARAMLEN + 1)	/* Address length is equivalent to reg param len */
-#define CMD_MEM_WRITE_PARAMLEN		(CMD_REG_REGPARAMLEN + CMD_NUMITEMS_PARAMLEN + 1)	/* Address length is equivalent to reg param len */
+#define CMD_MEM_WRITE_MINPARAMLEN	(CMD_REG_REGPARAMLEN + CMD_NUMITEMS_PARAMLEN + 2)	/* Address length is equivalent to reg param len */
 #define CMD_MEM_SEPCHAR_OFFSET		CMD_REG_REGPARAMLEN	/* Address length is equivalent to reg param len */
-#define CMD_MEM_MAXBUFLEN			(MSGBUF_SIZE - MSGBUF_OVERHEADLEN)
-#define CMD_MEM_MAXNUMBYTES			(CMD_MEM_MAXBUFLEN/2)
+#define CMD_MEM_MAXOUTBUFLEN		(MSGBUF_SIZE - MSGBUF_OUT_OVERHEADLEN)
+#define CMD_MEM_MAXREADBYTES		(CMD_MEM_MAXOUTBUFLEN/2)
+#define CMD_MEM_MAXINBUFLEN			(MSGBUF_SIZE - MSGBUF_IN_OVERHEADLEN)
+#define CMD_MEM_MAXWRITEBYTES		((CMD_MEM_MAXINBUFLEN - CMD_MEM_WRITE_MINPARAMLEN)/2)
 /*@}*/
 
 /** @name Debug Breakpoint Command Constants.
@@ -215,11 +219,13 @@ ENUM_END(dbg_state_t)
  * Debugger Error Message Enums.
  * The enums must be consecutive, starting from 1
  */
+/* FIXME: Need to validate against the ecos-generic-stub.c Error enums */
 ENUM_BEGIN
 ENUM_VALASSIGN(MSG_ERRIMPL, 0)    /**< Stub (not implemented) Error. */
+ENUM_VAL(MSG_ERRINLENGTH)      	  /**< Message Write Length Error. */
 ENUM_VAL(MSG_ERRCHKSUM)           /**< Checksum Error. */
+ENUM_VAL(MSG_ERROUTLENGTH)        /**< Message Read Length Error. */
 ENUM_VAL(MSG_ERRFORMAT)           /**< Message Format Error. */
-ENUM_VAL(MSG_ERRLENGTH)      	  /**< Message Output Length Error. */
 ENUM_VAL(MSG_UNKNOWNCMD)          /**< Unrecognized Command Error. */
 ENUM_VAL(MSG_UNKNOWNPARAM)        /**< Unrecognized Parameter Error. */
 ENUM_VAL(MSG_UNKNOWNBRKPT)        /**< Unrecognized Breakpoint Error. */
