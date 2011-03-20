@@ -426,10 +426,11 @@ debug_armComplexCCTable:
 cCommHandleDebug:
 /* Arg Registers are not preserved since this is invoked explicitly */
         /* push  {r1-r3} */              /* store arg registers */
-        bl    dbg__copyNxtDebugMsg  /* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
+        bl    dbg__copyNxtDebugMsg  	/* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
         /* pop   {r1-r3} */              /* restore values */
-        _dbg_getmode r0             /* Get Debug Mode */
-        cmp   r0, #TRUE
+        _dbg_getmode r0             	/* Get Debug Mode */
+        ldr	  r1, =TRUE					/* Thumb mode can't accept direct constant */
+        cmp   r0, r1
 
         /* If Debug Mode is TRUE, this means that we're already running the Debugger */
 		beq	  _cCommHandleDebug_cont
@@ -438,6 +439,8 @@ cCommHandleDebug:
 _cCommHandleDebug_cont:
         mov   r0, #0                /* FIXME: Return Status */
         bx    lr
+
+        .ltorg
 #endif
 
 /****************************************************************************
@@ -866,7 +869,7 @@ _dbg__cmd_ReadMem:
     mov     r0, r1                          /* move buffer pointer to R0 for subsequent processing */
     bl      ascii2halfword                  /* convert ASCII length to Hex (in R0), R1 has address of next buffer char */
     cmp     r0, #CMD_MEM_MAXREADBYTES       /* Don't overflow our buffer (2 x CMD_MEM_MAXREADBYTES) */
-    bhi     __dbg__procCmdReturnOutLengthError /* Requested Length greater than buffer size, return error */
+    bhi     __dbg__procCmdReturnOutputLengthError /* Requested Length greater than buffer size, return error */
     mov     r4, r0                          /* Keep numbytes in R4 */
     /* FIXME: Should validate the address? */
 
@@ -904,7 +907,7 @@ _dbg__cmd_WriteMem:
     cmp     r0, r4, asr #1                  /* is Number of bytes to write == (number of ASCII Hex Chars / 2)? */
     bne     __dbg__procCmdParamError        /* Number of bytes does not match argument length */
     cmp     r0, #CMD_MEM_MAXWRITEBYTES      /* Don't overflow our buffer (2 x CMD_MEM_MAXWRITEBYTES) */
-    bhi     __dbg__procCmdReturnInLengthError /* Requested Length greater than buffer size, return error */
+    bhi     __dbg__procCmdReturnInputLengthError /* Requested Length greater than buffer size, return error */
     moveq     r4, r0                          /* Keep numbytes in R4 */
     /* FIXME: Should validate the address? */
     _check_msgargument r1
