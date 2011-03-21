@@ -162,11 +162,13 @@ else:
     myasflags.append('-Wa,-mcpu=arm7tdmi,-mfpu=softfpa')
 mycflags.append('-g')
 mycflags.append('-ggdb')
-mycflags.append('-D__NXOS__')
+# Test build for NXT Firmware first
+#mycflags.append('-D__NXOS__')
 
 myasflags.append('-g')
 myasflags.append('-ggdb')
-myasflags.append('-D__NXOS__')
+# Test build for NXT Firmware first
+#myasflags.append('-D__NXOS__')
 
 env.Replace(CCFLAGS = mycflags, ASFLAGS = myasflags )
 
