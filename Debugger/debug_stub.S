@@ -425,9 +425,9 @@ debug_armComplexCCTable:
  */
 cCommHandleDebug:
 /* Arg Registers are not preserved since this is invoked explicitly */
-        /* push  {r1-r3} */              /* store arg registers */
+        push  {lr}                      /* store arg registers */
         bl    dbg__copyNxtDebugMsg  	/* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
-        /* pop   {r1-r3} */              /* restore values */
+        pop   {lr}                      /* restore values */
         _dbg_getmode r0             	/* Get Debug Mode */
         cmp   r0, #(TRUE & BYTE0)		/* Confine it to Byte size */
 
