@@ -99,7 +99,7 @@
  *                    4: access watchpoint
  *                  k: 2 (16-bit Thumb), 3 (32-bit Thumb2)
  *                       or 4 (32-bit ARM) for t=[0,1]
- *                     Num. bytes to watch for t=[3,4]
+ *                     Num. bytes to watch for t=[2,4]
  *
  * All commands and responses are sent with a packet which includes a
  * checksum.  A packet consists of
@@ -121,6 +121,9 @@
  ****************************************************************************/
  /* Modified GDB Server Remote Protocol definition from GDB's sparc-stub.c Comment Header included above
   * Additional commands from GDB Reference Appendix D.2
+  *
+  * Note: ARMDEBUG can only implement Memory Breakpoints t=0. Hardware breakpoints requires a JTAG debugger.
+  *       Currently, watchpoints are not implemented as they require hardware support as well (need verification).
   */
 
 #define __ASSEMBLY__
