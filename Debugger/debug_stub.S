@@ -427,7 +427,6 @@ cCommHandleDebug:
 /* Arg Registers are not preserved since this is invoked explicitly */
         push  {lr}                      /* store arg registers */
         bl    dbg__copyNxtDebugMsg  	/* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
-        pop   {lr}                      /* restore values */
         _dbg_getmode r0             	/* Get Debug Mode */
         cmp   r0, #(TRUE & BYTE0)		/* Confine it to Byte size */
 
@@ -436,8 +435,9 @@ cCommHandleDebug:
         /* Else, we're in normal operation mode (SVC), or other mode (??!) and need to force a switch to Debug mode */
         dbg__bkpt_thumb
 _cCommHandleDebug_cont:
-        mov   r0, #0                /* FIXME: Return Status */
-        bx    lr
+        mov   r0, #0                   /* FIXME: Return Status */
+        pop	  {r1}					   /* Can't Pop LR directly */
+        bx    r1					   /* Safe code: actually we should be able to Pop PC since the caller is Thumb Mode */
 
         .ltorg
 #endif
