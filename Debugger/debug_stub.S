@@ -429,8 +429,7 @@ cCommHandleDebug:
         bl    dbg__copyNxtDebugMsg  	/* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
         /* pop   {r1-r3} */              /* restore values */
         _dbg_getmode r0             	/* Get Debug Mode */
-        ldr	  r1, =TRUE					/* Thumb mode can't accept direct constant */
-        cmp   r0, r1
+        cmp   r0, #(TRUE & BYTE0)		/* Confine it to Byte size */
 
         /* If Debug Mode is TRUE, this means that we're already running the Debugger */
 		beq	  _cCommHandleDebug_cont
