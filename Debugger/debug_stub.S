@@ -907,7 +907,7 @@ _dbg__cmd_WriteMem:
     bne     __dbg__procCmdParamError        /* Number of bytes does not match argument length */
     cmp     r0, #CMD_MEM_MAXWRITEBYTES      /* Don't overflow our buffer (2 x CMD_MEM_MAXWRITEBYTES) */
     bhi     __dbg__procCmdReturnInputLengthError /* Requested Length greater than buffer size, return error */
-    moveq     r4, r0                          /* Keep numbytes in R4 */
+    mov     r4, r0                          /* Keep numbytes in R4 */
     /* FIXME: Should validate the address? */
     _check_msgargument r1
     bne     __dbg__procCmdParamError        /* Can't find ':' */
