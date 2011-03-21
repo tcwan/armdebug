@@ -99,7 +99,7 @@
  *                    4: access watchpoint
  *                  k: 2 (16-bit Thumb), 3 (32-bit Thumb2)
  *                       or 4 (32-bit ARM) for t=[0,1]
- *                     Num. bytes to watch for t=[3,4]
+ *                     Num. bytes to watch for t=[2,4]
  *
  * All commands and responses are sent with a packet which includes a
  * checksum.  A packet consists of
@@ -121,6 +121,9 @@
  ****************************************************************************/
  /* Modified GDB Server Remote Protocol definition from GDB's sparc-stub.c Comment Header included above
   * Additional commands from GDB Reference Appendix D.2
+  *
+  * Note: ARMDEBUG can only implement Memory Breakpoints t=0. Hardware breakpoints requires a JTAG debugger.
+  *       Currently, watchpoints are not implemented as they require hardware support as well (need verification).
   */
 
 #define __ASSEMBLY__
@@ -425,20 +428,19 @@ debug_armComplexCCTable:
  */
 cCommHandleDebug:
 /* Arg Registers are not preserved since this is invoked explicitly */
-        /* push  {r1-r3} */              /* store arg registers */
+        push  {lr}                      /* store arg registers */
         bl    dbg__copyNxtDebugMsg  	/* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
-        /* pop   {r1-r3} */              /* restore values */
         _dbg_getmode r0             	/* Get Debug Mode */
-        ldr	  r1, =TRUE					/* Thumb mode can't accept direct constant */
-        cmp   r0, r1
+        cmp   r0, #(TRUE & BYTE0)		/* Confine it to Byte size */
 
         /* If Debug Mode is TRUE, this means that we're already running the Debugger */
 		beq	  _cCommHandleDebug_cont
         /* Else, we're in normal operation mode (SVC), or other mode (??!) and need to force a switch to Debug mode */
         dbg__bkpt_thumb
 _cCommHandleDebug_cont:
-        mov   r0, #0                /* FIXME: Return Status */
-        bx    lr
+        mov   r0, #0                   /* FIXME: Return Status */
+        pop	  {r1}					   /* Can't Pop LR directly */
+        bx    r1					   /* Safe code: actually we should be able to Pop PC since the caller is Thumb Mode */
 
         .ltorg
 #endif
@@ -919,7 +921,7 @@ _dbg__cmd_WriteMem:
     bne     __dbg__procCmdParamError        /* Number of bytes does not match argument length */
     cmp     r0, #CMD_MEM_MAXWRITEBYTES      /* Don't overflow our buffer (2 x CMD_MEM_MAXWRITEBYTES) */
     bhi     __dbg__procCmdReturnInputLengthError /* Requested Length greater than buffer size, return error */
-    moveq     r4, r0                          /* Keep numbytes in R4 */
+    mov     r4, r0                          /* Keep numbytes in R4 */
     /* FIXME: Should validate the address? */
     _check_msgargument r1
     bne     __dbg__procCmdParamError        /* Can't find ':' */
