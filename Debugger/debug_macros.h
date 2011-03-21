@@ -148,6 +148,25 @@
 	_dbg_stpcpy	r0, r1, r2
 	.endm
 
+/* __dbg_outputErrMsg
+ *  Internal Routine called to generate error messages
+ *	Return Message with Error ('-$ENN') status
+ *	On entry:
+ *	  R1: error code
+ *	On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *	  R1: destroyed
+ *	  R2: destroyed
+ *	  R3: destroyed
+ */
+	.macro  __dbg_outputErrMsg
+	ldr	r0, =debug_OutMsgBuf
+	ldr	r2, =debug_ErrorResponsePrefix
+	_dbg_stpcpy	 r0, r2, r3
+	bl	byte2ascii	  /* R0 points to buffer position after byte value */
+	_asciiz	r0, r1
+	.endm
+
 /* _dbg_outputMsgStatusErr
  *	Return Message with Error ('-$ENN') status
  *	On entry:
@@ -160,11 +179,7 @@
  */
 	.macro  _dbg_outputMsgStatusErr
 	mov	r1, r0
-	ldr	r0, =debug_OutMsgBuf
-	ldr	r2, =debug_ErrorResponsePrefix
-	_dbg_stpcpy	 r0, r2, r3
-	bl	byte2ascii	  /* R0 points to buffer position after byte value */
-	_asciiz	r0, r1
+	__dbg_outputErrMsg
 	.endm
 
 /* _dbg_outputMsgStatusErrCode
@@ -175,12 +190,8 @@
  *	  R2: destroyed
  */
 	.macro  _dbg_outputMsgStatusErrCode errcode
-	ldr	r0, =debug_OutMsgBuf
-	ldr	r1, =debug_ErrorResponsePrefix
-	_dbg_stpcpy	 r0, r1, r2
 	mov	r1, #\errcode
-	bl	byte2ascii	  /* R0 points to buffer position after byte value */
-	_asciiz	r0, r1
+	__dbg_outputErrMsg
 	.endm
 
 /* _dbg_outputMsgStatusSig

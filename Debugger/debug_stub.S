@@ -661,9 +661,8 @@ __dbg__procCmdOk:
  *
  */
 __dbg__procCmdParamError:
-	_dbg_outputMsgStatusErrCode MSG_UNKNOWNPARAM
-    b       __dbg__sendDebugMsgExit
-
+    mov r1, #MSG_UNKNOWNPARAM
+    b   __dbg__procErrorMsg
 
 /* __dbg__procCmdReturnInputLengthError
  *      Common subroutine exit stub to handle Command Input Length Error for Command Handlers
@@ -671,8 +670,8 @@ __dbg__procCmdParamError:
  *
  */
 __dbg__procCmdReturnInputLengthError:
-    _dbg_outputMsgStatusErrCode MSG_ERRINLENGTH
-    b       __dbg__sendDebugMsgExit
+    mov r1, #MSG_ERRINLENGTH
+    b   __dbg__procErrorMsg
 
 /* __dbg__procCmdReturnOutputLengthError
  *      Common subroutine exit stub to handle Command Return Output Error for Command Handlers
@@ -680,8 +679,8 @@ __dbg__procCmdReturnInputLengthError:
  *
  */
 __dbg__procCmdReturnOutputLengthError:
-    _dbg_outputMsgStatusErrCode MSG_ERROUTLENGTH
-    b       __dbg__sendDebugMsgExit
+    mov r1, #MSG_ERROUTLENGTH
+    b   __dbg__procErrorMsg
 
 /* __dbg__procBreakpointAddrError
  *      Common subroutine exit stub to handle Breakpoint Address Error for Breakpoint Insert/Remove Handlers
@@ -689,7 +688,21 @@ __dbg__procCmdReturnOutputLengthError:
  *
  */
 __dbg__procBreakpointAddrError:
-    _dbg_outputMsgStatusErrCode MSG_UNKNOWNBRKPT
+    mov r1, #MSG_UNKNOWNBRKPT
+    b   __dbg__procErrorMsg
+
+/* __dbg__procUnimplementedError
+ *      Common subroutine exit stub to handle Unimplemented GDB Command Error
+ *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
+ *
+ */
+__dbg__procUnimplementedError:
+    mov r1, #MSG_ERRIMPL
+    /* b   __dbg__procErrorMsg */
+
+__dbg__procErrorMsg:
+    __dbg_outputErrMsg
+    /* b       __dbg__sendDebugMsgExit */
 
 __dbg__sendDebugMsgExit:
     bl      dbg__putDebugMsg                /* Send error response to the GDB server */
@@ -844,9 +857,7 @@ _dbg__cmd_SetAllRegs:
  */
 _dbg__nop:
 	stmfd	sp!, {lr}
-	_dbg_outputMsgStatusErrCode MSG_ERRIMPL    /* Stub, not implemented yet */
-	bl		dbg__putDebugMsg				   /* Send error response to the GDB server */
-	ldmfd	sp!, {pc}
+	b      __dbg__procUnimplementedError
 
 /* _dbg__cmd_ReadMem
  *      Read Memory Contents Command Handler
