@@ -193,11 +193,14 @@ debug_mode:
 
 .data
 .align 4
+debug_RetransmitFlag:
+	.byte	'-',0
+
 debug_ValidResponsePrefix:
 	.byte	'+','$',0
 
 debug_ErrorResponsePrefix:
-	.byte	'-','$','E',0
+	.byte	'+','$','E',0
 
 debug_SignalResponsePrefix:
 	.byte	'+','$','S',0
@@ -343,6 +346,7 @@ debug_armComplexCCTable:
 	.extern dbg__hasDebugMsg			/* Check for message from the communications link */
 	.extern dbg__getDebugMsg			/* Read a message from the communications link */
 	.extern	dbg__putDebugMsg			/* Write a message to the communications link */
+	.extern dbg__requestRetransmission	/* Request Retransmission due to Checksum Error */
 	.extern dbg__runloopTasks           /* Platform specific Run Loop processing */
 
 
@@ -384,13 +388,14 @@ debug_armComplexCCTable:
  *		Breakpoint 02 State
  *		Breakpoint 01 State
  *		Single Step   State			__debugger_stack__ / __breakpoints_start__
- *		User Mode R15
- *		User Mode R14
+ *		Previous Mode R15
+ *		Previous Mode R14
+ *		Previous Mode R13
  *			...
  *		User Mode R02
  *		User Mode R01
  *		User Mode R00
- *		User Mode CPSR (UNDEF SPSR)
+ *		Previous Mode CPSR (UNDEF SPSR)
  *		UNDEF Next Instr Addr 		__debugger_stack_bottom__
  *  [Low Memory Address]
  *
@@ -578,8 +583,7 @@ dbg__bkpt_waitCMD_cont:
 	bl		dbg__getDebugMsg				/* Read new message from Debugger, buflen in R0, 0 if none, -1 if error, msgbuf pointer in R1 */
 	cmp		r0, #0
 	beq     _dbg__housekeeping              /* No message yet, do housekeeping tasks */
-	movlt	r0, #MSG_ERRCHKSUM				/* Message invalid, checksum error? */
-	blt		_dbg__cmdError					/* Send response to GDB server */
+	blt		__dbg__procChecksumError		/* Message invalid, checksum error? */
 /* Message now has $<packet info>\0 */
     mov     r4, r1							/* Use R4 as buffer pointer */
 	ldrb	r0, [r4], #1					/* Look for '$' */
@@ -597,15 +601,23 @@ _dbg__cmdExists:
 	mov		r3, r0							/* put Command Handler Index in R3 */
 	mov		r0, r4							/* R0 now contains Input Message Buffer Parameter Pointer (previously in R4) */
 	_dbg_jumpTableHandler	debug_cmdJumpTable, r2, r3		/* Call Command Handler Routine, use R2 as jump address pointer */
-	b dbg__bkpt_waitCMD_cont
+	b 		_dbg__housekeeping
+
+__dbg__procChecksumError:
+    _dbg_outputRetransmitFlag
+	bl		dbg__requestRetransmission		/* Request message retransmission from GDB server */
+	cmp		r0, #0
+	beq		_dbg__housekeeping				/* Sending of retransmission request succeeded */
+	bl      dbg__runloopTasks               /* Service run loop tasks */
+	b 		__dbg__procChecksumError		/* Retry retransmission */
 
 _dbg__cmdError:
 	_dbg_outputMsgStatusErr
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
+
 _dbg__housekeeping:
 	bl      dbg__runloopTasks               /* Execute platform run loop tasks while in ABRT mode */
 	b 		dbg__bkpt_waitCMD_cont
-
 
 /* _dbg__cmdChar2Index
  *		Convert Command Character to Jump Table Index
@@ -657,6 +669,16 @@ __dbg__procCmdOk:
     _dbg_outputMsgStatusOk
     b       __dbg__sendDebugMsgExit
 
+/* __dbg__procUnimplementedError
+ *      Common subroutine exit stub to handle Unimplemented GDB Command Error
+ *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
+ *		Note: GDB Remote Protocol specifies returning blank message ('+$')
+ *
+ */
+__dbg__procUnimplementedError:
+    _dbg_outputMsgValidResponse
+    b       __dbg__sendDebugMsgExit
+
 /* __dbg__procCmdParamError
  *		Common subroutine exit stub to handle Command Parameter Error for Command Handlers
  *		DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
@@ -693,14 +715,6 @@ __dbg__procBreakpointAddrError:
     mov r1, #MSG_UNKNOWNBRKPT
     b   __dbg__procErrorMsg
 
-/* __dbg__procUnimplementedError
- *      Common subroutine exit stub to handle Unimplemented GDB Command Error
- *      DO NOT CALL THIS STUB DIRECTLY! It Assumes that the return address is in the stack.
- *
- */
-__dbg__procUnimplementedError:
-    mov r1, #MSG_ERRIMPL
-    /* b   __dbg__procErrorMsg */
 
 __dbg__procErrorMsg:
     __dbg_outputErrMsg

@@ -121,6 +121,19 @@
         bne      1b
         .endm
 
+/* _dbg_outputRetransmitFlag
+ *      Return Flag ('-') for Checksum Error (retransmission needed)
+ *      On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *        R1: destroyed
+ *        R2: destroyed
+ */
+        .macro  _dbg_outputRetransmitFlag
+        ldr      r0, =debug_OutMsgBuf
+        ldr      r1, =debug_RetransmitFlag                  /* ASCIIZ terminated */
+        _dbg_stpcpy     r0, r1, r2
+        .endm
+
 /* _dbg_outputMsgValidResponse
  *	Return Message with valid response ('+$')
  *	On exit:
@@ -150,7 +163,7 @@
 
 /* __dbg_outputErrMsg
  *  Internal Routine called to generate error messages
- *	Return Message with Error ('-$ENN') status
+ *	Return Message with Error ('+$ENN') status
  *	On entry:
  *	  R1: error code
  *	On exit:
@@ -168,7 +181,7 @@
 	.endm
 
 /* _dbg_outputMsgStatusErr
- *	Return Message with Error ('-$ENN') status
+ *	Return Message with Error ('+$ENN') status
  *	On entry:
  *	  R0: error code
  *	On exit:
@@ -183,7 +196,7 @@
 	.endm
 
 /* _dbg_outputMsgStatusErrCode
- *	Return Message with Error ('-$ENN') status
+ *	Return Message with Error ('+$ENN') status
  *	On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
  *	  R1: destroyed

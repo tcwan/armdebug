@@ -578,20 +578,32 @@ _hasMsg2Copy:
     ldr     r5, =debug_msgRxBufPtr
     ldr     r5, [r5]                            /* Rx buffer Start Address */
 
-#ifdef CHECK_GDBSTARTCHAR
-    /* Checked in dbg__bkpt_waitCMD */
-    ldrb    r0, [r5]
-    teq     r0, #MSGBUF_STARTCHAR               /* Look for '$' */
-    bne     exit_dbg__getMsgError               /* No start char '$', exit with error */
-#endif
-
-    sub     r2, r4, #MSGBUF_CHKSUMOFFSET        /* Look for '#': Message Length - 3 = '#' offset */
+	/* Note: Here we assume that we won't get a single ACK '+' or NAK '-' character message.
+	 *       If we do, it'll be flagged as an error
+	 */
+    subs    r2, r4, #MSGBUF_CHKSUMOFFSET        /* Look for '#': Message Length - 3 = '#' offset */
+    blt		exit_dbg__getMsgError				/* Message Length is too short, exit with error */
     ldrb    r0, [r5, r2]
     teq     r0, #MSGBUF_CHKSUMCHAR
     bne     exit_dbg__getMsgError               /* No checksum char '#', exit with error */
 
     mov     r1, #0
     strb    r1, [r5, r2]                        /* Zero out '#' char for checksum calc later */
+
+/* Need to account for Packet Acknowledgement */
+    ldrb    r0, [r5]
+    teq     r0, #MSGBUF_NAKCHAR               /* Look for '-' */
+    beq		exit_dbg__getMsgError			  /* FIXME: We can't handle retransmission, flag message error */
+    teq     r0, #MSGBUF_ACKCHAR               /* Look for '+' */
+    addeq   r5, r5, #1                        /* Adjust Buffer Start Pointer (excl '+') */
+    subeq	r4, r4, #1						  /* Adjust Message Length */
+
+#ifdef CHECK_GDBSTARTCHAR
+    /* Checked in dbg__bkpt_waitCMD */
+    ldrb    r0, [r5]
+    teq     r0, #MSGBUF_STARTCHAR               /* Look for '$' */
+    bne     exit_dbg__getMsgError               /* No start char '$', exit with error */
+#endif
 
     add     r0, r5, #1                          /* Checksum packet data (excl '$') */
     bl      _msgbuf_checksum                    /* R2: length (excl '$'), R1: calculated checksum, R0: pointer to checksum in receive buffer */
@@ -762,4 +774,27 @@ exit_dbg__putMsgError:
 exit_dbg__putDebugMsg:
 	ldmfd	sp!, {r4,r5,pc}
 
+	.global dbg__requestRetransmission
+/* dbg__requestRetransmission
+ *		Request for Retransmission due to received message Checksum error (Blocking) .
+ *		On entry:
+ *			No parameters (assume pointers were initialized previously using dbg__comm_init)
+ *		On exit:
+ *			r0: status (0: success, -1: error)
+ *			r1: destroyed
+ *      Note: A Retransmission is indicated by '-', which is prepended with the USB header and sent (without checksum)
+ */
+dbg__requestRetransmission:
+	stmfd	sp!, {lr}
+    ldr     r1, =debug_msgTxBufPtr              /* R2: data structure base pointer */
+    ldr     r0, [r1]                            /* Tx buffer Start Address */
+    str     r0, [r1, #TXAPPENDPTR_OFFSET]       /* Reset Tx buffer Append Pointer */
+
+	mov     r1, #0                              /* Initialize Segment Number = 0 (last segment) */
+    mov     r0, #1                              /* Retransmission message length = 1 */
+    bl      _copy_msg_to_usbbuf                 /* R0: cummulative message length, R1: segment number */
+    cmp     r0, #1                              /* Check if we managed to transmit the previous message */
+    moveq	r0, #0								/* R0: Exit status (success) */
+    movne	r0, #MSGBUF_MSGERROR				/* R0: Exit status (error) */
+	ldmfd	sp!, {pc}
 

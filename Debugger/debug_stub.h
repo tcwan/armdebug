@@ -46,12 +46,12 @@
 
 #define USB_GDBMSG_START                3                       /* Offset into USB Telegram buffer */
 
-#define MSG_NUMSEGMENTS  				3                       /* For packet transfers */
+#define MSG_NUMSEGMENTS  		3                       /* For packet transfers */
 #define MSG_SEGMENTSIZE (USB_BUFSIZE - USB_GDBMSG_START)        /* 61 bytes per segment */
 #define MSGBUF_SIZE     (MSG_SEGMENTSIZE*MSG_NUMSEGMENTS)       /* Debug Message Buffer Size, 61 x 3 = 183 chars = ~80 bytes of actual data */
 #define MSGBUF_CHKSUMOFFSET             3                       /* to be subtracted from message length */
-#define MSGBUF_IN_OVERHEADLEN			5						/* For calculating max message data length (include ASCIIZ char) */
-#define MSGBUF_OUT_OVERHEADLEN			6						/* For calculating max message data length (include ASCIIZ char) */
+#define MSGBUF_IN_OVERHEADLEN		5			/* For calculating max message data length (include ASCIIZ char) */
+#define MSGBUF_OUT_OVERHEADLEN		6			/* For calculating max message data length (include ASCIIZ char) */
 
 #define MSGBUF_CTRLC     0x03                                   /* For Out of Band Signaling: not implemented yet */
 #define MSGBUF_STARTCHAR '$'
@@ -223,7 +223,6 @@ ENUM_END(dbg_state_t)
 ENUM_BEGIN
 ENUM_VALASSIGN(MSG_ERRIMPL, 0)    /**< Stub (not implemented) Error. */
 ENUM_VAL(MSG_ERRINLENGTH)      	  /**< Message Write Length Error. */
-ENUM_VAL(MSG_ERRCHKSUM)           /**< Checksum Error. */
 ENUM_VAL(MSG_ERROUTLENGTH)        /**< Message Read Length Error. */
 ENUM_VAL(MSG_ERRFORMAT)           /**< Message Format Error. */
 ENUM_VAL(MSG_UNKNOWNCMD)          /**< Unrecognized Command Error. */
