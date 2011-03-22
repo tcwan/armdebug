@@ -87,6 +87,13 @@
 #define CMD_REG_REGPARAMLEN         8   /* 32-bit ASCII Hex Value */
 #define CMD_REG_SETONE_PARAMLEN     (2 + CMD_REG_REGPARAMLEN)
 #define CMD_REG_SETALL_PARAMLEN     (CMD_REG_NUMREGS*CMD_REG_REGPARAMLEN)
+/*@}*/
+
+/** @name Debug Memory Command Constants.
+ *
+ * Debug Memory Command
+ */
+/*@{*/
 #define CMD_NUMITEMS_PARAMLEN		4	/* 16-bit ASCII Hex Value */
 #define CMD_MEM_READ_PARAMLEN		(CMD_REG_REGPARAMLEN + CMD_NUMITEMS_PARAMLEN + 1)	/* Address length is equivalent to reg param len */
 #define CMD_MEM_WRITE_MINPARAMLEN	(CMD_REG_REGPARAMLEN + CMD_NUMITEMS_PARAMLEN + 2)	/* Address length is equivalent to reg param len */
@@ -96,6 +103,17 @@
 #define CMD_MEM_MAXINBUFLEN			(MSGBUF_SIZE - MSGBUF_IN_OVERHEADLEN)
 #define CMD_MEM_MAXWRITEBYTES		((CMD_MEM_MAXINBUFLEN - CMD_MEM_WRITE_MINPARAMLEN)/2)
 /*@}*/
+
+/** @name Debug Continue Command Constants.
+ *
+ * Debug Continue Command
+ */
+/*@{*/
+#define CMD_REG_CONTINUE_PARAMLEN     0
+#define CMD_REG_CONTINUEFROM_PARAMLEN CMD_REG_REGPARAMLEN	/* Address length is equivalent to reg param len */
+/*@}*/
+
+
 
 /** @name Debug Breakpoint Command Constants.
  *
@@ -126,9 +144,10 @@
  * Debug Stack Manipulation Values
  */
 /*@{*/
-#define DBGSTACK_USERCPSR_OFFSET   (DBGSTACK_USERCPSR_INDEX-DBGSTACK_USERREG_INDEX)       /* = -1, offset for calculating Debug Stack index */
+#define DBGSTACK_NEXTINSTR_INDEX 0                /* Next Instruction Address is at index 0 from bottom of Debug Stack */
 #define DBGSTACK_USERCPSR_INDEX 1                /* User CPSR (SPSR_UNDEF) is at index 1 from bottom of Debug Stack */
 #define DBGSTACK_USERREG_INDEX  2                /* R0 starts at index 2 from bottom of Debug Stack */
+#define DBGSTACK_USERCPSR_OFFSET   (DBGSTACK_USERCPSR_INDEX-DBGSTACK_USERREG_INDEX)       /* = -1, offset for calculating Debug Stack index */
 /*@}*/
 
 /** @name Bitmask Definitions.

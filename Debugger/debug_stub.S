@@ -224,7 +224,7 @@ debug_cmdJumpTable:
 	.word	_dbg__cmd_SetOneReg				    /* 'P' */
 	.word	_dbg__cmd_ReadMem					/* 'm' */
 	.word	_dbg__cmd_WriteMem					/* 'M' */
-	.word	_dbg__nop							/* 'c' */
+	.word	_dbg__cmd_Continue					/* 'c' */
 	.word	_dbg__nop							/* 's' */
 	.word	_dbg__nop							/* 'k' */
 	.word	_dbg__cmd_remove_breakpoint			/* 'z' */
@@ -946,6 +946,34 @@ _dbg__cmd_WriteMem:
     subs    r4, r4, #1
     bne     1b
     b       __dbg__procCmdOk
+
+/* _dbg__cmd_Continue
+ *      Continue User Program Execution Command Handler
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              Optional: AA..AA
+ *      On exit:
+ *          r0, r1, r2, r3, r4: destroyed
+ */
+_dbg__cmd_Continue:
+    stmfd   sp!, {lr}
+    bl      __dbg__cmdParamLen
+    cmp     r1, #CMD_REG_CONTINUE_PARAMLEN  /* Check for correct parameter length */
+    beq     _dbg__cmd_processContinue       /* Continue from current PC */
+    cmp     r1, #CMD_REG_CONTINUEFROM_PARAMLEN  /* Check for correct parameter length */
+    bne     __dbg__procCmdParamError        /* Unexpected input, report error */
+    /* Continue from Specified Address */
+    bl      ascii2word                      /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+    mov     r1, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
+    _setdbgregisterfromindex r1, r0, r2     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+
+_dbg__cmd_processContinue:
+@@@@@
+    /* Switch mode to Previous Mode, reload all the registers (except for PC) */
+    /* Switch back to ABORT, resume with PC and SPSR */
+    b       __dbg__procCmdOk
+
+
 
 /* _dbg__proc_brkpt_params
  *      Process Breakpoint Parameters

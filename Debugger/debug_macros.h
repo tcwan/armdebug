@@ -223,6 +223,20 @@
 	_asciiz	r0, r1
 	.endm
 
+/* _regenum2index
+ *      Convert register enum to debugger stack index
+ *
+ *      On entry:
+ *        indexenum: enum representing Register to access
+ *        indexreg: register to be used to store the debugger stack index value (0-max index)
+ *      On exit:
+ *        indexreg contains debugger stack index value (0-max index)
+ */
+	.macro	_regenum2index indexenum, indexreg
+    mov     \indexreg, #indexenum
+    add     \indexreg, \indexreg, #DBGSTACK_USERREG_INDEX /* Convert register index to Debug Stack index, keep in R1 */
+    .endm
+
 /* _getdbgregisterfromindex
  *      Retrieve register contents from debugger stack given index
  *
