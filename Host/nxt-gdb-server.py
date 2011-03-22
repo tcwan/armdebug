@@ -73,7 +73,10 @@ class NXTGDBServer:
         # Is # found and enough place for the checkum?
         while end >= 0 and end < len (self.in_buf) - 2:
             msg, self.in_buf = self.in_buf[0:end + 3], self.in_buf[end + 3:]
-            assert msg[0] == '$', "not a GDB command"
+            gdbprefix = msg[0]
+            if gdbprefix in ['+', '-']:
+                gdbprefix = msg[1] 
+            assert gdbprefix == '$', "not a GDB command"
             # Make segments.
             seg_no = 0
             while msg:
