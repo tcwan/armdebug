@@ -976,7 +976,7 @@ _dbg__cmd_processContinue:
    breakpoint that was triggered) */
 
 @@@@@
-#ifdef 0
+#if 0
 /* Not part of the GDB Remote Protocol spec. Messages are sent only when system halts, not when we resume */
 __dbg__sendOkBeforeResume:
     _dbg_outputMsgStatusOk
