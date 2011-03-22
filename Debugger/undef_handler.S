@@ -120,7 +120,7 @@ resume_execution:
     ldr     lr, =__debugger_stack_bottom__      /* Use LR(undef) for Debug Stack Access */
     add     r1, lr, #(DBGSTACK_USERSP_INDEX*4)  /* Use R1 for Previous Mode SP (R13) and LR (R14) access */
     ldr     r0, [lr, #(DBGSTACK_USERCPSR_INDEX*4)]!      /* LR updated, Retrieve SPSR into R0 */
-    msr     r0, spsr                    /* Update SPSR for return to program being debugged */
+    msr     spsr, r0                    /* Update SPSR for return to program being debugged */
     and     r0, r0, #CPSR_MODE          /* Get previous mode */
     teq     r0, #MODE_USR
     bne     _restore_prev_mode_banked_regs      /* Can't switch back if we're in User mode! */
@@ -131,10 +131,10 @@ resume_execution:
 
 _restore_prev_mode_banked_regs:
     /* FIXME: We don't handle FIQ properly! */
-    orr r0, #(CPSR_FIQ | CPSR_IRQ)  /* Disable Interrupts */
-    msr cpsr_c, r0                  /* Switch to previous mode */
+    orr 	r0, #(CPSR_FIQ | CPSR_IRQ)  /* Disable Interrupts */
+    msr 	cpsr_c, r0                  /* Switch to previous mode */
     ldmfd   r1, {sp, lr}            /* Restore Previous Mode's LR (R14), SP (R13) via R1 */
-    msr cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)   /* Revert to Undef Mode */
+    msr 	cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)   /* Revert to Undef Mode */
     ldmed   lr, {r0-r12}               /* We use LDMED since LR is pointing to USERCPSR not R0 */
 
 _really_resume_execution:
