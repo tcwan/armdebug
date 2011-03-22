@@ -578,11 +578,16 @@ dbg__bkpt_offset_outofrange:
  *
  ****************************************************************************/
 dbg__bkpt_waitCMD:
+	/* We enter this code section when a Breakpoint Triggers */
     _dbg_setmode TRUE                       /* Debug Mode = True */
+	_dbg_outputMsgStatusSig 0x0				/* FIXME: Dummy Signal number */
+	bl		dbg__putDebugMsg				/* Send signal response to the GDB server */
+
 dbg__bkpt_waitCMD_cont:
+	bl      dbg__runloopTasks               /* Execute housekeeping tasks while in ABRT mode */
 	bl		dbg__getDebugMsg				/* Read new message from Debugger, buflen in R0, 0 if none, -1 if error, msgbuf pointer in R1 */
 	cmp		r0, #0
-	beq     _dbg__housekeeping              /* No message yet, do housekeeping tasks */
+	beq     dbg__bkpt_waitCMD_cont          /* No message yet, do housekeeping tasks */
 	blt		__dbg__procChecksumError		/* Message invalid, checksum error? */
 /* Message now has $<packet info>\0 */
     mov     r4, r1							/* Use R4 as buffer pointer */
@@ -601,22 +606,19 @@ _dbg__cmdExists:
 	mov		r3, r0							/* put Command Handler Index in R3 */
 	mov		r0, r4							/* R0 now contains Input Message Buffer Parameter Pointer (previously in R4) */
 	_dbg_jumpTableHandler	debug_cmdJumpTable, r2, r3		/* Call Command Handler Routine, use R2 as jump address pointer */
-	b 		_dbg__housekeeping
+	b 		dbg__bkpt_waitCMD_cont
 
 __dbg__procChecksumError:
     _dbg_outputRetransmitFlag
 	bl		dbg__requestRetransmission		/* Request message retransmission from GDB server */
 	cmp		r0, #0
-	beq		_dbg__housekeeping				/* Sending of retransmission request succeeded */
+	beq		dbg__bkpt_waitCMD_cont			/* Sending of retransmission request succeeded */
 	bl      dbg__runloopTasks               /* Service run loop tasks */
 	b 		__dbg__procChecksumError		/* Retry retransmission */
 
 _dbg__cmdError:
 	_dbg_outputMsgStatusErr
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
-
-_dbg__housekeeping:
-	bl      dbg__runloopTasks               /* Execute platform run loop tasks while in ABRT mode */
 	b 		dbg__bkpt_waitCMD_cont
 
 /* _dbg__cmdChar2Index
@@ -974,6 +976,8 @@ _dbg__cmd_processContinue:
    breakpoint that was triggered) */
 
 @@@@@
+#ifdef 0
+/* Not part of the GDB Remote Protocol spec. Messages are sent only when system halts, not when we resume */
 __dbg__sendOkBeforeResume:
     _dbg_outputMsgStatusOk
     bl      dbg__putDebugMsg                /* Send Ok response to the GDB server */
@@ -981,6 +985,7 @@ __dbg__sendOkBeforeResume:
     beq     _dbg__switch2undefmode          /* Sending of retransmission request succeeded */
     bl      dbg__runloopTasks               /* Service run loop tasks */
     b       __dbg__sendOkBeforeResume       /* Retry retransmission */
+#endif
 
 _dbg__switch2undefmode:
     msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
