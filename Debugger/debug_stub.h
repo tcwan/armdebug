@@ -50,8 +50,8 @@
 #define MSG_SEGMENTSIZE (USB_BUFSIZE - USB_GDBMSG_START)        /* 61 bytes per segment */
 #define MSGBUF_SIZE     (MSG_SEGMENTSIZE*MSG_NUMSEGMENTS)       /* Debug Message Buffer Size, 61 x 3 = 183 chars = ~80 bytes of actual data */
 #define MSGBUF_CHKSUMOFFSET             3                       /* to be subtracted from message length */
-#define MSGBUF_IN_OVERHEADLEN		5			/* For calculating max message data length (include ASCIIZ char) */
-#define MSGBUF_OUT_OVERHEADLEN		6			/* For calculating max message data length (include ASCIIZ char) */
+#define MSGBUF_IN_OVERHEADLEN		5			/* For calculating max message data length (exclude ASCIIZ char) */
+#define MSGBUF_OUT_OVERHEADLEN		5			/* For calculating max message data length (exclude ASCIIZ char) */
 
 #define MSGBUF_CTRLC     0x03                                   /* For Out of Band Signaling: not implemented yet */
 #define MSGBUF_STARTCHAR '$'
