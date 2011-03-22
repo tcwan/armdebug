@@ -953,10 +953,11 @@ _dbg__cmd_WriteMem:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              Optional: AA..AA
  *      On exit:
- *          r0, r1, r2, r3, r4: destroyed
+ *          r0, r1, r2: destroyed
+ *			Note: This routine does not return to caller. Instead it switches
+ *				  operating mode to UNDEF and returns to previously active program
  */
 _dbg__cmd_Continue:
-    stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
     cmp     r1, #CMD_REG_CONTINUE_PARAMLEN  /* Check for correct parameter length */
     beq     _dbg__cmd_processContinue       /* Continue from current PC */
