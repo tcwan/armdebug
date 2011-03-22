@@ -101,4 +101,45 @@ _exit_undef_handler:
 		ldr	lr, =dbg__arm_bkpt_handler		/* handle BKPT, BKPT index in r0 */
 		mov	pc, lr						/* Invoke Debugger State (Supervisor Mode) */
 
+    .global resume_execution
+
+resume_execution:
+/*
+ * This routine is called by the Debugger prior to returning control to
+ * the executing program.
+ * It updates the SPSR_UNDEF with the Debug Stack value, and
+ * restores all registers R0-R14 to the previously active mode.
+ * Then, it uses the Next Instruction Address Pointer to return
+ * execution control to the previously executing program.
+ */
+/* On Entry, SP(undef) points to the Next Instruction Address.
+ * If the instruction which triggered the Breakpoint need to be
+ * reexecuted, it should be placed in the Next Instruction Address slot
+ * by ABORT mode before coming here
+ */
+    ldr     lr, =__debugger_stack_bottom__      /* Use LR(undef) for Debug Stack Access */
+    add     r1, lr, #(DBGSTACK_USERSP_INDEX*4)  /* Use R1 for Previous Mode SP (R13) and LR (R14) access */
+    ldr     r0, [lr, #(DBGSTACK_USERCPSR_INDEX*4)]!      /* LR updated, Retrieve SPSR into R0 */
+    msr     r0, spsr                    /* Update SPSR for return to program being debugged */
+    and     r0, r0, #CPSR_MODE          /* Get previous mode */
+    teq     r0, #MODE_USR
+    bne     _restore_prev_mode_banked_regs      /* Can't switch back if we're in User mode! */
+
+    /* Previous mode was User Mode */
+    ldmed   lr, {r0-r14}^               /* We use LDMED since LR is pointing to USERCPSR not R0 */
+    b       _really_resume_execution
+
+_restore_prev_mode_banked_regs:
+    /* FIXME: We don't handle FIQ properly! */
+    orr r0, #(CPSR_FIQ | CPSR_IRQ)  /* Disable Interrupts */
+    msr cpsr_c, r0                  /* Switch to previous mode */
+    ldmfd   r1, {sp, lr}            /* Restore Previous Mode's LR (R14), SP (R13) via R1 */
+    msr cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)   /* Revert to Undef Mode */
+    ldmed   lr, {r0-r12}               /* We use LDMED since LR is pointing to USERCPSR not R0 */
+
+_really_resume_execution:
+    ldmfd   sp, {pc}^               /* Exit to Previous Mode using Next Instruction Address */
+
+
+
 

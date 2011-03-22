@@ -964,15 +964,27 @@ _dbg__cmd_Continue:
     bne     __dbg__procCmdParamError        /* Unexpected input, report error */
     /* Continue from Specified Address */
     bl      ascii2word                      /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
-    mov     r1, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
-    _setdbgregisterfromindex r1, r0, r2     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
+    _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
 
 _dbg__cmd_processContinue:
-@@@@@
-    /* Switch mode to Previous Mode, reload all the registers (except for PC) */
-    /* Switch back to ABORT, resume with PC and SPSR */
-    b       __dbg__procCmdOk
+/* FIXME: Currently we assume that the trigger is a Manual Breakpoint, i.e., no need to
+   restore instructions to memory, and handle auto-breakpoints (needed to reenable the memory
+   breakpoint that was triggered) */
 
+@@@@@
+__dbg__sendOkBeforeResume:
+    _dbg_outputMsgStatusOk
+    bl      dbg__putDebugMsg                /* Send Ok response to the GDB server */
+    cmp     r0, #0
+    beq     _dbg__switch2undefmode          /* Sending of retransmission request succeeded */
+    bl      dbg__runloopTasks               /* Service run loop tasks */
+    b       __dbg__sendOkBeforeResume       /* Retry retransmission */
+
+_dbg__switch2undefmode:
+    msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
+    ldr     lr, =resume_execution
+    mov     pc, lr                          /* Exit via UNDEF mode */
 
 
 /* _dbg__proc_brkpt_params
