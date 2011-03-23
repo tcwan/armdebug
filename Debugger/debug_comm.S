@@ -127,7 +127,10 @@ hex2char:
 
 /* char2hex
  *		This routine accepts an ASCII character in R0(7:0) and returns the
- *		equivalent byte sized hex value in R0(7:0)
+ *		equivalent byte sized hex value in R0(7:0).
+ *		It accepts lowercase and uppercase ASCII Hex char inputs.
+ *		WARNING: The checking is not exhaustive, invalid ASCII characters can
+ *				 still slip thorough.
  */
 	.global	char2hex
 
@@ -135,8 +138,10 @@ char2hex:
 	and		r0, #BYTE0			/* make sure that input is sane */
 	cmp		r0, #'0'
 	blo		exit_char2hex
-	cmp		r0, #'F'
+	cmp		r0, #'f'
 	bhi		exit_char2hex
+	/* In range '0'..'f' */
+perform_char2hex:
 	_char2hex	r0
 exit_char2hex:
 	bx		lr
