@@ -599,8 +599,13 @@ dbg__bkpt_waitCMD_cont:
 	bl		_dbg__cmdChar2Index				/* Index in R0 */
 	mov		r1, #CMDINDEX_OUTOFRANGE
 	teq		r0, r1
+	bl		_dbg__nop
+	b 		dbg__bkpt_waitCMD_cont
+
+#if 0
 	moveq	r0, #MSG_UNKNOWNCMD				/* Out of range, Command character not recognized */
 	beq		_dbg__cmdError					/* Send response to GDB server */
+#endif
 
 _dbg__cmdExists:
 	mov		r3, r0							/* put Command Handler Index in R3 */
