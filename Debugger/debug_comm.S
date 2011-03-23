@@ -207,7 +207,9 @@ byte2ascii:
 	.global	halfword2ascii
 halfword2ascii:
 	stmfd	sp!, {r0,r2,r3, lr}		/* Keep ASCII buffer pointer */
+#ifdef __BIG_ENDIAN__
 	mov		r2, r1, lsl #16			/* copy of input halfword value R1[15:0], shifted to MSH R2[31:16] */
+#endif
 	mov		r3, #2					/* Loop Counter */
 	b		_conv_byte2ascii		/* goto Byte conversion loop */
 
@@ -231,6 +233,8 @@ word2ascii:
 
 	/* Fall through to byte coversion loop */
 
+#ifdef __BIG_ENDIAN__
+/* Rotate then convert */
 _conv_byte2ascii:
 	ror		r2, r2, #24			    /* Rotate MSB R2[31:24] into LSB position R2[7:0] */
 	and		r1, r2, #BYTE0			/* Copy byte value in R2[7:0] into R1 */
@@ -239,6 +243,17 @@ _conv_byte2ascii:
 	bne		_conv_byte2ascii
 	ldmfd	sp!, {r1,r2,r3, pc}
 
+#else   /* __LITTLE_ENDIAN__ */
+/* Convert then rotate */
+_conv_byte2ascii:
+    and     r1, r2, #BYTE0          /* Copy byte value in R2[7:0] into R1 */
+    bl      byte2ascii_cont         /* R0: next ASCII buffer location pointer, R1: destroyed */
+    ror     r2, r2, #8              /* Rotate LSB+1 R2[15:8] into LSB position R2[7:0] */
+    subs    r3, r3, #1
+    bne     _conv_byte2ascii
+    ldmfd   sp!, {r1,r2,r3, pc}
+
+#endif
 
 /* ascii2byte
  *      On entry:

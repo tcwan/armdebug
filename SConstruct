@@ -162,11 +162,15 @@ else:
     myasflags.append('-Wa,-mcpu=arm7tdmi,-mfpu=softfpa')
 mycflags.append('-g')
 mycflags.append('-ggdb')
+# Big Endian Output (disabled by default)
+#mycflags.append('-D__BIG_ENDIAN__')
 # Test build for NXT Firmware first
 #mycflags.append('-D__NXOS__')
 
 myasflags.append('-g')
 myasflags.append('-ggdb')
+# Big Endian Output (disabled by default)
+#mycflags.append('-D__BIG_ENDIAN__')
 # Test build for NXT Firmware first
 #myasflags.append('-D__NXOS__')
 
