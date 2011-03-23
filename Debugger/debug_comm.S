@@ -132,19 +132,28 @@ hex2char:
  *		This routine accepts an ASCII character in R0(7:0) and returns the
  *		equivalent byte sized hex value in R0(7:0).
  *		It accepts lowercase and uppercase ASCII Hex char inputs.
- *		WARNING: The checking is not exhaustive, invalid ASCII characters can
- *				 still slip thorough.
+ *      Invalid inputs return -1 as the value
  */
 	.global	char2hex
 
 char2hex:
-	and		r0, #BYTE0			/* make sure that input is sane */
-	cmp		r0, #'0'
+	and		r1, r0, #BYTE0			/* make sure that input is sane */
+	mov     r0, #-1                 /* Initialize Return value to Error value */
+	cmp		r1, #'0'
 	blo		exit_char2hex
-	cmp		r0, #'f'
+	cmp     r1, #'9'
+	bls     perform_char2hex
+	cmp     r1, #'A'
+	blo    exit_char2hex
+	cmp     r1, #'F'
+	bls     perform_char2hex
+    cmp     r1, #'a'
+    blo    exit_char2hex
+	cmp		r1, #'f'
 	bhi		exit_char2hex
-	/* In range '0'..'f' */
+	/* Validated Hex Char */
 perform_char2hex:
+    mov     r0, r1                  /* restore hex char */
 	_char2hex	r0
 exit_char2hex:
 	bx		lr
@@ -297,33 +306,36 @@ _conv_byte2ascii_le:
     ldmfd   sp!, {r1,r2,r3, pc}
 
 
-/* ascii2hex_varlen
- *      (Shared routine, does not perform sanity checks)
+/* ascii2hex_varlen_be
+ *      Big Endian version of ascii2hex_varlen conversion routine
+ *      (There is no Little Endian Version)
  *      On entry:
  *          R0: ASCII buffer pointer
- *          R1: Max number of Hex digits (0/8=32-bits)
  *      On exit:
- *          R0[7:0]: Hex value
+ *          R0: Hex value
  *          R1: Address of next char slot in buffer
  *
  *      This routine accepts an ASCII buffer pointer in R0,
- *      and returns the byte value in R0[7:0].
- *      Note: On return, R1 points to the ASCII buffer location after the current 2 chars.
- *      WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
- *               otherwise it will return invalid results.
+ *      and returns the hex value in R0 for up to 8 Hex characters.
+ *      Note: On return, R1 points to the ASCII buffer location after the hex value chars.
  */
-    .global ascii2hex_varlen
+    .global ascii2hex_varlen_be
 
-ascii2hex_varlen:
-    stmfd   sp!, {r2, lr}
+ascii2hex_varlen_be:
+    stmfd   sp!, {r2,r3, lr}
+    mov     r3, #CMD_REG_REGPARAMLEN /* Set max count to 8 (Max Register size) */
     mov     r1, r0                  /* Use R1 as ASCII buffer pointer */
-    ldrb    r0, [r1], #1            /* Load ASCII char for MSN */
-    bl      char2hex                /* on return, hex value in R0 */
-    mov     r2, r0, lsl #4          /* Intermediate Results register */
-    ldrb    r0, [r1], #1            /* Load ASCII char for LSN */
-    bl      char2hex                /* on return, hex value in R0 */
-    orr     r0, r2, r0              /* combined byte value */
-    ldmfd   sp!, {r2, pc}
+    mov     r2, #0                  /* Initialize Cummulative Results */
+2:  ldrb    r0, [r1], #1            /* Load ASCII char for Hex Value */
+    bl      char2hex                /* on return, hex value in R0, -1 for error */
+    teq     r0, #-1
+    beq     _exit_ascii2hex_varlen
+    orr     r2, r0, r2, lsl #4      /* combined byte value */
+    subs    r3, r3, #1              /* Decrement Counter */
+    bne     2b
+_exit_ascii2hex_varlen:
+    mov     r0, r2                  /* Return results in R0 */
+    ldmfd   sp!, {r2,r3, pc}
 
 
 /* ascii2byte
@@ -345,10 +357,10 @@ ascii2byte:
     stmfd   sp!, {r2, lr}
     mov     r1, r0                  /* Use R1 as ASCII buffer pointer */
     ldrb    r0, [r1], #1            /* Load ASCII char for MSN */
-    bl      char2hex                /* on return, hex value in R0 */
+    bl      char2hex                /* on return, hex value in R0, -1 for error (ignored) */
     mov     r2, r0, lsl #4          /* Intermediate Results register */
     ldrb    r0, [r1], #1            /* Load ASCII char for LSN */
-    bl      char2hex                /* on return, hex value in R0 */
+    bl      char2hex                /* on return, hex value in R0, -1 for error (ignored) */
     orr     r0, r2, r0              /* combined byte value */
     ldmfd   sp!, {r2, pc}
 
