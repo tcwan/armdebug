@@ -68,7 +68,7 @@
  *    GrrrrRRRR..   set the value of the CPU registers     OK or ENN
  *					where register values are given as
  *					32-bit hex values in the sequence:
- *					User CPSR, R0, R1, ..., R15
+ *					User R0, R1, ..., R15, CPSR
  *	  px			get the value of one register (x)      hex data or ENN
  *	  Px=rrrr		set the value of one register (x) to   OK or ENN
  *					32-bit hex value rrrr.
@@ -124,6 +124,11 @@
   *
   * Note: ARMDEBUG can only implement Memory Breakpoints t=0. Hardware breakpoints requires a JTAG debugger.
   *       Currently, watchpoints are not implemented as they require hardware support as well (need verification).
+  *
+  * GDB requires command parameters to be specified as Big Endian values.
+  * However, the read/write register command expect the register contents to be specified in target byte order.
+  * The default target byte order is Little Endian for the AT91SAM7xxx processor in the NXT.
+  * If Big Endian target byte order is required, the __BIG_ENDIAN__ preprocessor label should be defined.
   */
 
 /* FIXME: The Hex value arguments passed by GDB does not have fixed lengths! Although the standard says
@@ -816,7 +821,11 @@ _dbg_outputOneRegValue:
 	stmfd	sp!, {lr}
 	add		r2, r1, #DBGSTACK_USERREG_INDEX	/* Convert register index to Debug Stack index */
 	_getdbgregisterfromindex r2, r1			/* Retrieve Register contents into R1 */
-	bl		word2ascii						/* Convert and put hex chars into Output Message Buffer */
+#ifdef __BIG_ENDIAN__
+	bl		word2ascii_be				    /* Convert and put hex chars into Output Message Buffer */
+#else
+    bl      word2ascii_le                   /* Convert and put hex chars into Output Message Buffer */
+#endif
 	ldmfd	sp!, {pc}
 
 /* _dbg__cmd_GetAllRegs
@@ -883,7 +892,11 @@ _dbg__cmd_SetOneReg:
 _dbg__proc_setRegister:
     add     r2, r0, #DBGSTACK_USERREG_INDEX /* Convert register index to Debug Stack index, keep in R2 */
     mov     r0, r3                          /* Retrieve parameter buffer pointer */
-    bl      ascii2word
+#ifdef __BIG_ENDIAN__
+    bl      ascii2word_be
+#else
+    bl      ascii2word_le
+#endif
     _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
     b       __dbg__procCmdOk
 

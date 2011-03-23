@@ -111,6 +111,9 @@ hex2char_lut:
 
 
 /* Utility Routines
+ *  GDB requires command parameters to be specified as Big Endian values.
+ *  However, the read/write register command expect the register contents to be specified in target byte order.
+ *  Hence we need both versions of multibyte conversion routines for word sized values.
  */
 
 /* hex2char
@@ -192,7 +195,8 @@ byte2ascii:
 	bl		byte2ascii_cont
 	ldmfd	sp!, {r1, pc}			/* return original string pointer in R1 */
 
-/* halfword2ascii
+/* halfword2ascii_be
+ *      Big Endian version of halfword2ascii conversion routine
  *      On entry:
  *          R0: ASCII buffer pointer
  *          R1[15:0]: Halfword value
@@ -204,16 +208,35 @@ byte2ascii:
  *      and stores the ASCII equivalent halfword value in the buffer pointed to by R0.
  *      Note: On return, R0 points to the next empty char slot in buffer
  */
-	.global	halfword2ascii
-halfword2ascii:
+	.global	halfword2ascii_be
+halfword2ascii_be:
 	stmfd	sp!, {r0,r2,r3, lr}		/* Keep ASCII buffer pointer */
-#ifdef __BIG_ENDIAN__
-	mov		r2, r1, lsl #16			/* copy of input halfword value R1[15:0], shifted to MSH R2[31:16] */
-#endif
-	mov		r3, #2					/* Loop Counter */
-	b		_conv_byte2ascii		/* goto Byte conversion loop */
+    mov     r3, #2                  /* Loop Counter */
+    mov     r2, r1, lsl #16         /* copy of input halfword value R1[15:0], shifted to MSH R2[31:16] */
+    b       _conv_byte2ascii_be     /* goto Byte conversion loop */
 
-/* word2ascii
+/* halfword2ascii_le
+ *      Little Endian version of halfword2ascii conversion routine
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *          R1[15:0]: Halfword value
+ *      On exit:
+ *          R0: Address of next empty char slot in buffer
+ *          R1: Original Address of Buffer
+ *
+ *      This routine accepts an ASCII buffer pointer in R0 and a halfword value in R1,
+ *      and stores the ASCII equivalent halfword value in the buffer pointed to by R0.
+ *      Note: On return, R0 points to the next empty char slot in buffer
+ */
+    .global halfword2ascii_le
+halfword2ascii_le:
+    stmfd   sp!, {r0,r2,r3, lr}     /* Keep ASCII buffer pointer */
+    mov     r3, #2                  /* Loop Counter */
+    b       _conv_byte2ascii_le     /* goto Byte conversion loop */
+
+
+/* word2ascii_be
+ *      Big Endian version of word2ascii conversion routine
  *      On entry:
  *          R0: ASCII buffer pointer
  *          R1[31:0]: Word value
@@ -225,35 +248,53 @@ halfword2ascii:
  *      and stores the ASCII equivalent word value in the buffer pointed to by R0.
  *      Note: On return, R0 points to the next empty char slot in buffer
  */
-	.global	word2ascii
-word2ascii:
+	.global	word2ascii_be
+word2ascii_be:
 	stmfd	sp!, {r0,r2,r3, lr}		/* Keep ASCII buffer pointer */
 	mov		r2, r1					/* copy of input word value R1[31:0] */
 	mov		r3, #4					/* Loop Counter */
 
 	/* Fall through to byte coversion loop */
 
-#ifdef __BIG_ENDIAN__
-/* Rotate then convert */
-_conv_byte2ascii:
+
+/* Big Endian Multibyte Convert: Rotate then convert */
+_conv_byte2ascii_be:
 	ror		r2, r2, #24			    /* Rotate MSB R2[31:24] into LSB position R2[7:0] */
 	and		r1, r2, #BYTE0			/* Copy byte value in R2[7:0] into R1 */
 	bl		byte2ascii_cont         /* R0: next ASCII buffer location pointer, R1: destroyed */
 	subs	r3, r3, #1
-	bne		_conv_byte2ascii
+	bne		_conv_byte2ascii_be
 	ldmfd	sp!, {r1,r2,r3, pc}
 
-#else   /* __LITTLE_ENDIAN__ */
-/* Convert then rotate */
-_conv_byte2ascii:
+/* word2ascii_le
+ *      Little Endian version of word2ascii conversion routine
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *          R1[31:0]: Word value
+ *      On exit:
+ *          R0: Address of next empty char slot in buffer
+ *          R1: Original Address of Buffer
+ *
+ *      This routine accepts an ASCII buffer pointer in R0 and a word value in R1,
+ *      and stores the ASCII equivalent word value in the buffer pointed to by R0.
+ *      Note: On return, R0 points to the next empty char slot in buffer
+ */
+    .global word2ascii_le
+word2ascii_le:
+    stmfd   sp!, {r0,r2,r3, lr}     /* Keep ASCII buffer pointer */
+    mov     r2, r1                  /* copy of input word value R1[31:0] */
+    mov     r3, #4                  /* Loop Counter */
+
+    /* Fall through to byte coversion loop */
+
+/* Little Endian Multibyte Convert: Convert then rotate */
+_conv_byte2ascii_le:
     and     r1, r2, #BYTE0          /* Copy byte value in R2[7:0] into R1 */
     bl      byte2ascii_cont         /* R0: next ASCII buffer location pointer, R1: destroyed */
     ror     r2, r2, #8              /* Rotate LSB+1 R2[15:8] into LSB position R2[7:0] */
     subs    r3, r3, #1
-    bne     _conv_byte2ascii
+    bne     _conv_byte2ascii_le
     ldmfd   sp!, {r1,r2,r3, pc}
-
-#endif
 
 /* ascii2byte
  *      On entry:
@@ -275,7 +316,8 @@ ascii2byte:
 	mov		r3, #2					/* Loop counter */
 	b		_conv_ascii2byte
 
-/* ascii2halfword
+/* ascii2halfword_be
+ *      Big Endian version of word2ascii conversion routine
  *      On entry:
  *          R0: ASCII buffer pointer
  *      On exit:
@@ -288,15 +330,37 @@ ascii2byte:
  *		WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
  *				 otherwise it will return invalid results.
  */
-	.global	ascii2halfword
+	.global	ascii2halfword_be
 
-ascii2halfword:
+ascii2halfword_be:
 	stmfd	sp!, {r2,r3, lr}
-	mov		r3, #4					/* Loop counter */
-	b		_conv_ascii2byte
+	mov		r3, #2					/* Loop counter */
+    b       _conv_ascii2byte_be
+
+/* ascii2halfword_le
+ *      Little Endian version of word2ascii conversion routine
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *      On exit:
+ *          R0[15:0]: Halfword value
+ *          R1: Address of next char slot in buffer
+ *
+ *      This routine accepts an ASCII buffer pointer in R0,
+ *      and returns the Halfword value in R0[15:0].
+ *      Note: On return, R1 points to the ASCII buffer location after the current 4 chars.
+ *      WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
+ *               otherwise it will return invalid results.
+ */
+    .global ascii2halfword_le
+
+ascii2halfword_le:
+    stmfd   sp!, {r2,r3, lr}
+    mov     r3, #2                  /* Loop counter */
+    b       _conv_ascii2byte_le
 
 
-/* ascii2word
+/* ascii2word_be
+ *      Big Endian version of word2ascii conversion routine
  *      On entry:
  *          R0: ASCII buffer pointer
  *      On exit:
@@ -309,27 +373,72 @@ ascii2halfword:
  *		WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
  *				 otherwise it will return invalid results.
  */
-	.global	ascii2word
+	.global	ascii2word_be
 
-ascii2word:
+ascii2word_be:
 	stmfd	sp!, {r2,r3, lr}
-	mov		r3, #8					/* Loop counter */
+	mov		r3, #4					/* Loop counter */
 
 	/* Fall through to byte coversion loop */
 
-_conv_ascii2byte:
+_conv_ascii2byte_be:
 	teq		r0, #0
-	beq		_exit_conv_ascii2byte	/* exit if NULL pointer in R0 */
+	beq		_exit_conv_ascii2byte_be	/* exit if NULL pointer in R0 */
 	mov		r1, r0					/* Copy of ASCII buffer pointer */
 	mov		r2, #0					/* Initialize results */
 2:	ldrb	r0, [r1], #1			/* Load ASCII char */
 	bl		char2hex				/* on return, hex value in R0 */
+    orr     r2, r0, r2, lsl #4      /* merge Nibble into results */
+    ldrb    r0, [r1], #1            /* Load ASCII char */
+    bl      char2hex                /* on return, hex value in R0 */
 	orr		r2, r0, r2, lsl #4		/* merge Nibble into results */
 	subs	r3, r3, #1
 	bne		2b
 	mov		r0, r2					/* Copy it to R0 as return value */
-_exit_conv_ascii2byte:
+_exit_conv_ascii2byte_be:
 	ldmfd	sp!, {r2,r3, pc}		/* return hex value in R0 */
+
+/* ascii2word_le
+ *      Litle Endian version of word2ascii conversion routine
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *      On exit:
+ *          R0[31:0]: Word value
+ *          R1: Address of next char slot in buffer
+ *
+ *      This routine accepts an ASCII buffer pointer in R0,
+ *      and returns the word value in R0[31:0].
+ *      Note: On return, R1 points to the ASCII buffer location after the current 8 chars.
+ *      WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
+ *               otherwise it will return invalid results.
+ */
+    .global ascii2word_le
+
+ascii2word_le:
+    stmfd   sp!, {r2,r3, lr}
+    mov     r3, #4                  /* Loop counter */
+
+    /* Fall through to byte coversion loop */
+
+_conv_ascii2byte_le:
+    teq     r0, #0
+    beq     _exit_conv_ascii2byte_le    /* exit if NULL pointer in R0 */
+    mov     r1, r0                  /* Copy of ASCII buffer pointer */
+    mov     r2, #0                  /* Initialize results */
+2:  ldrb    r0, [r1], #1            /* Load ASCII char */
+    bl      char2hex                /* on return, hex value in R0 */
+    orr     r2, r0, r2, rol #4      /* merge Nibble into results */
+    ldrb    r0, [r1], #1            /* Load ASCII char */
+    bl      char2hex                /* on return, hex value in R0 */
+@@@@@ not correct!
+
+    orr     r2, r0, r2, rol #4      /* merge Nibble into results */
+    subs    r3, r3, #1
+    rorne   r2, r2, #16              /* Rotate R
+    bne     2b
+    mov     r0, r2                  /* Copy it to R0 as return value */
+_exit_conv_ascii2byte_le:
+    ldmfd   sp!, {r2,r3, pc}        /* return hex value in R0 */
 
 
 
