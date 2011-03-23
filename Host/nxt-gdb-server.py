@@ -152,7 +152,7 @@ class NXTGDBServer:
                                 # Some pyusb are buggy, ignore some "errors".
                                 if e.args != ('No error', ):
                                     raise e
-                        if LIBUSB_RECEIVE_BLOCKING:
+                        if s and LIBUSB_RECEIVE_BLOCKING:
                             data = self.reassemble (brick.sock)
                     else:
                         client.close ()
