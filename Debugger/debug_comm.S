@@ -328,7 +328,7 @@ ascii2hex_varlen_be:
     mov     r2, #0                  /* Initialize Cummulative Results */
 2:  ldrb    r0, [r1], #1            /* Load ASCII char for Hex Value */
     bl      char2hex                /* on return, hex value in R0, -1 for error */
-    teq     r0, #-1
+    cmp     r0, #-1
     beq     _exit_ascii2hex_varlen
     orr     r2, r0, r2, lsl #4      /* combined byte value */
     subs    r3, r3, #1              /* Decrement Counter */
