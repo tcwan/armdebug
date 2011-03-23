@@ -603,7 +603,9 @@ dbg__bkpt_waitCMD_cont:
 	bl		_dbg__cmdChar2Index				/* Index in R0 */
 	mov		r1, #CMDINDEX_OUTOFRANGE
 	teq		r0, r1
-	bl		_dbg__nop
+	bne		_dbg__cmdExists					/* Found valid command, execute it */
+_dbg_unknown_command:
+	bl		_dbg__nop						/* Command character not recognized, send empty response to GDB server */
 	b 		dbg__bkpt_waitCMD_cont
 
 #if 0
