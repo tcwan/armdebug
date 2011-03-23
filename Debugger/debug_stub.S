@@ -210,7 +210,7 @@ debug_OkResponse:
 
 /* The CmdIndexTable and CmdJumpTable must be kept in sync */
 debug_cmdIndexTable:
-	.byte	'g','G','p','P','m','M','c','s','k','z','Z','?',0
+	.byte	'g','G','p','P','m','M','c','s','k','z','Z','?','q','Q',0
 
 /* Command Handlers
  * On entry:
@@ -229,7 +229,9 @@ debug_cmdJumpTable:
 	.word	_dbg__nop							/* 'k' */
 	.word	_dbg__cmd_remove_breakpoint			/* 'z' */
 	.word	_dbg__cmd_insert_breakpoint			/* 'Z' */
-	.word	_dbg__nop							/* '?' */
+	.word	_dbg__cmd_Status					/* '?' */
+	.word	_dbg__cmd_Query						/* 'q' */
+	.word	_dbg__nop							/* 'Q' */
 	.word	0
 
 /*
@@ -580,8 +582,10 @@ dbg__bkpt_offset_outofrange:
 dbg__bkpt_waitCMD:
 	/* We enter this code section when a Breakpoint Triggers */
     _dbg_setmode TRUE                       /* Debug Mode = True */
-	_dbg_outputMsgStatusSig 0x0				/* FIXME: Dummy Signal number */
-	bl		dbg__putDebugMsg				/* Send signal response to the GDB server */
+	_dbg_getstate r0
+	cmp		r0, #DBG_CONFIGURED
+	blo		dbg__bkpt_waitCMD_cont			/* Not configured yet, don't send Breakpoint Signal Response */
+	bl		_dbg__cmd_Status				/* Send signal response to the GDB server */
 
 dbg__bkpt_waitCMD_cont:
 	bl      dbg__runloopTasks               /* Execute housekeeping tasks while in ABRT mode */
@@ -731,6 +735,31 @@ __dbg__sendDebugMsgExit:
     bl      dbg__putDebugMsg                /* Send error response to the GDB server */
     ldmfd   sp!, {pc}
 
+/* _dbg__cmd_Status
+ *		Status Command Handler
+ *		On entry:
+ *			r0: parameter buffer (contents after '$' and '<cmdchar>')
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
+ */
+_dbg__cmd_Status:
+	stmfd	sp!, {lr}
+	_dbg_outputMsgStatusSig 0x0				/* FIXME: Dummy Signal number */
+	b	__dbg__sendDebugMsgExit
+
+/* _dbg__cmd_Query
+ *		Query Command Handler
+ *		On entry:
+ *			r0: parameter buffer (contents after '$' and '<cmdchar>')
+ *				[varied, see GDB General Packets query docs]
+ *				http://sourceware.org/gdb/current/onlinedocs/gdb/General-Query-Packets.html
+ *      On exit:
+ *          r0, r1, r2, r3: destroyed
+ */
+_dbg__cmd_Query:
+	stmfd	sp!, {lr}
+	_dbg_setstate	DBG_CONFIGURED			/* We have exchanged query messages with the GDB server */
+	b      __dbg__procUnimplementedError	/* FIXME: return an empty message to GDB (no modifiable settings) */
 
 
 /* _dbg__cmd_GetOneReg
@@ -994,6 +1023,7 @@ __dbg__sendOkBeforeResume:
 
 _dbg__switch2undefmode:
     msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
+    _dbg_setmode FALSE                  	/* Debug Mode = False */
     ldr     lr, =resume_execution
     mov     pc, lr                          /* Exit via UNDEF mode */
 

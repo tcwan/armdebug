@@ -228,6 +228,7 @@
 ENUM_BEGIN
 ENUM_VALASSIGN(DBG_RESET, 0)  /**< Initial State. */
 ENUM_VAL(DBG_INIT)            /**< Debugger Initialized. */
+ENUM_VAL(DBG_CONFIGURED)        /**< Debugger has been configured by GDB Server */
 ENUM_VAL(DBG_MANUAL_BKPT_ARM)     /**< Manual ARM Breakpoint. */
 ENUM_VAL(DBG_NORMAL_BKPT_ARM)     /**< Normal ARM Breakpoint (Single Step, Normal). */
 ENUM_VAL(DBG_MANUAL_BKPT_THUMB)     /**< Manual Thumb Breakpoint. */
