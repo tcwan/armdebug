@@ -15,6 +15,12 @@ $pF#B6
 # Display User CPSR
 $p!#91
 
+# Query Status
+$?#3F
+
+# Query Thread
+$qC#B4
+
 # Set R1 to 0xAA
 $P1=000000AA#60
 
