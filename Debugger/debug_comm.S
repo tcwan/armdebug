@@ -465,9 +465,9 @@ _conv_ascii2byte_le:
     bne     2b
     /* Cummulative value done, need to rotate it into the correct position for return value */
     pop     {r3}                    /* retrieve counter */
-    sub     r3, r3, #1              /* count - 1 */
-    lsl     r3, r3, #3              /* [(count-1) x 8] bits to rotate */
-    mov     r0, r2, rol r3           /* Copy it to R0 as return value */
+    rsb     r3, r3, #5              /* 5 - count */
+    lsl     r3, r3, #3              /* [(5-count) x 8] bits to rotate */
+    mov     r0, r2, ror r3           /* Copy it to R0 as return value */
 
 _exit_conv_ascii2byte_le:
     ldmfd   sp!, {r2,r3, pc}        /* return hex value in R0 */
