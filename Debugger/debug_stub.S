@@ -860,6 +860,26 @@ _dbg__cmd_GetAllRegs:
 	bl		dbg__putDebugMsg				/* Send response to the GDB server */
 	ldmfd	sp!, {pc}
 
+/* Internal Routine: Do not call directly
+ *  Shared by _dbg__cmd_SetOneReg and _dbg__cmd_SetAllRegs
+ *      On entry:
+ *          r0: parameter buffer pointer
+ *          r2: Register Index in Debug Stack (NOT Register Enum)
+ *      On exit:
+ *          r0, r2, r3: destroyed
+ */
+__dbg_setRegister_fromIndex_withBufferVal:
+    stmfd   sp!, {lr}
+#ifdef __BIG_ENDIAN__
+    bl      ascii2word_be
+#else
+    bl      ascii2word_le
+#endif
+    /* R0: value, R1: pointer to next char in buffer */
+    _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+    ldmfd   sp!, {pc}
+
+
 /* _dbg__cmd_SetOneReg
  *      Set One Register Value Command Handler
  *      Valid command parameter x is from '0' to 'F' for User Mode Registers R0-R15
@@ -892,12 +912,7 @@ _dbg__cmd_SetOneReg:
 _dbg__proc_setRegister:
     add     r2, r0, #DBGSTACK_USERREG_INDEX /* Convert register index to Debug Stack index, keep in R2 */
     mov     r0, r3                          /* Retrieve parameter buffer pointer */
-#ifdef __BIG_ENDIAN__
-    bl      ascii2word_be
-#else
-    bl      ascii2word_le
-#endif
-    _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+    bl      __dbg_setRegister_fromIndex_withBufferVal
     b       __dbg__procCmdOk
 
 /* _dbg__cmd_SetAllReg
@@ -916,8 +931,7 @@ _dbg__cmd_SetAllRegs:
     teq     r1, #CMD_REG_SETALL_PARAMLEN    /* Check for correct length */
     bne     __dbg__procCmdParamError        /* Unexpected input, report error */
     mov     r2, #DBGSTACK_USERREG_INDEX     /* R2: register index, starting with R0 */
-1:  bl      ascii2word                      /* R0: value, R1: pointer to next char in buffer */
-    _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+1:  bl      __dbg_setRegister_fromIndex_withBufferVal
     mov     r0, r1                          /* setup R0 for next ascii2word call */
     add     r2, r2, #1                      /* increment index */
     cmp		r2, #DBGSTACK_USERPC_INDEX
@@ -925,7 +939,7 @@ _dbg__cmd_SetAllRegs:
 
 _set_cpsr:
     mov     r2, #DBGSTACK_USERCPSR_INDEX    /* R2: CPSR Index */
-    _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+    bl      __dbg_setRegister_fromIndex_withBufferVal
     ldrb    r0, [r1]
     teq     r0, #0                          /* Look for ASCIIZ character to terminate loop */
     beq     __dbg__procCmdOk
@@ -956,12 +970,12 @@ _dbg__cmd_ReadMem:
     bl      __dbg__cmdParamLen
     teq     r1, #CMD_MEM_READ_PARAMLEN      /* Check for correct length */
     bne     __dbg__procCmdParamError        /* Unexpected input, report error */
-    bl      ascii2word                      /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+    bl      ascii2word_be                   /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
     mov     r3, r0                          /* Keep Address location in R3 */
     _check_msgseparator r1
     bne     __dbg__procCmdParamError        /* Can't find ',' */
     mov     r0, r1                          /* move buffer pointer to R0 for subsequent processing */
-    bl      ascii2halfword                  /* convert ASCII length to Hex (in R0), R1 has address of next buffer char */
+    bl      ascii2hex_varlen_be             /* convert ASCII length to Hex (in R0), R1 has address of next buffer char */
     cmp     r0, #CMD_MEM_MAXREADBYTES       /* Don't overflow our buffer (2 x CMD_MEM_MAXREADBYTES) */
     bhi     __dbg__procCmdReturnOutputLengthError /* Requested Length greater than buffer size, return error */
     mov     r4, r0                          /* Keep numbytes in R4 */
@@ -992,12 +1006,12 @@ _dbg__cmd_WriteMem:
     cmp     r1, #CMD_MEM_WRITE_MINPARAMLEN  /* Check for correct (minimum) length */
     blo     __dbg__procCmdParamError        /* Unexpected input, report error */
     sub     r4, r1, #CMD_MEM_WRITE_MINPARAMLEN  /* R4: Number of ASCII Hex chars for byte writes */
-    bl      ascii2word                      /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+    bl      ascii2word_be                   /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
     mov     r3, r0                          /* Keep Address location in R3 */
     _check_msgseparator r1
     bne     __dbg__procCmdParamError        /* Can't find ',' */
     mov     r0, r1                          /* move buffer pointer to R0 for subsequent processing */
-    bl      ascii2halfword                  /* convert ASCII length to Hex (in R0), R1 has address of next buffer char */
+    bl      ascii2hex_varlen_be             /* convert ASCII length to Hex (in R0), R1 has address of next buffer char */
     cmp     r0, r4, asr #1                  /* is Number of bytes to write == (number of ASCII Hex Chars / 2)? */
     bne     __dbg__procCmdParamError        /* Number of bytes does not match argument length */
     cmp     r0, #CMD_MEM_MAXWRITEBYTES      /* Don't overflow our buffer (2 x CMD_MEM_MAXWRITEBYTES) */
@@ -1031,7 +1045,7 @@ _dbg__cmd_Continue:
     cmp     r1, #CMD_REG_CONTINUEFROM_PARAMLEN  /* Check for correct parameter length */
     bne     __dbg__procCmdParamError        /* Unexpected input, report error */
     /* Continue from Specified Address */
-    bl      ascii2word                      /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+    bl      ascii2word_be                   /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
     mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
 
@@ -1081,7 +1095,7 @@ _dbg__proc_brkpt_params:
     _check_msgseparator r3
     bne     _dbg__proc_brkpt_params_error   /* Something wrong with the parameters */
     mov     r0, r3                          /* Check Address */
-    bl      ascii2word                      /* R0: value, R1: pointer to next char slot */
+    bl      ascii2word_be                      /* R0: value, R1: pointer to next char slot */
     mov     r3, r0                          /* Keep breakpoint address in R3 */
     _check_msgseparator r1
     bne     _dbg__proc_brkpt_params_error   /* Something wrong with the parameters */
