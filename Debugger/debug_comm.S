@@ -296,6 +296,36 @@ _conv_byte2ascii_le:
     bne     _conv_byte2ascii_le
     ldmfd   sp!, {r1,r2,r3, pc}
 
+
+/* ascii2hex_varlen
+ *      (Shared routine, does not perform sanity checks)
+ *      On entry:
+ *          R0: ASCII buffer pointer
+ *          R1: Max number of Hex digits (0/8=32-bits)
+ *      On exit:
+ *          R0[7:0]: Hex value
+ *          R1: Address of next char slot in buffer
+ *
+ *      This routine accepts an ASCII buffer pointer in R0,
+ *      and returns the byte value in R0[7:0].
+ *      Note: On return, R1 points to the ASCII buffer location after the current 2 chars.
+ *      WARNING: This routine assumes that the input buffer was sanitized and contains valid Hex chars,
+ *               otherwise it will return invalid results.
+ */
+    .global ascii2hex_varlen
+
+ascii2hex_varlen:
+    stmfd   sp!, {r2, lr}
+    mov     r1, r0                  /* Use R1 as ASCII buffer pointer */
+    ldrb    r0, [r1], #1            /* Load ASCII char for MSN */
+    bl      char2hex                /* on return, hex value in R0 */
+    mov     r2, r0, lsl #4          /* Intermediate Results register */
+    ldrb    r0, [r1], #1            /* Load ASCII char for LSN */
+    bl      char2hex                /* on return, hex value in R0 */
+    orr     r0, r2, r0              /* combined byte value */
+    ldmfd   sp!, {r2, pc}
+
+
 /* ascii2byte
  *      On entry:
  *          R0: ASCII buffer pointer
@@ -312,12 +342,18 @@ _conv_byte2ascii_le:
 	.global	ascii2byte
 
 ascii2byte:
-	stmfd	sp!, {r2,r3, lr}
-	mov		r3, #2					/* Loop counter */
-	b		_conv_ascii2byte
+    stmfd   sp!, {r2, lr}
+    mov     r1, r0                  /* Use R1 as ASCII buffer pointer */
+    ldrb    r0, [r1], #1            /* Load ASCII char for MSN */
+    bl      char2hex                /* on return, hex value in R0 */
+    mov     r2, r0, lsl #4          /* Intermediate Results register */
+    ldrb    r0, [r1], #1            /* Load ASCII char for LSN */
+    bl      char2hex                /* on return, hex value in R0 */
+    orr     r0, r2, r0              /* combined byte value */
+    ldmfd   sp!, {r2, pc}
 
 /* ascii2halfword_be
- *      Big Endian version of word2ascii conversion routine
+ *      Big Endian version of ascii2halfword conversion routine
  *      On entry:
  *          R0: ASCII buffer pointer
  *      On exit:
@@ -338,7 +374,7 @@ ascii2halfword_be:
     b       _conv_ascii2byte_be
 
 /* ascii2halfword_le
- *      Little Endian version of word2ascii conversion routine
+ *      Little Endian version of ascii2halfword conversion routine
  *      On entry:
  *          R0: ASCII buffer pointer
  *      On exit:
@@ -360,7 +396,7 @@ ascii2halfword_le:
 
 
 /* ascii2word_be
- *      Big Endian version of word2ascii conversion routine
+ *      Big Endian version of ascii2word conversion routine
  *      On entry:
  *          R0: ASCII buffer pointer
  *      On exit:
@@ -384,22 +420,19 @@ ascii2word_be:
 _conv_ascii2byte_be:
 	teq		r0, #0
 	beq		_exit_conv_ascii2byte_be	/* exit if NULL pointer in R0 */
-	mov		r1, r0					/* Copy of ASCII buffer pointer */
-	mov		r2, #0					/* Initialize results */
-2:	ldrb	r0, [r1], #1			/* Load ASCII char */
-	bl		char2hex				/* on return, hex value in R0 */
-    orr     r2, r0, r2, lsl #4      /* merge Nibble into results */
-    ldrb    r0, [r1], #1            /* Load ASCII char */
-    bl      char2hex                /* on return, hex value in R0 */
-	orr		r2, r0, r2, lsl #4		/* merge Nibble into results */
-	subs	r3, r3, #1
-	bne		2b
-	mov		r0, r2					/* Copy it to R0 as return value */
+    mov     r2, #0                  /* Initialize Cummulative value */
+2:  bl      ascii2byte
+    orr     r2, r0, r2, lsl #8      /* Merge current byte with cummulative value */
+    mov     r0, r1                  /* Copy next char pointer to R0 for next byte */
+    subs    r3, r3, #1
+    bne     2b
+    mov     r0, r2                  /* Copy it to R0 as return value */
+
 _exit_conv_ascii2byte_be:
 	ldmfd	sp!, {r2,r3, pc}		/* return hex value in R0 */
 
 /* ascii2word_le
- *      Litle Endian version of word2ascii conversion routine
+ *      Litle Endian version of ascii2word conversion routine
  *      On entry:
  *          R0: ASCII buffer pointer
  *      On exit:
@@ -423,20 +456,19 @@ ascii2word_le:
 _conv_ascii2byte_le:
     teq     r0, #0
     beq     _exit_conv_ascii2byte_le    /* exit if NULL pointer in R0 */
-    mov     r1, r0                  /* Copy of ASCII buffer pointer */
-    mov     r2, #0                  /* Initialize results */
-2:  ldrb    r0, [r1], #1            /* Load ASCII char */
-    bl      char2hex                /* on return, hex value in R0 */
-    orr     r2, r0, r2, rol #4      /* merge Nibble into results */
-    ldrb    r0, [r1], #1            /* Load ASCII char */
-    bl      char2hex                /* on return, hex value in R0 */
-@@@@@ not correct!
-
-    orr     r2, r0, r2, rol #4      /* merge Nibble into results */
+    push    {r3}                    /* Need to keep couter for final value adjustment */
+    mov     r2, #0                  /* Initialize Cummulative value */
+2:  bl      ascii2byte
+    orr     r2, r0, r2, ror #8       /* Merge current byte with cummulative value */
+    mov     r0, r1                  /* Copy next char pointer to R0 for next byte */
     subs    r3, r3, #1
-    rorne   r2, r2, #16              /* Rotate R
     bne     2b
-    mov     r0, r2                  /* Copy it to R0 as return value */
+    /* Cummulative value done, need to rotate it into the correct position for return value */
+    pop     {r3}                    /* retrieve counter */
+    sub     r3, r3, #1              /* count - 1 */
+    lsl     r3, r3, #3              /* [(count-1) x 8] bits to rotate */
+    mov     r0, r2, rol r3           /* Copy it to R0 as return value */
+
 _exit_conv_ascii2byte_le:
     ldmfd   sp!, {r2,r3, pc}        /* return hex value in R0 */
 
@@ -725,12 +757,13 @@ _hasMsg2Copy:
     strb    r1, [r5, r2]                        /* Zero out '#' char for checksum calc later */
 
 /* Need to account for Packet Acknowledgement */
-    ldrb    r0, [r5]
+1:  ldrb    r0, [r5]
     teq     r0, #MSGBUF_NAKCHAR               /* Look for '-' */
     beq		exit_dbg__getMsgError			  /* FIXME: We can't handle retransmission, flag message error */
     teq     r0, #MSGBUF_ACKCHAR               /* Look for '+' */
     addeq   r5, r5, #1                        /* Adjust Buffer Start Pointer (excl '+') */
     subeq	r4, r4, #1						  /* Adjust Message Length */
+    beq     1b                                /* Skip all Packet Acknowledgements */
 
 #ifdef CHECK_GDBSTARTCHAR
     /* Checked in dbg__bkpt_waitCMD */
