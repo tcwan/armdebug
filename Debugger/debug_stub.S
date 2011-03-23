@@ -126,6 +126,11 @@
   *       Currently, watchpoints are not implemented as they require hardware support as well (need verification).
   */
 
+/* FIXME: The Hex value arguments passed by GDB does not have fixed lengths! Although the standard says
+ *        there should be x digits, it does not follow this requirement. e.g., register index.
+ */
+
+
 #define __ASSEMBLY__
 #include "debug_stub.h"
 #include "debug_macros.h"
@@ -816,7 +821,7 @@ _dbg_outputOneRegValue:
 
 /* _dbg__cmd_GetAllRegs
  *		Get All Register Values Command Handler
- *		Output Buffer returns register values in the order: User CPSR, R0, R1, R2, ..., R15
+ *		Output Buffer returns register values in the order: User R0, R1, R2, ..., R15, CPSR
  *		On entry:
  *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              <NULL> (no parameters)
@@ -830,12 +835,17 @@ _dbg__cmd_GetAllRegs:
 	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
 
     _dbg_outputMsgValidResponse             /* R0: address of output message buffer data pointer (after response prefix) */
-	mov		r3, #DBGSTACK_USERCPSR_OFFSET	/* Output User CPSR Value first */
+
+	/* We must return R0-R15, then CPSR */
+	mov		r3, #DBGSTACK_USERREG_INDEX		/* Output User Register Values first */
 1:  mov		r1, r3
 	bl		_dbg_outputOneRegValue			/* update output buffer */
 	add		r3, r3, #1						/* increment index */
 	cmp		r3, #0xF
 	ble		1b								/* process all the registers */
+
+	mov		r1, #DBGSTACK_USERCPSR_OFFSET	/* Output User CPSR Value lasat */
+	bl		_dbg_outputOneRegValue			/* update output buffer */
 
     _asciiz r0, r1
 	bl		dbg__putDebugMsg				/* Send response to the GDB server */
@@ -887,20 +897,26 @@ _dbg__proc_setRegister:
  *
  */
 _dbg__cmd_SetAllRegs:
-/* FIXME: Assumes that the registers are in the sequence CPSR, R0, R1, ... R15 -- May not be GDB ordering */
+/* FIXME: Assumes that the registers are in the sequence R0, R1, ... R15, CPSR -- May not be GDB ordering */
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen              /* R0: pointer to parameters in buffer */
     teq     r1, #CMD_REG_SETALL_PARAMLEN    /* Check for correct length */
     bne     __dbg__procCmdParamError        /* Unexpected input, report error */
-    mov     r2, #DBGSTACK_USERCPSR_INDEX    /* R2: register index, starting with CPSR */
+    mov     r2, #DBGSTACK_USERREG_INDEX     /* R2: register index, starting with R0 */
 1:  bl      ascii2word                      /* R0: value, R1: pointer to next char in buffer */
     _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+    mov     r0, r1                          /* setup R0 for next ascii2word call */
     add     r2, r2, #1                      /* increment index */
+    cmp		r2, #DBGSTACK_USERPC_INDEX
+    bls		1b
+
+_set_cpsr:
+    mov     r2, #DBGSTACK_USERCPSR_INDEX    /* R2: CPSR Index */
+    _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
     ldrb    r0, [r1]
     teq     r0, #0                          /* Look for ASCIIZ character to terminate loop */
-    mov     r0, r1                          /* setup R0 for next ascii2word call */
-    bne     1b                              /* continue only if ASCIIZ not found */
-    b       __dbg__procCmdOk
+    beq     __dbg__procCmdOk
+	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
 
 /* _dbg__nop
  *		NOP Command Handler (placeholder)

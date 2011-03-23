@@ -148,6 +148,7 @@
 #define DBGSTACK_USERCPSR_INDEX 1                /* User CPSR (SPSR_UNDEF) is at index 1 from bottom of Debug Stack */
 #define DBGSTACK_USERREG_INDEX  2                /* R0 starts at index 2 from bottom of Debug Stack */
 #define DBGSTACK_USERSP_INDEX   (DBGSTACK_USERREG_INDEX + 13)     /* SP is R13 */
+#define DBGSTACK_USERPC_INDEX   (DBGSTACK_USERREG_INDEX + 15)     /* PC is R15 */
 #define DBGSTACK_USERCPSR_OFFSET   (DBGSTACK_USERCPSR_INDEX-DBGSTACK_USERREG_INDEX)       /* = -1, offset for calculating Debug Stack index */
 /*@}*/
 
