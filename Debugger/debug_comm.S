@@ -133,29 +133,34 @@ hex2char:
  *		equivalent byte sized hex value in R0(7:0).
  *		It accepts lowercase and uppercase ASCII Hex char inputs.
  *      Invalid inputs return -1 as the value
+*      On entry:
+ *          R0: ASCII character
+ *      On exit:
+ *          R0: Hex value
  */
 	.global	char2hex
 
 char2hex:
-	and		r1, r0, #BYTE0			/* make sure that input is sane */
-	mov     r0, #-1                 /* Initialize Return value to Error value */
-	cmp		r1, #'0'
-	blo		exit_char2hex
-	cmp     r1, #'9'
+	and		r0, r0, #BYTE0			/* make sure that input is sane */
+	cmp		r0, #'0'
+	blo		char2hex_error
+	cmp     r0, #'9'
 	bls     perform_char2hex
-	cmp     r1, #'A'
-	blo    exit_char2hex
-	cmp     r1, #'F'
+	cmp     r0, #'A'
+	blo    char2hex_error
+	cmp     r0, #'F'
 	bls     perform_char2hex
-    cmp     r1, #'a'
-    blo    exit_char2hex
-	cmp		r1, #'f'
-	bhi		exit_char2hex
+    cmp     r0, #'a'
+    blo    char2hex_error
+	cmp		r0, #'f'
+	bhi		char2hex_error
 	/* Validated Hex Char */
 perform_char2hex:
-    mov     r0, r1                  /* restore hex char */
-	_char2hex	r0
-exit_char2hex:
+	_char2hex	r0					/* Return hex value in R0 */
+	bx		lr
+
+char2hex_error:
+	mov     r0, #-1                 /* Set Return value to Error value */
 	bx		lr
 
 /* byte2ascii_cont
@@ -326,12 +331,13 @@ ascii2hex_varlen_be:
     mov     r3, #CMD_REG_REGPARAMLEN /* Set max count to 8 (Max Register size) */
     mov     r1, r0                  /* Use R1 as ASCII buffer pointer */
     mov     r2, #0                  /* Initialize Cummulative Results */
-2:  ldrb    r0, [r1], #1            /* Load ASCII char for Hex Value */
+2:  ldrb    r0, [r1]	            /* Load ASCII char for Hex Value */
     bl      char2hex                /* on return, hex value in R0, -1 for error */
     cmp     r0, #-1
     beq     _exit_ascii2hex_varlen
     orr     r2, r0, r2, lsl #4      /* combined byte value */
     subs    r3, r3, #1              /* Decrement Counter */
+    add		r1, r1, #1				/* Go to next char slot */
     bne     2b
 _exit_ascii2hex_varlen:
     mov     r0, r2                  /* Return results in R0 */
@@ -756,6 +762,15 @@ _hasMsg2Copy:
     ldr     r5, =debug_msgRxBufPtr
     ldr     r5, [r5]                            /* Rx buffer Start Address */
 
+/* Need to account for Packet Acknowledgement */
+1:  ldrb    r0, [r5]
+    teq     r0, #MSGBUF_NAKCHAR               /* Look for '-' */
+    beq		exit_dbg__getMsgError			  /* FIXME: We can't handle retransmission, flag message error */
+    teq     r0, #MSGBUF_ACKCHAR               /* Look for '+' */
+    addeq   r5, r5, #1                        /* Adjust Buffer Start Pointer (excl '+') */
+    subeq	r4, r4, #1						  /* Adjust Message Length */
+    beq     1b                                /* Skip all Packet Acknowledgements */
+
 	/* Note: Here we assume that we won't get a single ACK '+' or NAK '-' character message.
 	 *       If we do, it'll be flagged as an error
 	 */
@@ -767,15 +782,6 @@ _hasMsg2Copy:
 
     mov     r1, #0
     strb    r1, [r5, r2]                        /* Zero out '#' char for checksum calc later */
-
-/* Need to account for Packet Acknowledgement */
-1:  ldrb    r0, [r5]
-    teq     r0, #MSGBUF_NAKCHAR               /* Look for '-' */
-    beq		exit_dbg__getMsgError			  /* FIXME: We can't handle retransmission, flag message error */
-    teq     r0, #MSGBUF_ACKCHAR               /* Look for '+' */
-    addeq   r5, r5, #1                        /* Adjust Buffer Start Pointer (excl '+') */
-    subeq	r4, r4, #1						  /* Adjust Message Length */
-    beq     1b                                /* Skip all Packet Acknowledgements */
 
 #ifdef CHECK_GDBSTARTCHAR
     /* Checked in dbg__bkpt_waitCMD */
