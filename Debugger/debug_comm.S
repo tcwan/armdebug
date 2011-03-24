@@ -331,12 +331,13 @@ ascii2hex_varlen_be:
     mov     r3, #CMD_REG_REGPARAMLEN /* Set max count to 8 (Max Register size) */
     mov     r1, r0                  /* Use R1 as ASCII buffer pointer */
     mov     r2, #0                  /* Initialize Cummulative Results */
-2:  ldrb    r0, [r1], #1            /* Load ASCII char for Hex Value */
+2:  ldrb    r0, [r1]	            /* Load ASCII char for Hex Value */
     bl      char2hex                /* on return, hex value in R0, -1 for error */
     cmp     r0, #-1
     beq     _exit_ascii2hex_varlen
     orr     r2, r0, r2, lsl #4      /* combined byte value */
     subs    r3, r3, #1              /* Decrement Counter */
+    add		r1, r1, #1				/* Go to next char slot */
     bne     2b
 _exit_ascii2hex_varlen:
     mov     r0, r2                  /* Return results in R0 */
