@@ -92,6 +92,8 @@
 /** @name Debug Memory Command Constants.
  *
  * Debug Memory Command
+ * FIXME: These limits are not enforced by the GDB client, it truncates addresses and lengths to remove leading '0's
+ *        The PARAMLEN constants would probably be removed
  */
 /*@{*/
 #define CMD_NUMITEMS_PARAMLEN		4	/* 16-bit ASCII Hex Value */
@@ -110,7 +112,6 @@
  */
 /*@{*/
 #define CMD_REG_CONTINUE_PARAMLEN     0
-#define CMD_REG_CONTINUEFROM_PARAMLEN CMD_REG_REGPARAMLEN	/* Address length is equivalent to reg param len */
 /*@}*/
 
 

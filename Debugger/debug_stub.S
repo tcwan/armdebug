@@ -970,9 +970,12 @@ _dbg__nop:
 _dbg__cmd_ReadMem:
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
+#if 0
     teq     r1, #CMD_MEM_READ_PARAMLEN      /* Check for correct length */
     bne     __dbg__procCmdParamError        /* Unexpected input, report error */
     bl      ascii2word_be                   /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+#endif
+    bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
     mov     r3, r0                          /* Keep Address location in R3 */
     _check_msgseparator r1
     bne     __dbg__procCmdParamError        /* Can't find ',' */
@@ -1005,10 +1008,13 @@ _dbg__cmd_ReadMem:
 _dbg__cmd_WriteMem:
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
+#if 0
     cmp     r1, #CMD_MEM_WRITE_MINPARAMLEN  /* Check for correct (minimum) length */
     blo     __dbg__procCmdParamError        /* Unexpected input, report error */
     sub     r4, r1, #CMD_MEM_WRITE_MINPARAMLEN  /* R4: Number of ASCII Hex chars for byte writes */
     bl      ascii2word_be                   /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+#endif
+    bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
     mov     r3, r0                          /* Keep Address location in R3 */
     _check_msgseparator r1
     bne     __dbg__procCmdParamError        /* Can't find ',' */
@@ -1044,10 +1050,13 @@ _dbg__cmd_Continue:
     bl      __dbg__cmdParamLen
     cmp     r1, #CMD_REG_CONTINUE_PARAMLEN  /* Check for correct parameter length */
     beq     _dbg__cmd_processContinue       /* Continue from current PC */
+#if 0
     cmp     r1, #CMD_REG_CONTINUEFROM_PARAMLEN  /* Check for correct parameter length */
     bne     __dbg__procCmdParamError        /* Unexpected input, report error */
-    /* Continue from Specified Address */
     bl      ascii2word_be                   /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
+#endif
+    bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
+    /* Continue from Specified Address */
     mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
 
