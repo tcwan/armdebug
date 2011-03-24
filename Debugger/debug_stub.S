@@ -830,7 +830,7 @@ _dbg_outputOneRegValue:
 
 /* _dbg__cmd_GetAllRegs
  *		Get All Register Values Command Handler
- *		Output Buffer returns register values in the order: User R0, R1, R2, ..., R15, CPSR
+ *		Output Buffer returns register values in the order: User R0, R1, R2, ..., R15, FPSCR (dummy), CPSR
  *		On entry:
  *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              <NULL> (no parameters)
@@ -853,6 +853,14 @@ _dbg__cmd_GetAllRegs:
 	cmp		r3, #REG_PC
 	bls		1b								/* process all the registers */
 _get_cpsr:
+	/* Output Dummy FPSCR value */
+	mov		r1, #0
+#ifdef __BIG_ENDIAN__
+	bl		word2ascii_be				    /* Convert and put hex chars into Output Message Buffer */
+#else
+    bl      word2ascii_le                   /* Convert and put hex chars into Output Message Buffer */
+#endif
+
 	mov		r1, #REG_CPSR					/* Output User CPSR Value last */
 	bl		_dbg_outputOneRegValue			/* update output buffer */
 
@@ -927,7 +935,7 @@ _dbg__proc_setRegister:
  *
  */
 _dbg__cmd_SetAllRegs:
-/* FIXME: Assumes that the registers are in the sequence R0, R1, ... R15, CPSR -- May not be GDB ordering */
+	/* Assumes that the registers are in the sequence R0, R1, ... R15, FPSCR (ignored), CPSR */
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen              /* R0: pointer to parameters in buffer */
     teq     r1, #CMD_REG_SETALL_PARAMLEN    /* Check for correct length */
@@ -940,6 +948,14 @@ _dbg__cmd_SetAllRegs:
     bls		1b
 
 _set_cpsr:
+	/* Read dummy FPSCR value (ignored) */
+#ifdef __BIG_ENDIAN__
+    bl      ascii2word_be
+#else
+    bl      ascii2word_le
+#endif
+	mov		r0, r1							/* Copy buffer pointer to next parameter to R0 for return value */
+
     mov     r1, #REG_CPSR				    /* Use CPSR enum (-1) */
 	bl		_dbg_setOneRegValue				/* R0: next parameter address pointer */
     ldrb    r0, [r0]
