@@ -756,6 +756,15 @@ _hasMsg2Copy:
     ldr     r5, =debug_msgRxBufPtr
     ldr     r5, [r5]                            /* Rx buffer Start Address */
 
+/* Need to account for Packet Acknowledgement */
+1:  ldrb    r0, [r5]
+    teq     r0, #MSGBUF_NAKCHAR               /* Look for '-' */
+    beq		exit_dbg__getMsgError			  /* FIXME: We can't handle retransmission, flag message error */
+    teq     r0, #MSGBUF_ACKCHAR               /* Look for '+' */
+    addeq   r5, r5, #1                        /* Adjust Buffer Start Pointer (excl '+') */
+    subeq	r4, r4, #1						  /* Adjust Message Length */
+    beq     1b                                /* Skip all Packet Acknowledgements */
+
 	/* Note: Here we assume that we won't get a single ACK '+' or NAK '-' character message.
 	 *       If we do, it'll be flagged as an error
 	 */
@@ -767,15 +776,6 @@ _hasMsg2Copy:
 
     mov     r1, #0
     strb    r1, [r5, r2]                        /* Zero out '#' char for checksum calc later */
-
-/* Need to account for Packet Acknowledgement */
-1:  ldrb    r0, [r5]
-    teq     r0, #MSGBUF_NAKCHAR               /* Look for '-' */
-    beq		exit_dbg__getMsgError			  /* FIXME: We can't handle retransmission, flag message error */
-    teq     r0, #MSGBUF_ACKCHAR               /* Look for '+' */
-    addeq   r5, r5, #1                        /* Adjust Buffer Start Pointer (excl '+') */
-    subeq	r4, r4, #1						  /* Adjust Message Length */
-    beq     1b                                /* Skip all Packet Acknowledgements */
 
 #ifdef CHECK_GDBSTARTCHAR
     /* Checked in dbg__bkpt_waitCMD */
