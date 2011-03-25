@@ -59,7 +59,6 @@
 #define MSGBUF_NAKCHAR   '-'
 #define MSGBUF_ERRCHAR   'E'
 #define MSGBUF_SIGCHAR   'S'
-#define MSGBUF_CPSRREG   '!'
 #define MSGBUF_SETCHAR   '='
 #define MSGBUF_CHKSUMCHAR '#'
 #define MSGBUF_SEPCHAR   ','
@@ -82,10 +81,12 @@
  */
 /*@{*/
 #define CMD_REG_NUMREGS             17
-#define CMD_REG_GETONE_PARAMLEN     1
+#define CMD_REG_GETONE_MINPARAMLEN  1
+#define CMD_REG_GETONE_MAXPARAMLEN  2
 #define CMD_REG_GETALL_PARAMLEN     0
 #define CMD_REG_REGPARAMLEN         8   /* 32-bit ASCII Hex Value */
-#define CMD_REG_SETONE_PARAMLEN     (2 + CMD_REG_REGPARAMLEN)
+#define CMD_REG_SETONE_MINPARAMLEN     (2 + CMD_REG_REGPARAMLEN)
+#define CMD_REG_SETONE_MAXPARAMLEN     (3 + CMD_REG_REGPARAMLEN)
 #define CMD_REG_SETALL_PARAMLEN     (CMD_REG_NUMREGS*CMD_REG_REGPARAMLEN)
 /*@}*/
 
@@ -259,8 +260,7 @@ ENUM_END(dbg_msg_errno)
  * The enums must be consecutive, starting from -1
  */
 ENUM_BEGIN
-ENUM_VALASSIGN(REG_CPSR, -1)  /**< Previous Mode CPSR */
-ENUM_VAL(REG_R0)              /**< User Reg R0 */
+ENUM_VALASSIGN(REG_R0, 0)     /**< User Reg R0 */
 ENUM_VAL(REG_R1)              /**< User Reg R1 */
 ENUM_VAL(REG_R2)              /**< User Reg R2 */
 ENUM_VAL(REG_R3)              /**< User Reg R3 */
@@ -276,6 +276,8 @@ ENUM_VAL(REG_R12)             /**< User Reg R12 */
 ENUM_VAL(REG_SP)              /**< Previous Mode SP (R13) */
 ENUM_VAL(REG_LR)              /**< Previous Mode LR (R14) */
 ENUM_VAL(REG_PC)              /**< Program Counter (R15) */
+ENUM_VALASSIGN(REG_FPSCR, 24) /**< Previous Mode FPSCR (dummy) */
+ENUM_VAL(REG_CPSR)            /**< Previous Mode CPSR */
 
 ENUM_END(register_enum_t)
 

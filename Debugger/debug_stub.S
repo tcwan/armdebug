@@ -72,7 +72,8 @@
  *	  px			get the value of one register (x)      hex data or ENN
  *	  Px=rrrr		set the value of one register (x) to   OK or ENN
  *					32-bit hex value rrrr.
- *					x = ['0','F'] for R0-R15, '!' for User CPSR
+ *					x = ['0','F'] for R0-R15,
+ *                  '18' for FPSCR (dummy), '19' for User CPSR
  *
  *    mAA..AA,LLLL  Read LLLL bytes at address AA..AA      hex data or ENN
  *    MAA..AA,LLLL:bb..bb
@@ -776,8 +777,8 @@ _dbg__cmd_Query:
 
 /* _dbg__cmd_GetOneReg
  *		Get One Register Value Command Handler
- *		Valid command parameter x is from '0' to 'F' for User Mode Registers R0-R15
- *		                             CPSR register is '!'
+ *		Valid command parameter x is from '0' to 'F' for User Mode Registers R0-R15,
+ *			'18' for FPSCR (dummy), and '19' for CPSR
  *		On entry:
  *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              x
@@ -788,15 +789,11 @@ _dbg__cmd_Query:
 _dbg__cmd_GetOneReg:
 	stmfd	sp!, {lr}
 	bl      __dbg__cmdParamLen
-	teq		r1, #CMD_REG_GETONE_PARAMLEN	/* Check for correct length */
-	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
-	ldrb    r0, [r0]                        /* Load Register index parameter */
-	teq		r0, #MSGBUF_CPSRREG				/* Check for CPSR register indicator */
-	moveq	r0, #REG_CPSR					/* Use CPSR Enum (-1) */
-	beq		_dbg__proc_getRegister			/* Handle User CPSR */
-	bl		char2hex						/* Convert to Hex value (assume input is valid) */
-	cmp		r0, #NIBBLE0					/* sanity check, (though it is not foolproof as input char in 0x0-0xF (ctrl-chars) will pass through) */
-	bhi		__dbg__procCmdParamError		/* Non-hex char, report error */
+	cmp		r1, #CMD_REG_GETONE_MINPARAMLEN	/* Check for correct length */
+	blo		__dbg__procCmdParamError		/* Unexpected input, report error */
+ 	cmp		r1, #CMD_REG_GETONE_MAXPARAMLEN	/* Check for correct length */
+	bhi		__dbg__procCmdParamError		/* Unexpected input, report error */
+    bl      ascii2hex_varlen_be             /* convert ASCII reg enum to Hex (in R0), R1 has address of next buffer char */
 
 _dbg__proc_getRegister:
 	mov		r3, r0							/* Keep register index safe */
@@ -808,10 +805,10 @@ _dbg__proc_getRegister:
 	ldmfd	sp!, {pc}
 
 /* _dbg_outputOneRegValue
- *		Given Register Enum (-1: CPSR, 0-F: R0-R15), output hex char to buffer
+ *		Given Register Enum (0-F: R0-R15, 0x19: CPSR, OtherVal: dummy), output hex char to buffer
  *		On entry:
  *          r0: output message buffer pointer
- *			r1: register enum (-1, 0-F)
+ *			r1: register enum (0-F, 0x19)
  *		On exit:
  *			r0: updated (points to next character slot at end of Output Buffer)
  *			r1: original output message buffer pointer
@@ -819,18 +816,39 @@ _dbg__proc_getRegister:
  */
 _dbg_outputOneRegValue:
 	stmfd	sp!, {lr}
-	add		r2, r1, #DBGSTACK_USERREG_INDEX	/* Convert register enum to Debug Stack index */
+	cmp		r1, #REG_PC
+	addls	r2, r1, #DBGSTACK_USERREG_INDEX	/* Convert register enum to Debug Stack index */
+	bls		_retrieve_RegVal
+
+	cmp		r1, #REG_CPSR
+	moveq	r2, #DBGSTACK_USERCPSR_INDEX	/* convert register enum to Debug Stack index */
+	beq		_retrieve_RegVal
+
+	cmp		r1, #REG_FPSCR
+	bne		_exit_dbg_outputOneRegValue		/* No match, skip */
+
+_output_dummy_fpscr:
+	/* Output Dummy FPSCR value */
+	mov		r1, #0
+	b		_output2buffer					/* Output all zeros for FPSCR */
+
+_retrieve_RegVal:
 	_getdbgregisterfromindex r2, r1			/* Retrieve Register contents into R1 */
+
+_output2buffer:
+
 #ifdef __BIG_ENDIAN__
 	bl		word2ascii_be				    /* Convert and put hex chars into Output Message Buffer */
 #else
     bl      word2ascii_le                   /* Convert and put hex chars into Output Message Buffer */
 #endif
+
+_exit_dbg_outputOneRegValue:
 	ldmfd	sp!, {pc}
 
 /* _dbg__cmd_GetAllRegs
  *		Get All Register Values Command Handler
- *		Output Buffer returns register values in the order: User R0, R1, R2, ..., R15, FPSCR (dummy), CPSR
+ *		Output Buffer returns register values in the order: User R0, R1, R2, ..., R15, CPSR
  *		On entry:
  *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              <NULL> (no parameters)
@@ -853,16 +871,6 @@ _dbg__cmd_GetAllRegs:
 	cmp		r3, #REG_PC
 	bls		1b								/* process all the registers */
 _get_cpsr:
-#if 0
-	/* GDB was not happy when this was added */
-	/* Output Dummy FPSCR value */
-	mov		r1, #0
-#ifdef __BIG_ENDIAN__
-	bl		word2ascii_be				    /* Convert and put hex chars into Output Message Buffer */
-#else
-    bl      word2ascii_le                   /* Convert and put hex chars into Output Message Buffer */
-#endif
-#endif
 	mov		r1, #REG_CPSR					/* Output User CPSR Value last */
 	bl		_dbg_outputOneRegValue			/* update output buffer */
 
@@ -871,17 +879,34 @@ _get_cpsr:
 	ldmfd	sp!, {pc}
 
 /* _dbg_setOneRegValue
- *		Given Register Enum (-1: CPSR, 0-F: R0-R15), set register to buffer contents
+ *		Given Register Enum (0-F: R0-R15, 0x19: CPSR, OtherVal: dummy), output hex char to buffer
  *		On entry:
  *          r0: parameter buffer pointer
- *			r1: register enum (-1, 0-F)
+ *			r1: register enum (0-F, 0x19)
  *		On exit:
  *          r0: (Updated) Address of parameter in buffer
  *          r1, r2, r3: destroyed
  */
 _dbg_setOneRegValue:
     stmfd   sp!, {lr}
-	add		r2, r1, #DBGSTACK_USERREG_INDEX	/* Convert register enum to Debug Stack index */
+	cmp		r1, #REG_PC
+	addls	r2, r1, #DBGSTACK_USERREG_INDEX	/* Convert register enum to Debug Stack index */
+	bls		_store_RegVal
+
+	cmp		r1, #REG_CPSR
+	moveq	r2, #DBGSTACK_USERCPSR_INDEX	/* convert register enum to Debug Stack index */
+	beq		_store_RegVal
+
+	cmp		r1, #REG_FPSCR
+	bne		_exit_dbg_setOneRegValue		/* No match, skip */
+	/* FIXME: If we get SetAllRegs with FP reg values, this will not skip pass the FP regs! */
+
+_set_dummy_fpscr:
+	/* Set dummy FPSCR value (ignored) */
+	add		r1, r0, #CMD_REG_REGPARAMLEN	/* Just increment the pointer */
+	b		_done_store_RegVal
+
+_store_RegVal:
 #ifdef __BIG_ENDIAN__
     bl      ascii2word_be
 #else
@@ -889,41 +914,39 @@ _dbg_setOneRegValue:
 #endif
     /* R0: value, R1: pointer to next char in buffer */
     _setdbgregisterfromindex r2, r0, r3     /* Set Register contents in R0, using index in R2, and scratch register R3 */
+_done_store_RegVal:
 	mov		r0, r1							/* Copy buffer pointer to next parameter to R0 for return value */
+_exit_dbg_setOneRegValue:
     ldmfd   sp!, {pc}
 
 
 /* _dbg__cmd_SetOneReg
  *      Set One Register Value Command Handler
- *      Valid command parameter x is from '0' to 'F' for User Mode Registers R0-R15
- *                                   CPSR register is '!'
+ *		Valid command parameter x is from '0' to 'F' for User Mode Registers R0-R15,
+ *			'18' for FPSCR (dummy), and '19' for CPSR
  *      On entry:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              x=rrrr
  *      On exit:
- *          r0, r1, r2, r3: destroyed
+ *          r0, r1, r2, r3, r4: destroyed
  *
  */
 _dbg__cmd_SetOneReg:
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
-    teq     r1, #CMD_REG_SETONE_PARAMLEN    /* Check for correct length */
-    bne     __dbg__procCmdParamError        /* Unexpected input, report error */
-    mov     r3, r0                          /* Keep parameter buffer address in R3 */
-    ldrb    r1, [r3], #1                    /* Load Register enum parameter */
-    _check_msgassignment r3
+    cmp     r1, #CMD_REG_SETONE_MINPARAMLEN    /* Check for correct length */
+    blo     __dbg__procCmdParamError        /* Unexpected input, report error */
+    cmp     r1, #CMD_REG_SETONE_MAXPARAMLEN    /* Check for correct length */
+    bhi     __dbg__procCmdParamError        /* Unexpected input, report error */
+
+    bl      ascii2hex_varlen_be             /* convert ASCII reg enum to Hex (in R0), R1 has address of next buffer char */
+	mov		r4, r0							/* Keep enum in R4 */
+    _check_msgassignment r1					/* R1 points to next char in buffer */
     bne     __dbg__procCmdParamError        /* Can't find '=' */
-    teq     r1, #MSGBUF_CPSRREG             /* Check for CPSR register indicator */
-    moveq   r1, #REG_CPSR				    /* Use CPSR enum (-1) */
-    beq     _dbg__proc_setRegister          /* Handle User CPSR */
-    mov     r0, r1                          /* Move register enum to R0 for subsequent processing */
-    bl      char2hex                        /* Convert to Hex value (assume input is valid) */
-    cmp     r0, #NIBBLE0                    /* sanity check, (though it is not foolproof as input char in 0x0-0xF (ctrl-chars) will pass through) */
-    bhi     __dbg__procCmdParamError        /* Non-hex char, report error */
-	mov		r1, r0							/* move register enum to R1 to call _dbg_setOneRegValue */
 
 _dbg__proc_setRegister:
-    mov     r0, r3                          /* Retrieve parameter buffer pointer */
+	mov		r0, r1							/* move parameter buffer pointer to R0 */
+    mov     r1, r4                          /* and retrieve enum to R1 to call _dbg_setOneRegValue */
     bl      _dbg_setOneRegValue
     b       __dbg__procCmdOk
 
@@ -933,7 +956,7 @@ _dbg__proc_setRegister:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              rrrrRRRRrrrr... (17 registers)
  *      On exit:
- *          r0, r1, r2, r3: destroyed
+ *          r0, r1, r2, r3, r4: destroyed
  *
  */
 _dbg__cmd_SetAllRegs:
@@ -960,7 +983,8 @@ _set_cpsr:
 #endif
 	mov		r0, r1							/* Copy buffer pointer to next parameter to R0 for return value */
 #endif
-    mov     r1, #REG_CPSR				    /* Use CPSR enum (-1) */
+
+    mov     r1, #REG_CPSR				    /* Use CPSR enum */
 	bl		_dbg_setOneRegValue				/* R0: next parameter address pointer */
     ldrb    r0, [r0]
     teq     r0, #0                          /* Look for ASCIIZ character to terminate loop */
