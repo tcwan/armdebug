@@ -12,8 +12,11 @@ $p1#A1
 # Display PC
 $pF#B6
 
+# Display FPSCR (dummy)
+$p18#D9
+
 # Display User CPSR
-$p!#91
+$p19#DA
 
 # Query Status
 $?#3F
