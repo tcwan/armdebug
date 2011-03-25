@@ -25,6 +25,7 @@ import struct
 DEFAULT_PORT = 2828
 SELECT_TIMEOUT = 0.1
 DEBUG = True
+DEBUG2 = False
 NXT_RECV_ERR = -1
 
 # Libusb 0.12.x blocks on USB reads
@@ -152,12 +153,16 @@ class NXTGDBServer:
                                 # Some pyusb are buggy, ignore some "errors".
                                 if e.args != ('No error', ):
                                     raise e
-                        if s and LIBUSB_RECEIVE_BLOCKING:
+                        if segments != [] and LIBUSB_RECEIVE_BLOCKING:
+                            if DEBUG2:
+                                print "Accessing Blocking sock.recv()"
                             data = self.reassemble (brick.sock)
                     else:
                         client.close ()
                         client = None
                 if not LIBUSB_RECEIVE_BLOCKING:
+                    if DEBUG2:
+                         print "Accessing Non-Blocking sock.recv()"
                     data = self.reassemble (brick.sock)
                     
                 # Is there something from NXT brick?
