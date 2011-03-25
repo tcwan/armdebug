@@ -198,9 +198,11 @@ debug_OutMsgBuf:
 	.space	MSGBUF_SIZE,0
 
 debug_state:
-    .byte   0x0
+    .byte   0x0									/* dbg_state_t variable */
 debug_mode:
     .byte   0x0                                 /* Boolean variable */
+debug_bkpt_type:
+    .byte   0x0                                 /* bkpt_type_t variable */
 
 .data
 .align 4
@@ -522,7 +524,7 @@ dbg__thumb_bkpt_handler:
 	teq	r4, #0					/* Check if AUTO flag set */
 	bne	_process_auto_breakpoint
 /* else */
-	_dbg_setstate DBG_NORMAL_BKPT_THUMB
+	_dbg_set_bkpt_type DBG_NORMAL_BKPT_THUMB
 	b	_process_normal_breakpoint
 
 	.global	dbg__arm_bkpt_handler
@@ -545,7 +547,7 @@ dbg__arm_bkpt_handler:
 	teq	r4, #0					/* Check if AUTO flag set */
 	bne	_process_auto_breakpoint
 /* else */
-	_dbg_setstate DBG_NORMAL_BKPT_ARM
+	_dbg_set_bkpt_type DBG_NORMAL_BKPT_ARM
 /*	b	_process_normal_breakpoint */
 
 _process_normal_breakpoint:
@@ -564,14 +566,15 @@ _process_auto_breakpoint:
 	bl	_dbg__activate_one_breakpoint
 	bl	_dbg__restore_singlestep
 	bl	_dbg__clear_singlestep
+	_dbg_set_bkpt_type DBG_AUTO_BKPT
 	b	__dbg__resume_execution
 
 _process_manual_breakpoint_thumb:
-	_dbg_setstate DBG_MANUAL_BKPT_THUMB
+	_dbg_set_bkpt_type DBG_MANUAL_BKPT_THUMB
 	b	dbg__bkpt_waitCMD
 
 _process_manual_breakpoint_arm:
-	_dbg_setstate DBG_MANUAL_BKPT_ARM
+	_dbg_set_bkpt_type DBG_MANUAL_BKPT_ARM
 /*	b	dbg__bkpt_waitCMD */
 
 dbg__bkpt_inactive:

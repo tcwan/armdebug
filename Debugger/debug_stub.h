@@ -232,11 +232,20 @@ ENUM_BEGIN
 ENUM_VALASSIGN(DBG_RESET, 0)  /**< Initial State. */
 ENUM_VAL(DBG_INIT)            /**< Debugger Initialized. */
 ENUM_VAL(DBG_CONFIGURED)        /**< Debugger has been configured by GDB Server */
-ENUM_VAL(DBG_MANUAL_BKPT_ARM)     /**< Manual ARM Breakpoint. */
-ENUM_VAL(DBG_NORMAL_BKPT_ARM)     /**< Normal ARM Breakpoint (Single Step, Normal). */
-ENUM_VAL(DBG_MANUAL_BKPT_THUMB)     /**< Manual Thumb Breakpoint. */
-ENUM_VAL(DBG_NORMAL_BKPT_THUMB)     /**< Normal Thumb Breakpoint (Single Step, Normal). */
 ENUM_END(dbg_state_t)
+
+/** Breakpoint Type Enums
+ *
+ * Breakpoint Type.
+ * The enums must be consecutive, starting from 0
+ */
+ENUM_BEGIN
+ENUM_VALASSIGN(DBG_AUTO_BKPT,0)         /**< Auto Thumb Breakpoint (Instruction resume after breakpoint). */
+ENUM_VAL(DBG_MANUAL_BKPT_ARM)           /**< Manual ARM Breakpoint. */
+ENUM_VAL(DBG_NORMAL_BKPT_ARM)           /**< Normal ARM Breakpoint (Single Step, Normal). */
+ENUM_VAL(DBG_MANUAL_BKPT_THUMB)         /**< Manual Thumb Breakpoint. */
+ENUM_VAL(DBG_NORMAL_BKPT_THUMB)         /**< Normal Thumb Breakpoint (Single Step, Normal). */
+ENUM_END(bkpt_type_t)
 
 /** Debugger Message Error Enums
  *
@@ -257,7 +266,7 @@ ENUM_END(dbg_msg_errno)
 /** Register Enums
  *
  * Register Enums.
- * The enums must be consecutive, starting from -1
+ * Refer to eCOS's arm_stub.h for enum values
  */
 ENUM_BEGIN
 ENUM_VALASSIGN(REG_R0, 0)     /**< User Reg R0 */

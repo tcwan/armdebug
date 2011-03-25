@@ -289,7 +289,7 @@
  */
 	.macro _dbg_getstate	reg
 	ldr	 \reg, =debug_state
-	ldrb \reg, [\reg]
+	ldrb     \reg, [\reg]
 	.endm
 
 /* _dbg_setstate
@@ -300,7 +300,7 @@
 	.macro _dbg_setstate	state
 	mov	 r0, #\state
 	ldr	 r1, =debug_state
-	strb r0, [r1]
+	strb     r0, [r1]
 	.endm
 
 /* _dbg_getmode
@@ -310,7 +310,7 @@
  */
 	.macro _dbg_getmode	reg
 	ldr	 \reg, =debug_mode
-	ldrb \reg, [\reg]
+	ldrb     \reg, [\reg]
 	.endm
 
 /* _dbg_setmode
@@ -321,8 +321,31 @@
 	.macro _dbg_setmode	mode
 	mov	 r0, #\mode
 	ldr	 r1, =debug_mode
-	strb r0, [r1]
+	strb     r0, [r1]
 	.endm
+
+/* _dbg_get_bkpt_type
+ *      Get Breakpoint Type
+ *      On exit:
+ *        reg: Breakpoint Type
+ */
+        .macro _dbg_get_bkpt_type     reg
+        ldr      \reg, =debug_bkpt_type
+        ldrb     \reg, [\reg]
+        .endm
+
+/* _dbg_set_bkpt_type
+ *      Set Breakpoint Type to given value
+ *      On exit:
+ *        r0, r1: destroyed
+ */
+        .macro _dbg_set_bkpt_type     bkpt_type
+        mov      r0, #\bkpt_type
+        ldr      r1, =debug_bkpt_type
+        strb     r0, [r1]
+        .endm
+
+
 
 /* _dbg_getcurrbkpt_index
  *	Get current breakpoint index
