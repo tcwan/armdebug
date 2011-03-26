@@ -240,8 +240,8 @@ debug_cmdJumpTable:
 	.word	_dbg__cmd_Continue					/* 'c' */
 	.word	_dbg__nop							/* 's' */
 	.word	_dbg__nop							/* 'k' */
-	.word	_dbg__cmd_remove_breakpoint			/* 'z' */
-	.word	_dbg__cmd_insert_breakpoint			/* 'Z' */
+	.word	_dbg__cmd_RemoveBreakpoint			/* 'z' */
+	.word	_dbg__cmd_InsertBreakpoint			/* 'Z' */
 	.word	_dbg__cmd_Status					/* '?' */
 	.word	_dbg__cmd_Query						/* 'q' */
 	.word	_dbg__nop							/* 'Q' */
@@ -1085,6 +1085,14 @@ _dbg__cmd_WriteMem:
 
 /* _dbg__cmd_Continue
  *      Continue User Program Execution Command Handler
+ *      Setup breakpoints before resuming execution of program.
+ *
+ *      If Address is specified, update the next instruction address
+ *
+ *      If this is a Normal Breakpoint, then we need to install an Autobreakpoint at next instruction address
+ *          and resume from current (Breakpoint) exception address
+ *      Else (it is a Manual Breakpoint or Address Specified)
+ *          We need to resume from the next instruction address
  *      On entry:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              Optional: AA..AA
@@ -1094,25 +1102,43 @@ _dbg__cmd_WriteMem:
  *				  operating mode to UNDEF and returns to previously active program
  */
 _dbg__cmd_Continue:
+    /* Don't put anything on the stack, we won't return to the Debugger Run Loop */
     bl      __dbg__cmdParamLen
     cmp     r1, #CMD_REG_CONTINUE_PARAMLEN  /* Check for correct parameter length */
-    beq     _dbg__cmd_processContinue       /* Continue from current PC */
-#if 0
-    cmp     r1, #CMD_REG_CONTINUEFROM_PARAMLEN  /* Check for correct parameter length */
-    bne     __dbg__procCmdParamError        /* Unexpected input, report error */
-    bl      ascii2word_be                   /* convert ASCII address location to Hex (in R0), R1 has address of next buffer char */
-#endif
+    beq     _check_breakpoint_type          /* Continue from current PC */
+
+_dbg__cont_fromAddr:
     bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
     /* Continue from Specified Address */
     mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+    b       _is_manual_bkpt_or_address_specified
 
-_dbg__cmd_processContinue:
-/* FIXME: Currently we assume that the trigger is a Manual Breakpoint, i.e., no need to
-   restore instructions to memory, and handle auto-breakpoints (needed to reenable the memory
-   breakpoint that was triggered) */
+_check_breakpoint_type:
+    _dbg_get_bkpt_type   r0
+    teq r0, #DBG_MANUAL_BKPT_ARM
+    beq _is_manual_bkpt_or_address_specified
+    teq r0, #DBG_MANUAL_BKPT_THUMB
+    bne _is_normal_breakpoint
 
-@@@@@
+_is_manual_bkpt_or_address_specified:
+    bl      _dbg__activate_breakpoints      /* Restore exisiting breakpoints */
+    b       _dbg__switch2undefmode
+
+_is_normal_breakpoint:
+/* FIXME: _dbg_next_instruction_addr doesn't actually work currently.
+   This breaks normal breakpoints which need to determine the next instruction to execute
+   (for placing the autobreakpoint) prior to returning.
+*/
+    mov     r2, #DBGSTACK_USERPC_INDEX      /* Retrieve Aborted Instruction PC from the Debug Stack */
+    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R0 */
+    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
+    _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+    bl  _dbg_next_instruction_addr          /* next instruction address returned in r1 */
+    bl  _dbg__install_singlestep            /* Setup Single Step, next instruction address returned in r1 */
+    _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
+    bl  _dbg__activate_autobreakpoint       /* pass next instruction address in r1 */
+
 #if 0
 /* Not part of the GDB Remote Protocol spec. Messages are sent only when system halts, not when we resume */
 __dbg__sendOkBeforeResume:
@@ -1125,11 +1151,11 @@ __dbg__sendOkBeforeResume:
 #endif
 
 _dbg__switch2undefmode:
+    bl  _dbg__flush_icache
     msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
     _dbg_setmode FALSE                  	/* Debug Mode = False */
     ldr     lr, =resume_execution
     mov     pc, lr                          /* Exit via UNDEF mode */
-
 
 /* _dbg__proc_brkpt_params
  *      Process Breakpoint Parameters
@@ -1153,7 +1179,7 @@ _dbg__proc_brkpt_params:
     _check_msgseparator r3
     bne     _dbg__proc_brkpt_params_error   /* Something wrong with the parameters */
     mov     r0, r3                          /* Check Address */
-    bl      ascii2word_be                      /* R0: value, R1: pointer to next char slot */
+    bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
     mov     r3, r0                          /* Keep breakpoint address in R3 */
     _check_msgseparator r1
     bne     _dbg__proc_brkpt_params_error   /* Something wrong with the parameters */
@@ -1171,7 +1197,7 @@ _exit_dbg__proc_brkpt_params:
     mov     r0, r3                          /* return breakpoint address */
     ldmfd   sp!, {pc}
 
-/* _dbg__cmd_insert_breakpoint
+/* _dbg__cmd_InsertBreakpoint
  *		Add Breakpoint
  *      On entry:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
@@ -1179,11 +1205,11 @@ _exit_dbg__proc_brkpt_params:
  *      On exit:
  *          r0, r1, r2, r3: destroyed
  */
-_dbg__cmd_insert_breakpoint:
+_dbg__cmd_InsertBreakpoint:
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
-    teq     r1, #CMD_BKPT_INSERT_PARAMLEN   /* Check for correct length */
-    bne     __dbg__procCmdParamError        /* Unexpected input, report error */
+    teq     r1, #CMD_BKPT_INSERT_MINPARAMLEN   /* Check for correct length */
+    blo     __dbg__procCmdParamError        /* Unexpected input, report error */
     bl      _dbg__proc_brkpt_params         /* R0: Breakpoint Address */
     teq     r0, #0
     beq     __dbg__procBreakpointAddrError  /* Thumb2 instructions, or unknown kind */
@@ -1196,7 +1222,7 @@ _dbg__cmd_insert_breakpoint:
 	bl     _dbg__install_one_breakpoint		/*	r0: index, r1: instruction address */
     b       __dbg__procCmdOk
 
-/* _dbg__cmd_remove_breakpoint
+/* _dbg__cmd_RemoveBreakpoint
  *		Remove Breakpoint
  *		On entry:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
@@ -1204,11 +1230,11 @@ _dbg__cmd_insert_breakpoint:
  *      On exit:
  *          r0, r1, r2, r3: destroyed
  */
-_dbg__cmd_remove_breakpoint:
+_dbg__cmd_RemoveBreakpoint:
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
     teq     r1, #CMD_BKPT_REMOVE_PARAMLEN  /* Check for correct length */
-    bne     __dbg__procCmdParamError       /* Unexpected input, report error */
+    blo     __dbg__procCmdParamError       /* Unexpected input, report error */
     bl      _dbg__proc_brkpt_params        /* R0: Breakpoint Address */
     teq     r0, #0
     beq     __dbg__procBreakpointAddrError /* Thumb2 instructions, or unknown kind */
@@ -1221,13 +1247,6 @@ _dbg__cmd_remove_breakpoint:
     b       __dbg__procCmdOk
 
 
-/* _dbg__cmd_run
- *		Continue execution of program
- */
-_dbg__cmd_run:
-	bl	_dbg__activate_breakpoints
-	b	__dbg__resume_execution
-
 /* _dbg__cmd_step
  *		Single Step execution of program
  */
@@ -1237,30 +1256,6 @@ _dbg__cmd_step:
 	bl	_dbg__activate_singlestep
 	b	__dbg__resume_execution
 
-/* _dbg__cmd_cont
- *		Continue execution of program.
- *		If this is a Normal Breakpoint, then we need to install an Autobreakpoint at next instruction address
- *			and resume from current (Breakpoint) exception address
- *		Else (it is a Manual Breakpoint)
- *			We need to resume from the next instruction address
- */
-_dbg__cmd_cont:
-/* FIXME: What happens if we call this when we did not stop at a Breakpoint previously? */
-	_dbg_getstate	r0
-	ldr	r1, =DBG_MANUAL_BKPT_ARM
-	teq	r0, r1
-	beq	__dbg_is_manual_breakpoint
-
-	bl	_dbg_next_instruction_addr					/* next instruction address returned in r1 */
-	bl	_dbg__install_singlestep					/* Setup Single Step, next instruction address returned in r1 */
-	_dbg_getcurrbkpt_index r0							/* load current breakpoint index in memory */
-	bl	_dbg__activate_autobreakpoint				/* pass next instruction address in r1 */
-	b	__dbg__resume_execution
-
-__dbg_is_manual_breakpoint:
-	bl	_dbg_next_instruction_addr					/* Skip Manual Breakpoint Instruction(s) */
-	bl	_dbg__activate_breakpoints
-	b	__dbg__resume_execution
 
 /****************************************************************************
 // Selected Routines from the eCos arm_stub.c related to next instruction address
@@ -1720,7 +1715,6 @@ void __single_step (void)
 
  ****************************************************************************/
 
-
 /* _dbg_next_instruction_addr
  *		Determine the address of the next instruction to execute.
  *		On exit:
@@ -1738,6 +1732,8 @@ void __single_step (void)
  *	the next instruction address (for inserting a Breakpoint).
  */
 _dbg_next_instruction_addr:
+    /* FIXME: This needs a total rewrite */
+    bx      lr
 /* We assume that any BKPT instructions in the code will be Manual Breakpoints,
  * i.e., the Debugger does not leave stray Single Step / Auto / Normal breakpoints in memory
  */
@@ -1777,15 +1773,6 @@ _next_instr_is_arm:
 	add		r6, r2, #4									/* Is ARM, set next ARM instruction address */
 @@@@@@@@@
 	bx	lr
-
-/* __dbg__resume_execution
- *		cleanup, resume execution of program.
- *		Restore User Mode Regsiters from Debugger Stack, and resume execution from aborted instruction
- */
-__dbg__resume_execution:
-@@@@@@
-	bl	_dbg__flush_icache
-	b __dbg__resume_execution
 
 /****************************************************************************
  *
