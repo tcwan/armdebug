@@ -190,8 +190,6 @@
 
 .bss
 .align 4
-debug_curr_breakpoint:
-	.word	0x0
 debug_InMsgBuf:
 	.space	MSGBUF_SIZE,0
 debug_OutMsgBuf:
@@ -203,6 +201,8 @@ debug_mode:
     .byte   0x0                                 /* Boolean variable */
 debug_bkpt_type:
     .byte   0x0                                 /* bkpt_type_t variable */
+debug_curr_breakpoint:
+    .byte   0x0
 
 .data
 .align 4
@@ -1104,28 +1104,28 @@ _dbg__cmd_WriteMem:
 _dbg__cmd_Continue:
     /* Don't put anything on the stack, we won't return to the Debugger Run Loop */
     bl      __dbg__cmdParamLen
-    cmp     r1, #CMD_REG_CONTINUE_PARAMLEN  /* Check for correct parameter length */
-    beq     _check_breakpoint_type          /* Continue from current PC */
+    cmp     r1, #CMD_CONTINUE_MINPARAMLEN  /* Check for correct parameter length */
+    beq     _dbg__cont_check_breakpoint_type          /* Continue from current PC */
 
 _dbg__cont_fromAddr:
     bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
     /* Continue from Specified Address */
     mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
-    b       _is_manual_bkpt_or_address_specified
+    b       _dbg__cont_is_manual_bkpt_or_address_specified
 
-_check_breakpoint_type:
+_dbg__cont_check_breakpoint_type:
     _dbg_get_bkpt_type   r0
     teq r0, #DBG_MANUAL_BKPT_ARM
-    beq _is_manual_bkpt_or_address_specified
+    beq _dbg__cont_is_manual_bkpt_or_address_specified
     teq r0, #DBG_MANUAL_BKPT_THUMB
-    bne _is_normal_breakpoint
+    bne _dbg__cont_is_normal_breakpoint
 
-_is_manual_bkpt_or_address_specified:
+_dbg__cont_is_manual_bkpt_or_address_specified:
     bl      _dbg__activate_breakpoints      /* Restore exisiting breakpoints */
     b       _dbg__switch2undefmode
 
-_is_normal_breakpoint:
+_dbg__cont_is_normal_breakpoint:
 /* FIXME: _dbg_next_instruction_addr doesn't actually work currently.
    This breaks normal breakpoints which need to determine the next instruction to execute
    (for placing the autobreakpoint) prior to returning.
@@ -1150,12 +1150,51 @@ __dbg__sendOkBeforeResume:
     b       __dbg__sendOkBeforeResume       /* Retry retransmission */
 #endif
 
+/* _dbg__switch2undefmode
+ *      Common internal routine to return execution to user program
+ */
 _dbg__switch2undefmode:
     bl  _dbg__flush_icache
     msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
     _dbg_setmode FALSE                  	/* Debug Mode = False */
     ldr     lr, =resume_execution
     mov     pc, lr                          /* Exit via UNDEF mode */
+
+/* _dbg__cmd_Step
+ *      Step User Program Execution Command Handler
+ *      Setup breakpoints before resuming execution of program.
+ *
+ *      If Address is specified, update the next instruction address
+ *
+ *      If this is a Normal Breakpoint, then we need to install a Step Breakpoint at next instruction address
+ *          and resume from current (Breakpoint) exception address
+ *      Else (it is a Manual Breakpoint or Address Specified)
+ *          We need to we need to install a Step Breakpoint at next instruction address
+ *          and resume (which will trigger a Breakpoint immediately)
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *              Optional: AA..AA
+ *      On exit:
+ *          r0, r1, r2: destroyed
+ *          Note: This routine does not return to caller. Instead it switches
+ *                operating mode to UNDEF and returns to previously active program
+ */
+_dbg__cmd_Step:
+    /* Don't put anything on the stack, we won't return to the Debugger Run Loop */
+    bl      __dbg__cmdParamLen
+    cmp     r1, #CMD_STEP_MINPARAMLEN       /* Check for correct parameter length */
+    beq     _dbg__step_check_breakpoint_type          /* Step from current PC */
+
+_dbg__step_fromAddr:
+    bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
+    /* Step from Specified Address */
+    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
+    _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+    b       _dbg__step_is_manual_bkpt_or_address_specified
+
+_dbg__step_check_breakpoint_type:
+@@@@@
+@ WIP
 
 /* _dbg__proc_brkpt_params
  *      Process Breakpoint Parameters
@@ -1733,6 +1772,7 @@ void __single_step (void)
  */
 _dbg_next_instruction_addr:
     /* FIXME: This needs a total rewrite */
+    mov     r1, #0
     bx      lr
 /* We assume that any BKPT instructions in the code will be Manual Breakpoints,
  * i.e., the Debugger does not leave stray Single Step / Auto / Normal breakpoints in memory

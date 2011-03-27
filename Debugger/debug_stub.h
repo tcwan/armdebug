@@ -107,12 +107,13 @@
 #define CMD_MEM_MAXWRITEBYTES		((CMD_MEM_MAXINBUFLEN - CMD_MEM_WRITE_MINPARAMLEN)/2)
 /*@}*/
 
-/** @name Debug Continue Command Constants.
+/** @name Debug Continue and Step Command Constants.
  *
- * Debug Continue Command
+ * Debug Continue and Step Command
  */
 /*@{*/
-#define CMD_REG_CONTINUE_PARAMLEN     0
+#define CMD_CONTINUE_MINPARAMLEN    0
+#define CMD_STEP_MINPARAMLEN        0
 /*@}*/
 
 

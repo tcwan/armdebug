@@ -354,7 +354,7 @@
  */
 	.macro _dbg_getcurrbkpt_index   reg
 	ldr	 \reg, =debug_curr_breakpoint
-	ldr	 \reg, [\reg]
+	ldrb \reg, [\reg]
 	.endm
 
 /* _dbg_setcurrbkpt_index
@@ -364,7 +364,7 @@
  */
 	.macro _dbg_setcurrbkpt_index  reg
 	ldr	 r1, =debug_curr_breakpoint
-	str	 \reg, [r1]
+	strb \reg, [r1]
 	.endm
 
 /* _dbg_getabortedinstr_addr
