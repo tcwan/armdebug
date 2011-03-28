@@ -139,6 +139,7 @@
 
 #define __ASSEMBLY__
 #include "debug_stub.h"
+#include "debug_internals.h"
 #include "debug_macros.h"
 
 /* Macro definitions */
@@ -1272,7 +1273,7 @@ _dbg__cmd_InsertBreakpoint:
 _dbg__cmd_RemoveBreakpoint:
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen
-    teq     r1, #CMD_BKPT_REMOVE_PARAMLEN  /* Check for correct length */
+    teq     r1, #CMD_BKPT_REMOVE_MINPARAMLEN  /* Check for correct length */
     blo     __dbg__procCmdParamError       /* Unexpected input, report error */
     bl      _dbg__proc_brkpt_params        /* R0: Breakpoint Address */
     teq     r0, #0

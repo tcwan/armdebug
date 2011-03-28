@@ -10,6 +10,7 @@
  */
 #define __ASSEMBLY__
 #include "debug_stub.h"
+#include "debug_internals.h"
 
 
 .text
