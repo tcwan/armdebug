@@ -568,7 +568,17 @@ _process_auto_breakpoint:
 	bl	_dbg__restore_singlestep
 	bl	_dbg__clear_singlestep
 	_dbg_set_bkpt_type DBG_AUTO_BKPT
-	b	__dbg__resume_execution
+	/* b	_dbg__switch2undefmode */
+
+/* _dbg__switch2undefmode
+ *      Common internal routine to return execution to user program
+ */
+_dbg__switch2undefmode:
+    bl  _dbg__flush_icache
+    msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
+    _dbg_setmode FALSE                  	/* Debug Mode = False */
+    ldr     lr, =resume_execution
+    mov     pc, lr                          /* Exit via UNDEF mode */
 
 _process_manual_breakpoint_thumb:
 	_dbg_set_bkpt_type DBG_MANUAL_BKPT_THUMB
@@ -1151,15 +1161,7 @@ __dbg__sendOkBeforeResume:
     b       __dbg__sendOkBeforeResume       /* Retry retransmission */
 #endif
 
-/* _dbg__switch2undefmode
- *      Common internal routine to return execution to user program
- */
-_dbg__switch2undefmode:
-    bl  _dbg__flush_icache
-    msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
-    _dbg_setmode FALSE                  	/* Debug Mode = False */
-    ldr     lr, =resume_execution
-    mov     pc, lr                          /* Exit via UNDEF mode */
+	b		_dbg__switch2undefmode
 
 /* _dbg__cmd_Step
  *      Step User Program Execution Command Handler
