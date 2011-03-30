@@ -1088,7 +1088,7 @@ _dbg__cmd_WriteMem:
  *      Continue User Program Execution Command Handler
  *      Setup breakpoints before resuming execution of program.
  *
- *      If Address is specified, update the next instruction address
+ *      If Address is specified, update the next instruction address to specified address
  *
  *      If this is a Normal Breakpoint, then we need to install an Autobreakpoint at next instruction address
  *          and resume from current (Breakpoint) exception address
@@ -1165,13 +1165,13 @@ _dbg__switch2undefmode:
  *      Step User Program Execution Command Handler
  *      Setup breakpoints before resuming execution of program.
  *
- *      If Address is specified, update the next instruction address
+  *      If Address is specified, update the next instruction address to specified address
  *
  *      If this is a Normal Breakpoint, then we need to install a Step Breakpoint at next instruction address
  *          and resume from current (Breakpoint) exception address
- *      Else (it is a Manual Breakpoint or Address Specified)
- *          We need to we need to install a Step Breakpoint at next instruction address
- *          and resume (which will trigger a Breakpoint immediately)
+ *      Else (it is a Manual Breakpoint or Address specified)
+ *          We need to install a Step Breakpoint at the following instruction address (after the next instruction address)
+ *          and resume from the next instruction address
  *      On entry:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              Optional: AA..AA
@@ -1194,8 +1194,34 @@ _dbg__step_fromAddr:
     b       _dbg__step_is_manual_bkpt_or_address_specified
 
 _dbg__step_check_breakpoint_type:
-@@@@@
-@ WIP
+    _dbg_get_bkpt_type   r0
+    teq r0, #DBG_MANUAL_BKPT_ARM
+    beq _dbg__step_is_manual_bkpt
+    teq r0, #DBG_MANUAL_BKPT_THUMB
+    bne _dbg__step_is_normal_breakpoint
+
+_dbg__step_is_manual_bkpt:
+    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
+    _getdbgregisterfromindex r2, r1         /* Retrieve Register contents into R1 */
+    b       _dbg__step_is_manual_bkpt_or_address_specified
+
+_dbg__step_is_normal_breakpoint:
+/* FIXME: _dbg_next_instruction_addr doesn't actually work currently.
+   This breaks normal breakpoints which need to determine the next instruction to execute
+   (for placing the autobreakpoint) prior to returning.
+*/
+    mov     r2, #DBGSTACK_USERPC_INDEX      /* Retrieve Aborted Instruction PC from the Debug Stack */
+    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R0 */
+    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
+    _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+
+_dbg__step_is_manual_bkpt_or_address_specified:
+	/* R1 contains the instruction address to be executed upon return */
+    bl  	_dbg_next_instruction_addr      /* following instruction address returned in r1 */
+    bl  	_dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
+	bl		_dbg__activate_singlestep
+    b       _dbg__switch2undefmode
+
 
 /* _dbg__proc_brkpt_params
  *      Process Breakpoint Parameters
@@ -1287,14 +1313,6 @@ _dbg__cmd_RemoveBreakpoint:
     b       __dbg__procCmdOk
 
 
-/* _dbg__cmd_step
- *		Single Step execution of program
- */
-_dbg__cmd_step:
-	bl	_dbg_next_instruction_addr					/* next instruction address returned in r1 */
-	bl	_dbg__install_singlestep					/* Setup Single Step */
-	bl	_dbg__activate_singlestep
-	b	__dbg__resume_execution
 
 
 /****************************************************************************
