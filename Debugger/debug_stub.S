@@ -210,6 +210,9 @@ debug_curr_breakpoint:
 debug_RetransmitFlag:
 	.byte	'-',0
 
+debug_AckOnlyFlag:
+	.byte	'+',0
+
 debug_ValidResponsePrefix:
 	.byte	'+','$',0
 
@@ -362,7 +365,7 @@ debug_armComplexCCTable:
 	.extern dbg__hasDebugMsg			/* Check for message from the communications link */
 	.extern dbg__getDebugMsg			/* Read a message from the communications link */
 	.extern	dbg__putDebugMsg			/* Write a message to the communications link */
-	.extern dbg__requestRetransmission	/* Request Retransmission due to Checksum Error */
+	.extern dbg__sendAckOrNak			/* Send Ack or Nak to indicate success/failure of message receipt */
 	.extern dbg__runloopTasks           /* Platform specific Run Loop processing */
 
 
@@ -574,7 +577,9 @@ _process_auto_breakpoint:
  *      Common internal routine to return execution to user program
  */
 _dbg__switch2undefmode:
-    bl  _dbg__flush_icache
+	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
+	bl      dbg__runloopTasks               /* Service run loop tasks */
+    bl  	_dbg__flush_icache
     msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
     _dbg_setmode FALSE                  	/* Debug Mode = False */
     ldr     lr, =resume_execution
@@ -617,7 +622,11 @@ dbg__bkpt_waitCMD_cont:
 	bl		dbg__getDebugMsg				/* Read new message from Debugger, buflen in R0, 0 if none, -1 if error, msgbuf pointer in R1 */
 	cmp		r0, #0
 	beq     dbg__bkpt_waitCMD_cont          /* No message yet, do housekeeping tasks */
-	blt		__dbg__procChecksumError		/* Message invalid, checksum error? */
+	bgt		_proc_command					/* valid message, process it */
+	bl		__dbg__procChecksumError		/* Message invalid, checksum error? */
+	b		dbg__bkpt_waitCMD_cont
+
+_proc_command:
 /* Message now has $<packet info>\0 */
     mov     r4, r1							/* Use R4 as buffer pointer */
 	ldrb	r0, [r4], #1					/* Look for '$' */
@@ -644,18 +653,44 @@ _dbg__cmdExists:
 	_dbg_jumpTableHandler	debug_cmdJumpTable, r2, r3		/* Call Command Handler Routine, use R2 as jump address pointer */
 	b 		dbg__bkpt_waitCMD_cont
 
-__dbg__procChecksumError:
-    _dbg_outputRetransmitFlag
-	bl		dbg__requestRetransmission		/* Request message retransmission from GDB server */
-	cmp		r0, #0
-	beq		dbg__bkpt_waitCMD_cont			/* Sending of retransmission request succeeded */
-	bl      dbg__runloopTasks               /* Service run loop tasks */
-	b 		__dbg__procChecksumError		/* Retry retransmission */
-
 _dbg__cmdError:
 	_dbg_outputMsgStatusErr
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
 	b 		dbg__bkpt_waitCMD_cont
+
+
+/* __dbg__procAckOnly
+ *		Send Ack to GDB due to Continue or Step
+ *		On entry:
+ *			None
+ *		On exit:
+ *			r0-r3: destroyed
+ */
+__dbg__procAckOnly:
+	stmfd	sp!, {lr}
+    _dbg_outputAckOnlyFlag
+	b		_cont_sendAckOrNak				/* Acknowledge Continue or Step command from GDB server */
+
+/* __dbg__procChecksumError
+ *		Request Retransmission from GDB due to Checksum error
+ *		On entry:
+ *			None
+ *		On exit:
+ *			r0-r3: destroyed
+ */
+__dbg__procChecksumError:
+	stmfd	sp!, {lr}
+    _dbg_outputRetransmitFlag
+	/* b		_cont_sendAckOrNak	*/		/* Acknowledge Continue or Step command from GDB server */
+
+_cont_sendAckOrNak:
+	bl		dbg__sendAckOrNak				/* send Ack or Nak to GDB server */
+	cmp		r0, #0
+	beq		_cont_sendAckOrNak_exit			/* Sending of Ack or Nak succeeded */
+	bl      dbg__runloopTasks               /* Service run loop tasks */
+	b 		_cont_sendAckOrNak				/* Retry Ack or Nak transmission */
+_cont_sendAckOrNak_exit:
+    ldmfd   sp!, {pc}
 
 /* _dbg__cmdChar2Index
  *		Convert Command Character to Jump Table Index
@@ -1141,26 +1176,14 @@ _dbg__cont_is_normal_breakpoint:
    This breaks normal breakpoints which need to determine the next instruction to execute
    (for placing the autobreakpoint) prior to returning.
 */
-    mov     r2, #DBGSTACK_USERPC_INDEX      /* Retrieve Aborted Instruction PC from the Debug Stack */
+    mov		r2, #DBGSTACK_USERPC_INDEX      /* Retrieve Aborted Instruction PC from the Debug Stack */
     _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R0 */
-    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
+    mov		r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
-    bl  _dbg_next_instruction_addr          /* next instruction address returned in r1 */
-    bl  _dbg__install_singlestep            /* Setup Single Step, next instruction address returned in r1 */
+    bl  	_dbg_next_instruction_addr      /* next instruction address returned in r1 */
+    bl  	_dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
     _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
-    bl  _dbg__activate_autobreakpoint       /* pass next instruction address in r1 */
-
-#if 0
-/* Not part of the GDB Remote Protocol spec. Messages are sent only when system halts, not when we resume */
-__dbg__sendOkBeforeResume:
-    _dbg_outputMsgStatusOk
-    bl      dbg__putDebugMsg                /* Send Ok response to the GDB server */
-    cmp     r0, #0
-    beq     _dbg__switch2undefmode          /* Sending of retransmission request succeeded */
-    bl      dbg__runloopTasks               /* Service run loop tasks */
-    b       __dbg__sendOkBeforeResume       /* Retry retransmission */
-#endif
-
+    bl  	_dbg__activate_autobreakpoint   /* pass next instruction address in r1 */
 	b		_dbg__switch2undefmode
 
 /* _dbg__cmd_Step
@@ -1197,10 +1220,10 @@ _dbg__step_fromAddr:
 
 _dbg__step_check_breakpoint_type:
     _dbg_get_bkpt_type   r0
-    teq r0, #DBG_MANUAL_BKPT_ARM
-    beq _dbg__step_is_manual_bkpt
-    teq r0, #DBG_MANUAL_BKPT_THUMB
-    bne _dbg__step_is_normal_breakpoint
+    teq 	r0, #DBG_MANUAL_BKPT_ARM
+    beq 	_dbg__step_is_manual_bkpt
+    teq 	r0, #DBG_MANUAL_BKPT_THUMB
+    bne 	_dbg__step_is_normal_breakpoint
 
 _dbg__step_is_manual_bkpt:
     mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */

@@ -121,6 +121,20 @@
         bne      1b
         .endm
 
+/* _dbg_outputAckOnlyFlag
+ *      Return Flag ('+') for Continue or Step
+ *      On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *        R1: destroyed
+ *        R2: destroyed
+ */
+        .macro  _dbg_outputAckOnlyFlag
+        ldr      r0, =debug_OutMsgBuf
+        ldr      r1, =debug_AckOnlyFlag                  /* ASCIIZ terminated */
+        _dbg_stpcpy     r0, r1, r2
+        .endm
+
+
 /* _dbg_outputRetransmitFlag
  *      Return Flag ('-') for Checksum Error (retransmission needed)
  *      On exit:
