@@ -9,8 +9,11 @@ Contents
 The various folders contents are as follows:
 Debugger: GDB client driver for NXT (need to be embedded in firmware code)
 Host:     GDB Server for PC Host
-FantomModule: pyFantom - Python Wrapper for Fantom Driver on Mac OSX (used by nxt-python)
 nxt-python-fantom: Local fork of nxt-python to support pyFantom
+
+Obsolete
+========
+FantomModule: pyFantom - Python Wrapper for Fantom Driver on Mac OSX (used by nxt-python) [abandoned for now, use pyfantom instead]
 
 
 LICENCES
