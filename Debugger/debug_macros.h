@@ -247,8 +247,7 @@
  *        indexreg contains debugger stack index value (0-max index)
  */
 	.macro	_regenum2index indexenum, indexreg
-    mov     \indexreg, #indexenum
-    add     \indexreg, \indexreg, #DBGSTACK_USERREG_INDEX /* Convert register index to Debug Stack index, keep in R1 */
+    add     \indexreg, \indexenum, #DBGSTACK_USERREG_INDEX /* Convert register index to Debug Stack index */
     .endm
 
 /* _getdbgregisterfromindex

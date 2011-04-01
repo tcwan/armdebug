@@ -251,6 +251,20 @@ debug_cmdJumpTable:
 	.word	_dbg__nop							/* 'Q' */
 	.word	0
 
+/* Rm Shifted Shift Type Jump Table
+ * On entry:
+ *      R0: Register Rm
+ *      R1: Shift/Rotate Amount
+ * On exit:
+ *      R0: RmShifted result
+ *
+ */
+debug_regShiftJumpTable:
+    .word   _reg_lsl                            /* 00 */
+    .word   _reg_lsr                            /* 01 */
+    .word   _reg_asr                            /* 02 */
+    .word   _reg_ror                            /* 03 */
+
 /*
  * To determine the next instruction to execute, we need to check current (breakpointed) instruction
  * and determine whether it will be executed or not. This necessitates a mini instruction decoder
@@ -571,14 +585,15 @@ _process_auto_breakpoint:
 	bl	_dbg__restore_singlestep
 	bl	_dbg__clear_singlestep
 	_dbg_set_bkpt_type DBG_AUTO_BKPT
-	/* b	_dbg__switch2undefmode */
+	b	_dbg__switch2undefmode
 
 /* _dbg__switch2undefmode
  *      Common internal routine to return execution to user program
  */
-_dbg__switch2undefmode:
+_dbg__switch2undefmode_withAck:
 	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
 	bl      dbg__runloopTasks               /* Service run loop tasks */
+_dbg__switch2undefmode:
     bl  	_dbg__flush_icache
     msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
     _dbg_setmode FALSE                  	/* Debug Mode = False */
@@ -1187,11 +1202,11 @@ _dbg__cont_is_normal_breakpoint:
     bl  	_dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
     _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
     bl  	_dbg__activate_autobreakpoint   /* pass next instruction address in r1 */
-	b		_dbg__switch2undefmode
+	b		_dbg__switch2undefmode_withAck
 
 _dbg__cont_is_manual_bkpt_or_address_specified:
     bl      _dbg__activate_breakpoints      /* Restore exisiting breakpoints */
-    b       _dbg__switch2undefmode
+    b       _dbg__switch2undefmode_withAck
 
 /* _dbg__cmd_Step
  *      Step User Program Execution Command Handler
@@ -1253,7 +1268,7 @@ _dbg__step_is_manual_bkpt_or_address_specified:
     bl  	_dbg_next_instruction_addr      /* following instruction address returned in r1 */
     bl  	_dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
 	bl		_dbg__activate_singlestep
-    b       _dbg__switch2undefmode
+    b       _dbg__switch2undefmode_withAck
 
 
 /* _dbg__proc_brkpt_params
@@ -1978,11 +1993,149 @@ _dbg_check_arm_condcode_exit:
 	ldmfd	sp!, {r6, pc}
 
 
-_arm_data_instr_handler:	/* Data Processing instr with Rd = R15 */
-_arm_bx_blx_handler:		/* BX or BLX */
-_arm_ldr_pc_handler:		/* LDR with Rd = PC */
+/* _arm_rmshifted_val
+ *      Calculate value of Shifted Rm (operand)
+ *      On entry:
+ *          R0[11:0]: Sifted Rm operand
+ *      On exit:
+ *          R0: value of Shifted Rm
+ *          R1, R2, R3: destroyed
+ */
+_arm_rmshifted_val:
+    stmfd   sp!, {lr}
+    and     r3, r0, #(NIBBLE2|BYTE0)        /* 12 bit Shifted Register operand, copied to R3 */
+    and     r2, r3, #NIBBLE0                /* Register Rn Enum in R2 */
+    _regenum2index  r2, r2                  /* Convert Enum into Index in R2 */
+    _getdbgregisterfromindex r2, r0         /* Retrieve Register Rn contents from Index (R2) into R0 */
+
+    tst     r3, #0x10                       /* B4: Immediate (0) or Register (1) shift count */
+    moveq   r1, r3, lsr #7                  /* Immediate shift count, 5 bit unsigned value in R1 */
+    beq     _arm_calc_shifted_rm_val
+
+_arm_get_reg_shift:
+    mov   r2, r3, lsr #8                    /* Register-based shift count, 4 bit register enum in R2 */
+    _regenum2index  r2, r2                  /* Convert Enum into Index in R2 */
+    _getdbgregisterfromindex r2, r1         /* Retrieve Register contents from Index (R2) into R1 */
+
+_arm_calc_shifted_rm_val:
+    /* check bitshift op */
+    and     r3, r3, #0x60                   /* shift type */
+    mov     r3, r3, lsr #5                  /* convert into index */
+    _dbg_jumpTableHandler   debug_regShiftJumpTable, r2, r3     /* Calculate RmShifted value from R0: Rn Register val, R1: Shift/Rotate val */
+    ldmfd   sp!, {pc}
+
+/* regShift Jump Table Handlers */
+_reg_lsl:
+    lsl     r0, r0, r1
+    bx      lr
+
+_reg_lsr:
+    lsr     r0, r0, r1
+    bx      lr
+
+_reg_asr:
+    asr     r0, r0, r1
+    bx      lr
+
+_reg_ror:
+    ror     r0, r0, r1
+    bx      lr
+
+
+
+/* _arm_data_instr_handler
+ *      ARM Data Processing Instruction with Rd == R15
+ *      On entry:
+ *          R0: instruction to be executed
+ *      On exit:
+ *          R0: next instruction address
+ */
+_arm_data_instr_handler:
+    stmfd   sp!, {lr}
+@@@@@
+    ldmfd   sp!, {pc}
+
+/* _arm_bx_blx_handler
+ *      BX or BLX Handler
+ *      On entry:
+ *          R0: instruction to be executed
+ *      On exit:
+ *          R0: next instruction address
+ *          R1: destroyed
+ */
+_arm_bx_blx_handler:
+    stmfd   sp!, {lr}
+    and     r0, r0, #NIBBLE0                /* Register Rn Enum in R0 */
+    _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
+    _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R0 */
+    ldmfd   sp!, {pc}
+
+
+@@@@@@@
+/* _arm_ldr_pc_handler
+ *      LDR with Rd = PC
+ *      On entry:
+ *          R0: instruction to be executed
+ *      On exit:
+ *          R0: next instruction address
+ *          R1, R2, R3, R4, R5: destroyed
+ */
+
+_arm_ldr_pc_handler:
+    stmfd   sp!, {lr}
+    mov     r5, r0                          /* Keep a copy of the instruction in R5 */
+    and     r0, r0, #NIBBLE4                /* Register Rn Enum in R0[19:16] */
+    lsr     r0, r0, #16                     /* Move Rn Enum to R0[3:0] */
+    _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
+    _getdbgregisterfromindex r1, r4         /* Retrieve Register contents from Index (R1) into R4 */
+    teq     r0, #REG_PC                     /* Check if it is PC relative */
+    addeq   r4, r4, #8                      /* adjust for PC relative (+8) */
+    tst     r5, #0x01000000                 /* Pre (1) or Post (0) Indexed */
+    beq     _exit_arm_ldr_pc_handler        /* If Post-Indexed, just return value of Rn */
+    /* Pre-Indexed */
+    and     r0, r5, #(BYTE0+NIBBLE2)        /* 12 bit Immediate value or Shifted Reg operand */
+    tst     r5, #0x02000000                 /* Immediate (0) or Register (1) */
+    beq     _calc_ldr_pc_offset             /* Immediate value is already in R0 */
+
+_get_shiftedreg_val:
+    bl      _arm_rmshifted_val              /* Convert Rm shifted operand into value in R0 */
+
+_calc_ldr_pc_offset:
+    tst     r5, #0x00800000                 /* Add (1) or Subtract (0) */
+    addne   r4, r4, r0                      /* If Add, R2 = Rn + value */
+    subeq   r4, r4, r0                      /* If Sub, R2 = Rn - value */
+
+_exit_arm_ldr_pc_handler:
+    mov     r0, r4                          /* Return next instruction address in R0 */
+    ldmfd   sp!, {pc}
+
+
+
 _arm_ldm_pc_handler:		/* LDM {pc} */
-_arm_b_bl_handler:		/* B or BL. Note v4t does not have BLX instr */
+
+/* _arm_b_bl_handler
+ *      B or BL. Note v4t does not have BLX instr
+ *      On entry:
+ *          R0: instruction to be executed
+ *      On exit:
+ *          R0: next instruction address
+ *          R1, R2: destroyed
+ */
+
+_arm_b_bl_handler:
+    stmfd   sp!, {lr}
+    and     r0, r0, #(BYTE2|BYTE1|BYTE0)    /* Encoded Branch offset */
+    lsl     r0, r0, #2                      /* Actual Offset = Encoded Offset x 2 */
+    tst     r0, r0, #0x02000000             /* Check sign of actual offset (B25) */
+    orrne   r0, r0, #0xFC000000             /* sign extend if B25 is set */
+    add     r0, r0, #8                      /* PC prefetch (+8) */
+    mov     r1, #REG_PC                     /* Get PC */
+    _regenum2index  r1, r1                  /* Convert Enum into Index in R1 */
+    _getdbgregisterfromindex r1, r2         /* Retrieve Register contents from Index (R1) into R2 */
+    add     r0, r0, r2                      /* Calculate Branch Target Address */
+    ldmfd   sp!, {pc}
+
+
 _arm_coproc_swi_handler:	/* Coprocessor instr or SWI */
 	bx	lr
 
