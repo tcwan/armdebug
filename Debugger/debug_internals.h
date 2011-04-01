@@ -187,6 +187,7 @@
 #define CPSR_FIQ        0x00000040
 #define CPSR_IRQ        0x00000080
 #define CPSR_MODE       0x0000001F
+#define CPSR_COND		0xF0000000
 
 /* ARM Exception Modes */
 #define MODE_USR 0x10                   /* User mode */
@@ -196,6 +197,15 @@
 #define MODE_ABT 0x17                   /* Abort mode */
 #define MODE_UND 0x1B                   /* Undefined mode */
 #define MODE_SYS 0x1F                   /* System mode */
+
+/* Condition Flags
+ * b31 b30 b29 b28
+ *  N   Z   C   V
+ */
+#define CPSR_NFLAG		0x80000000
+#define CPSR_ZFLAG		0x40000000
+#define CPSR_CFLAG		0x20000000
+#define CPSR_VFLAG		0x10000000
 
 /*@}*/
 

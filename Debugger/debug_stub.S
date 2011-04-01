@@ -264,6 +264,7 @@ debug_regShiftJumpTable:
     .word   _reg_lsr                            /* 01 */
     .word   _reg_asr                            /* 02 */
     .word   _reg_ror                            /* 03 */
+    .word   _reg_rrx                            /* 04 */
 
 /*
  * To determine the next instruction to execute, we need to check current (breakpointed) instruction
@@ -1996,7 +1997,7 @@ _dbg_check_arm_condcode_exit:
 /* _arm_rmshifted_val
  *      Calculate value of Shifted Rm (operand)
  *      On entry:
- *          R0[11:0]: Sifted Rm operand
+ *          R0[11:0]: Shifted Rm operand
  *      On exit:
  *          R0: value of Shifted Rm
  *          R1, R2, R3: destroyed
@@ -2009,18 +2010,24 @@ _arm_rmshifted_val:
     _getdbgregisterfromindex r2, r0         /* Retrieve Register Rn contents from Index (R2) into R0 */
 
     tst     r3, #0x10                       /* B4: Immediate (0) or Register (1) shift count */
-    moveq   r1, r3, lsr #7                  /* Immediate shift count, 5 bit unsigned value in R1 */
-    beq     _arm_calc_shifted_rm_val
+    /* check bitshift op */
+    and     r3, r3, #0x60                   /* shift type */
+    mov     r3, r3, lsr #5                  /* convert into shift type jumptable index */
+    bne     _arm_get_reg_shift              /* Flags set previously via TST B4 */
+_arm_calc_const_shift:
+    movs    r1, r3, lsr #7                  /* Immediate shift count, 5 bit unsigned value in R1 */
+    bne     _arm_calc_shifted_rm_val        /* Non-zero shift count, process normally */
+    /* Must check for RRX == ROR #0 */
+    teq     r3, #0x3                        /* ROR == 0x3 */
+    addeq   r3, r3, #1
+    b       _arm_calc_shifted_rm_val
 
 _arm_get_reg_shift:
-    mov   r2, r3, lsr #8                    /* Register-based shift count, 4 bit register enum in R2 */
+    mov     r2, r3, lsr #8                  /* Register-based shift count, 4 bit register enum in R2 */
     _regenum2index  r2, r2                  /* Convert Enum into Index in R2 */
     _getdbgregisterfromindex r2, r1         /* Retrieve Register contents from Index (R2) into R1 */
 
 _arm_calc_shifted_rm_val:
-    /* check bitshift op */
-    and     r3, r3, #0x60                   /* shift type */
-    mov     r3, r3, lsr #5                  /* convert into index */
     _dbg_jumpTableHandler   debug_regShiftJumpTable, r2, r3     /* Calculate RmShifted value from R0: Rn Register val, R1: Shift/Rotate val */
     ldmfd   sp!, {pc}
 
@@ -2041,6 +2048,14 @@ _reg_ror:
     ror     r0, r0, r1
     bx      lr
 
+_reg_rrx:
+    moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
+    _getdbgregisterfromindex r2, r1         /* Retrieve CPSR contents from Index (R2) into R1 */
+    ands    r1, r1, #CPSR_CFLAG            /* Keep C Flag */
+    movne   r1, #0x80000000                 /* Set B31 if C Flag set */
+    lsr     r0, r0, #1                      /* Rm >> 1 */
+    orr     r0, r0, r1                      /* Put C flag into B31 */
+    bx      lr
 
 
 /* _arm_data_instr_handler
