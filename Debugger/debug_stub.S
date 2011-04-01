@@ -485,7 +485,7 @@ dbg__bkpt_init:
 	bl		_dbg__clear_breakpoints
 	mov		r2, #0
 	ldr		r1, =debug_curr_breakpoint
-	str		r2, [r1]
+	strb	r2, [r1]
 	ldr		r0, =debug_InMsgBuf
 	strb	r2, [r0]
 	ldr		r1, =debug_OutMsgBuf
