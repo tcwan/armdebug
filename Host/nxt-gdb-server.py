@@ -22,6 +22,8 @@ import select
 import usb
 import struct
 
+CTRLC = 0x03
+STATUS_QUERY = "$?#3F"
 DEFAULT_PORT = 2828
 SELECT_TIMEOUT = 0.1
 DEBUG = True
@@ -142,6 +144,9 @@ class NXTGDBServer:
                     data = client.recv (self.recv_size)
                     data = data.strip()
                     if len (data) > 0:
+                        if len (data) == 0 and data[0] == CTRLC:
+                            print "CTRL-C Received!"
+                            data = STATUS_QUERY
                         if DEBUG:
                             print "[GDB->NXT] %s" % data
                         segments = self.segment (data)
