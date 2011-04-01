@@ -627,9 +627,16 @@ dbg__bkpt_waitCMD_cont:
 	b		dbg__bkpt_waitCMD_cont
 
 _proc_command:
-/* Message now has $<packet info>\0 */
+/* Message now has Ctrl-C or $<packet info>\0 */
     mov     r4, r1							/* Use R4 as buffer pointer */
-	ldrb	r0, [r4], #1					/* Look for '$' */
+	ldrb	r0, [r4], #1					/* Look for Ctrl-C or '$' */
+	teq		r0, #MSGBUF_CTRLC
+	bne		_dbg_check_gdb_command
+	/* Ctrl-C detected, do nothing (wait for next command from GDB) */
+	bl		__dbg__procAckOnly				/* send Ack */
+	b		dbg__bkpt_waitCMD_cont
+
+_dbg_check_gdb_command:
 	teq		r0, #MSGBUF_STARTCHAR
 	movne	r0, #MSG_ERRFORMAT				/* Message Format invalid (not '$') */
 	bne		_dbg__cmdError					/* Shouldn't happen */

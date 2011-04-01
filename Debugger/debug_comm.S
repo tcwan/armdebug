@@ -765,6 +765,9 @@ _hasMsg2Copy:
 
 /* Need to account for Packet Acknowledgement */
 1:  ldrb    r0, [r5]
+    teq     r0, #MSGBUF_CTRLC                 /* Look for Ctrl-C */
+    moveq	r0, r4							  /* If found, set R0 to current message length */
+    beq		exit_dbg__getDebugMsg			  /* and return  */
     teq     r0, #MSGBUF_NAKCHAR               /* Look for '-' */
     beq		exit_dbg__getMsgError			  /* FIXME: We can't handle retransmission, flag message error */
     teq     r0, #MSGBUF_ACKCHAR               /* Look for '+' */
