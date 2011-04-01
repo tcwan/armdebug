@@ -87,6 +87,7 @@ _is_thumb:
 		teq	r2, r1
 		bne	default_undef_handler
 		ldr	r1, =BKPT16_ENUM_MASK		/* get Thumb BKPT Enum Mask */
+		ldr	lr, =dbg__thumb_bkpt_handler	/* handle BKPT, BKPT index in r0 */
 		b	_exit_undef_handler
 _is_arm:
 		ldr	r0, [r0]					/* load UNDEF instruction into r0 */
@@ -96,10 +97,10 @@ _is_arm:
 		teq	r2, r1
 		bne	default_undef_handler
 		ldr	r1, =BKPT32_ENUM_MASK		/* get ARM BKPT Enum Mask */
+		ldr	lr, =dbg__arm_bkpt_handler		/* handle BKPT, BKPT index in r0 */
 _exit_undef_handler:
 		and	r0, r1, r0					/* Keep index value */
 		msr	cpsr_c, #(MODE_ABT)			/* Configure Abort Mode */
-		ldr	lr, =dbg__arm_bkpt_handler		/* handle BKPT, BKPT index in r0 */
 		mov	pc, lr						/* Invoke Debugger State (Supervisor Mode) */
 
     .global resume_execution

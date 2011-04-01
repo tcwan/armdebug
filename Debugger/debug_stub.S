@@ -1172,11 +1172,7 @@ _dbg__cont_check_breakpoint_type:
     teq r0, #DBG_MANUAL_BKPT_ARM
     beq _dbg__cont_is_manual_bkpt_or_address_specified
     teq r0, #DBG_MANUAL_BKPT_THUMB
-    bne _dbg__cont_is_normal_breakpoint
-
-_dbg__cont_is_manual_bkpt_or_address_specified:
-    bl      _dbg__activate_breakpoints      /* Restore exisiting breakpoints */
-    b       _dbg__switch2undefmode
+    beq _dbg__cont_is_manual_bkpt_or_address_specified
 
 _dbg__cont_is_normal_breakpoint:
 /* FIXME: _dbg_next_instruction_addr doesn't actually work currently.
@@ -1192,6 +1188,10 @@ _dbg__cont_is_normal_breakpoint:
     _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
     bl  	_dbg__activate_autobreakpoint   /* pass next instruction address in r1 */
 	b		_dbg__switch2undefmode
+
+_dbg__cont_is_manual_bkpt_or_address_specified:
+    bl      _dbg__activate_breakpoints      /* Restore exisiting breakpoints */
+    b       _dbg__switch2undefmode
 
 /* _dbg__cmd_Step
  *      Step User Program Execution Command Handler
@@ -1230,12 +1230,7 @@ _dbg__step_check_breakpoint_type:
     teq 	r0, #DBG_MANUAL_BKPT_ARM
     beq 	_dbg__step_is_manual_bkpt
     teq 	r0, #DBG_MANUAL_BKPT_THUMB
-    bne 	_dbg__step_is_normal_breakpoint
-
-_dbg__step_is_manual_bkpt:
-    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
-    _getdbgregisterfromindex r2, r1         /* Retrieve Register contents into R1 */
-    b       _dbg__step_is_manual_bkpt_or_address_specified
+    beq 	_dbg__step_is_manual_bkpt
 
 _dbg__step_is_normal_breakpoint:
 /* FIXME: _dbg_next_instruction_addr doesn't actually work currently.
@@ -1246,6 +1241,12 @@ _dbg__step_is_normal_breakpoint:
     _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R0 */
     mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+    b       _dbg__step_is_manual_bkpt_or_address_specified
+
+_dbg__step_is_manual_bkpt:
+    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
+    _getdbgregisterfromindex r2, r1         /* Retrieve Register contents into R1 */
+    /* b       _dbg__step_is_manual_bkpt_or_address_specified */
 
 _dbg__step_is_manual_bkpt_or_address_specified:
 	/* R1 contains the instruction address to be executed upon return */
