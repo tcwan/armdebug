@@ -266,6 +266,35 @@ debug_regShiftJumpTable:
     .word   _reg_ror                            /* 03 */
     .word   _reg_rrx                            /* 04 */
 
+/* Data Processing Instruction Jump Table
+ * On entry:
+ *      R0: Register Rn (Operand 1 value)
+ *      R1: Operand 2 value
+ *      R2: Default Next Instruction Address
+ * On exit:
+ *      R0: Calculated result
+ *      R1, R2, R3: Destroyed
+ *
+ */
+debug_dataInstrJumpTable:
+    .word   _opcode_and                         /* 00 */
+    .word   _opcode_eor                         /* 01 */
+    .word   _opcode_sub                         /* 02 */
+    .word   _opcode_rsb                         /* 03 */
+    .word   _opcode_add                         /* 04 */
+    .word   _opcode_adc                         /* 05 */
+    .word   _opcode_sbc                         /* 06 */
+    .word   _opcode_rsc                         /* 07 */
+    .word   _opcode_tst                         /* 08 */
+    .word   _opcode_teq                         /* 09 */
+    .word   _opcode_cmp                         /* 0A */
+    .word   _opcode_cmn                         /* 0B */
+    .word   _opcode_orr                         /* 0C */
+    .word   _opcode_mov                         /* 0D */
+    .word   _opcode_bic                         /* 0E */
+    .word   _opcode_mvn                         /* 0F */
+
+
 /*
  * To determine the next instruction to execute, we need to check current (breakpointed) instruction
  * and determine whether it will be executed or not. This necessitates a mini instruction decoder
@@ -2067,8 +2096,73 @@ _reg_rrx:
  */
 _arm_data_instr_handler:
     stmfd   sp!, {lr}
+_arm_calc_data_instr_val:
+    _dbg_jumpTableHandler   debug_dataInstrJumpTable, r2, r3     /* Calculate data instruction value from R0: Rn Register val, R1: Operand 2 val */
+
 @@@@@
     ldmfd   sp!, {pc}
+
+_opcode_and:
+    and r0, r0, r1
+    bx  lr
+
+_opcode_eor:
+    eor r0, r0, r1
+    bx  lr
+
+_opcode_sub:
+    sub r0, r0, r1
+    bx  lr
+
+_opcode_rsb:
+    rsb r0, r0, r1
+    bx  lr
+
+_opcode_add:
+    add r0, r0, r1
+    bx  lr
+
+_opcode_sbc:
+    /* Op1 - Op2 + C - 1 */
+    moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
+    _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
+    ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
+    sub     r0, r0, r1
+    subeq   r0, r0, #1                      /* If C clear, subtract 1, else (C - 1) = 0 */
+    bx      lr
+
+_opcode_rsc:
+    /* Op2 - Op1 + C - 1 */
+    moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
+    _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
+    ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
+    rsb     r0, r0, r1
+    subeq   r0, r0, #1                      /* If C clear, subtract 1, else (C - 1) = 0 */
+    bx  lr
+
+_opcode_tst:
+_opcode_teq:
+_opcode_cmp:
+_opcode_cmn:
+    mov r0, r2          /* Next Instruction Address is not modified */
+    bx  lr
+
+_opcode_orr:
+    orr r0, r0, r1
+    bx  lr
+
+_opcode_mov:
+    mov r0, r1          /* Operand 1 is ignored */
+    bx  lr
+
+_opcode_bic:
+    bic r0, r0, r1
+    bx  lr
+
+_opcode_mvn:
+    mvn r0, r1          /* Operand 1 is ignored */
+    bx  lr
+
 
 /* _arm_bx_blx_handler
  *      BX or BLX Handler
