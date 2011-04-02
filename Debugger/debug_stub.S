@@ -1903,7 +1903,7 @@ _dbg_get_aborted_instr:
     teq     r4, #0                                      /* Check if it is ARM or Thumb instruction */
     beq     _following_instr_is_arm
 _following_instr_is_thumb:
-    add     r1, r6, #2                                  /* Store following Thumb instruction address to R1 */
+    add     r6, r6, #2                                  /* Store following Thumb instruction address to R1 */
     /* R0: Candidate Instruction Opcode
      * R1: Default Following Instruction Address
      */
@@ -1912,10 +1912,10 @@ _following_instr_is_thumb:
     b       _exit_dbg_following_instruction_addr
 
 _following_instr_is_arm:
-    add     r1, r6, #4                                  /* Store following ARM instruction address to R1 */
+    add     r6, r6, #4                                  /* Store following ARM instruction address to R1 */
     /* R0: Candidate Instruction Opcode
-     * R1: Default Following Instruction Address
      * R5[3:0]: CPSR condition codes
+     * R6: Default Following Instruction Address
      */
     bl      _eval_arm_instruction
 
@@ -1928,12 +1928,40 @@ _exit_dbg_following_instruction_addr:
  *      Evaluate ARM instruction to determine following instruction address
  *      On entry:
  *          R0: instruction to be executed
- *          R1: Default Following Instruction Address
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address
  *      On exit:
  *          R0: following instruction address
  *          R1-R6: destroyed
  */
+_eval_arm_instruction:
+    stmfd   sp!, {lr}
+    mov     r4, r0                      /* Keep Instruction Opcode in R4 */
+    bl      _dbg_check_arm_condcode
+    teq     r0, #TRUE
+    movne   r0, r6                      /* False (don't execute), so use Default Following Instruction Address */
+    bne     _exit_eval_arm_instruction
+
+_will_execute_arm_instr:
+    mov     r0, r4                      /* Copy instruction opcode to R0 as Code Handler parameter */
+    mov     r1, #0                      /* initialize ARM Decode Entry Table index register */
+1:
+    _dbg_armDecodeEntry r2, r3, r4, r1  /* instrreg (R2), instrmask (R3), codehandler (R4), indexreg (R1) */
+    teq     r2, #0                      /* Check for Null Entry (End of Table marker) */
+    moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
+    beq     _exit_eval_arm_instruction
+    and     r5, r0, r3                  /* Use R5 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
+    teq     r5, r2
+    addne   r1, r1, #1                  /* No match, so keep looking */
+    bne     1b
+
+_call_arm_code_handler:
+    mov     r1, r6                      /* Copy Default Following Instruction Address to R1 as Code Handler Parameter */
+    mov     lr, pc
+    bx      r4                          /* Call Code Handler with R0: Instruction Opcode, R1: Default Following Instruction Address */
+_exit_eval_arm_instruction:
+    /* Returned Following Address Instruction in R0 */
+    ldmfd   sp!, {pc}
 
 
 /****************************************************************************
@@ -1949,6 +1977,7 @@ _exit_dbg_following_instruction_addr:
  *			R5[3:0]: CPSR condition codes
  *		On exit:
  *			R0: will_execute (boolean)
+ *          R1-R3: Destroyed
  */
 
 _dbg_check_arm_condcode:
