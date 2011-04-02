@@ -268,7 +268,7 @@ debug_regShiftJumpTable:
 
 /* Data Processing Instruction Jump Table
  * On entry:
- *      R0: Register Rn (Operand 1 value)
+ *      R0: Register Rn (Operand 1) value
  *      R1: Operand 2 value
  *      R2: Default Next Instruction Address
  * On exit:
@@ -316,9 +316,9 @@ debug_dataInstrJumpTable:
 
 debug_armDecodeTable:
 	.word	0x0000f000, 0x0c00f000, _arm_data_instr_handler	/* Data Processing instr with Rd = R15 */
-	.word	0x012fff10, 0x0ffffff0, _arm_bx_blx_handler		/* BX or BLX */
+	.word	0x012fff10, 0x0ffffff0, _arm_bx_blx_handler		/* BX or BLX. Note v4t does not have BLX instr */
 	.word	0x0410f000, 0x0410f000, _arm_ldr_pc_handler		/* LDR with Rd = PC */
-/*	.word	0x06000010, 0x0e000010, _arm_undef_handler	*/	/* Undefined instr: shouldn't occur, as it would've been trapped already. See _dbg_next_instruction_addr */
+/*	.word	0x06000010, 0x0e000010, _arm_undef_handler	*/	/* Undefined instr: shouldn't occur, as it would've been trapped already. See _dbg_following_instruction_addr */
 	.word	0x08108000, 0x0e108000, _arm_ldm_pc_handler		/* LDM {pc} */
 	.word	0x0a000000, 0x0e000000, _arm_b_bl_handler		/* B or BL. Note v4t does not have BLX instr */
 	.word	0x0c000000, 0x0c000000, _arm_coproc_swi_handler	/* Coprocessor instr or SWI */
@@ -1220,7 +1220,7 @@ _dbg__cont_check_breakpoint_type:
     beq _dbg__cont_is_manual_bkpt_or_address_specified
 
 _dbg__cont_is_normal_breakpoint:
-/* FIXME: _dbg_next_instruction_addr doesn't actually work currently.
+/* FIXME: _dbg_following_instruction_addr doesn't actually work currently.
    This breaks normal breakpoints which need to determine the next instruction to execute
    (for placing the autobreakpoint) prior to returning.
 */
@@ -1228,7 +1228,7 @@ _dbg__cont_is_normal_breakpoint:
     _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R0 */
     mov		r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
-    bl  	_dbg_next_instruction_addr      /* next instruction address returned in r1 */
+    bl  	_dbg_following_instruction_addr /* following instruction address returned in r1 */
     bl  	_dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
     _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
     bl  	_dbg__activate_autobreakpoint   /* pass next instruction address in r1 */
@@ -1278,7 +1278,7 @@ _dbg__step_check_breakpoint_type:
     beq 	_dbg__step_is_manual_bkpt
 
 _dbg__step_is_normal_breakpoint:
-/* FIXME: _dbg_next_instruction_addr doesn't actually work currently.
+/* FIXME: _dbg_following_instruction_addr doesn't actually work currently.
    This breaks normal breakpoints which need to determine the next instruction to execute
    (for placing the autobreakpoint) prior to returning.
 */
@@ -1290,12 +1290,11 @@ _dbg__step_is_normal_breakpoint:
 
 _dbg__step_is_manual_bkpt:
     mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
-    _getdbgregisterfromindex r2, r1         /* Retrieve Register contents into R1 */
+    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R1 */
     /* b       _dbg__step_is_manual_bkpt_or_address_specified */
 
 _dbg__step_is_manual_bkpt_or_address_specified:
-	/* R1 contains the instruction address to be executed upon return */
-    bl  	_dbg_next_instruction_addr      /* following instruction address returned in r1 */
+    bl  	_dbg_following_instruction_addr /* following instruction address returned in r1 */
     bl  	_dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
 	bl		_dbg__activate_singlestep
     b       _dbg__switch2undefmode_withAck
@@ -1851,10 +1850,14 @@ void __single_step (void)
 
  ****************************************************************************/
 
-/* _dbg_next_instruction_addr
- *		Determine the address of the next instruction to execute.
+/* _dbg_following_instruction_addr
+ *		Determine the address of the following instruction to execute.
+ *      On entry:
+ *          R0: Address of the instruction to be (re)executed
  *		On exit:
- *			R1: Instruction Address (31 bits, b0 = THUMB flag)
+ *          R0: Destroyed
+ *			R1: Following Instruction Address (31 bits, b0 = THUMB flag)
+ *          R2-R6: Destroyed
  *
  *	Here we make use of the Debugger Stack which contains the address of the aborted instruction that will be reexecuted
  *	when we resume the program.
@@ -1867,49 +1870,71 @@ void __single_step (void)
  *	We need to check the aborted instruction type, to see if it is a branch instruction, before we can determine
  *	the next instruction address (for inserting a Breakpoint).
  */
-_dbg_next_instruction_addr:
-    /* FIXME: This needs a total rewrite */
-    mov     r1, #0
-    bx      lr
+_dbg_following_instruction_addr:
+    stmfd   sp!, {lr}
 /* We assume that any BKPT instructions in the code will be Manual Breakpoints,
  * i.e., the Debugger does not leave stray Single Step / Auto / Normal breakpoints in memory
  */
+    mov     r6, r0                                      /* Keep instruction address in R6 */
+    mov     r2, #DBGSTACK_USERCPSR_INDEX                /* Retrieve User CPSR */
+    _getdbgregisterfromindex r2, r1                     /* Retrieve Register contents into R1 */
+    and     r4, r1, #CPSR_THUMB                         /* store Thumb Mode status in R4 */
+    mov     r5, r1, lsr #28                             /* store CPSR condition flags in R5[3:0] */
 
-	mov		r2, #DBGSTACK_USERCPSR_INDEX				/* Retrieve User CPSR */
-	_getdbgregisterfromindex r2, r0						/* Retrieve Register contents into R0 */
- 	and		r4, r0, #CPSR_THUMB							/* store Thumb Mode status in R4 */
- 	mov		r5, r0, lsr #28								/* store CPSR condition flags in R5[3:0] */
+_dbg_get_aborted_instr:
+1:  teq     r4, #0                                      /* Check if it is ARM or Thumb instruction */
+    ldrneh  r0, [r6]                                    /* Load Thumb instruction opcode using Addr in R6 into R0 */
+    ldrne   r2, =(BKPT16_INSTR | BKPT16_MANUAL_BKPT)    /* check for Thumb Manual Breakpoint Instruction */
+    ldreq   r0, [r6]                                    /* Load ARM instruction opcode using Addr in R6 into R0 */
+    ldreq   r2, =(BKPT32_INSTR | BKPT32_MANUAL_BKPT)    /* check for ARM Manual Breakpoint Instruction */
+    teq     r0, r2                                      /* Is instruction opcode (R0) == Manual Breakpoint opcode (R2)? */
+    bne     2f                                          /* Not Manual breakpoint */
+    teq     r4, #0                                      /* Check if it is ARM or Thumb Manual Breakpoint */
+    addne   r6, r6, #2                                  /* Is Manual Breakpoint, Skip to next Thumb instruction */
+    addeq   r6, r6, #4                                  /* Is Manual Breakpoint, Skip to next ARM instruction */
+    b       1b                                          /* To protect against a sequence of Manual Breakpoint Instructions */
 
-	_dbg_getabortedinstr_addr	r2						/* Retrieve aborted instruction address */
-1:	teq		r4, #0										/* Check if it is ARM or Thumb instruction */
-	ldrneh	r0, [r2]
-	ldrne	r1, =(BKPT16_INSTR | BKPT16_MANUAL_BKPT)	/* check for Thumb Manual Breakpoint Instruction */
-	ldreq	r0, [r2]
-	ldreq	r1, =(BKPT32_INSTR | BKPT32_MANUAL_BKPT)	/* check for ARM Manual Breakpoint Instruction */
-	teq		r0, r1
-	bne		2f											/* Not Manual breakpoint */
-	teq		r4, #0										/* Check if it is ARM or Thumb instruction */
-	addne	r2, r2, #2									/* Is Manual Breakpoint, Skip to next Thumb instruction */
-	addeq	r2, r2, #4									/* Is Manual Breakpoint, Skip to next ARM instruction */
-	_dbg_setabortedinstr_addr	r2						/* Update aborted instruction address */
-	b		1b											/* To protect against a sequence of Manual Breakpoint Instructions */
-
-/* Here, r0 contains the instruction which will be reexecuted when program resumes. We need to dissect it to see if
- * it is a branch instruction.
+/* Here, R0 contains the instruction opcode which will be (re)executed when program resumes.
+ * We need to dissect it to see if it is a branch instruction.
  * For ARM instructions, we also need to evaluate the current (breakpointed) instruction to see if it'll execute.
- * If not, then the next instruction is the instruction following the current instruction.
+ * If not, then the following instruction is at the address following the address of the opcode in R0 (Default Following Instruction Address).
  */
 2:
-	/* Use R6 to store candidate next instruction address */
-	teq		r4, #0										/* Check if it is ARM or Thumb instruction */
-	beq		_next_instr_is_arm
-_next_instr_is_thumb:
-	add		r6, r2, #2									/* set next Thumb instruction address */
-	/*_is_thumb_branch_instr	r0		*/					/* check if the current instruction is a branch instruction */
-_next_instr_is_arm:
-	add		r6, r2, #4									/* Is ARM, set next ARM instruction address */
-@@@@@@@@@
-	bx	lr
+    teq     r4, #0                                      /* Check if it is ARM or Thumb instruction */
+    beq     _following_instr_is_arm
+_following_instr_is_thumb:
+    add     r1, r6, #2                                  /* Store following Thumb instruction address to R1 */
+    /* R0: Candidate Instruction Opcode
+     * R1: Default Following Instruction Address
+     */
+    bl      _eval_thumb_instruction
+    orr     r0, r0, #BKPT_STATE_THUMB_FLAG              /* Set b0 to indicate Thumb instruction */
+    b       _exit_dbg_following_instruction_addr
+
+_following_instr_is_arm:
+    add     r1, r6, #4                                  /* Store following ARM instruction address to R1 */
+    /* R0: Candidate Instruction Opcode
+     * R1: Default Following Instruction Address
+     * R5[3:0]: CPSR condition codes
+     */
+    bl      _eval_arm_instruction
+
+_exit_dbg_following_instruction_addr:
+    mov     r1, r0                                      /* Return Actual Following Instruction Address in R1 */
+    ldmfd   sp!, {pc}
+
+
+/* _eval_arm_instruction
+ *      Evaluate ARM instruction to determine following instruction address
+ *      On entry:
+ *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
+ *          R5[3:0]: CPSR condition codes
+ *      On exit:
+ *          R0: following instruction address
+ *          R1-R6: destroyed
+ */
+
 
 /****************************************************************************
  *
@@ -2033,7 +2058,8 @@ _dbg_check_arm_condcode_exit:
  */
 _arm_rmshifted_val:
     stmfd   sp!, {lr}
-    and     r3, r0, #(NIBBLE2|BYTE0)        /* 12 bit Shifted Register operand, copied to R3 */
+    ldr     r3, =(NIBBLE2|BYTE0)
+    and     r3, r0, r3                      /* 12 bit Shifted Register operand, copied to R3 */
     and     r2, r3, #NIBBLE0                /* Register Rn Enum in R2 */
     _regenum2index  r2, r2                  /* Convert Enum into Index in R2 */
     _getdbgregisterfromindex r2, r0         /* Retrieve Register Rn contents from Index (R2) into R0 */
@@ -2042,7 +2068,7 @@ _arm_rmshifted_val:
     /* check bitshift op */
     and     r3, r3, #0x60                   /* shift type */
     mov     r3, r3, lsr #5                  /* convert into shift type jumptable index */
-    bne     _arm_get_reg_shift              /* Flags set previously via TST B4 */
+    bne     _arm_get_reg_shift              /* Flags set previously via TST r3 (B4) */
 _arm_calc_const_shift:
     movs    r1, r3, lsr #7                  /* Immediate shift count, 5 bit unsigned value in R1 */
     bne     _arm_calc_shifted_rm_val        /* Non-zero shift count, process normally */
@@ -2054,13 +2080,21 @@ _arm_calc_const_shift:
 _arm_get_reg_shift:
     mov     r2, r3, lsr #8                  /* Register-based shift count, 4 bit register enum in R2 */
     _regenum2index  r2, r2                  /* Convert Enum into Index in R2 */
-    _getdbgregisterfromindex r2, r1         /* Retrieve Register contents from Index (R2) into R1 */
+    _getdbgregisterfromindex r2, r1         /* Retrieve Register value (shift count) from Index (R2) into R1 */
 
 _arm_calc_shifted_rm_val:
     _dbg_jumpTableHandler   debug_regShiftJumpTable, r2, r3     /* Calculate RmShifted value from R0: Rn Register val, R1: Shift/Rotate val */
     ldmfd   sp!, {pc}
 
-/* regShift Jump Table Handlers */
+/* Rm Shifted Shift Type Jump Table Routines
+ * On entry:
+ *      R0: Register Rm
+ *      R1: Shift/Rotate Amount
+ * On exit:
+ *      R0: RmShifted result
+ *      R1, R2: destroyed
+ *
+ */
 _reg_lsl:
     lsl     r0, r0, r1
     bx      lr
@@ -2091,17 +2125,70 @@ _reg_rrx:
  *      ARM Data Processing Instruction with Rd == R15
  *      On entry:
  *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
  *      On exit:
- *          R0: next instruction address
+ *          R0: following instruction address
+ *          R1, R2, R3, R4, R5, R6: Destroyed
  */
 _arm_data_instr_handler:
     stmfd   sp!, {lr}
-_arm_calc_data_instr_val:
-    _dbg_jumpTableHandler   debug_dataInstrJumpTable, r2, r3     /* Calculate data instruction value from R0: Rn Register val, R1: Operand 2 val */
+    mov     r6, r1                          /* save Following Instruction Address in R6 */
+    ldr     r1, =0x0FBF0000
+    and     r4, r0, r1                      /* Keep instruction Opcode in R4 */
+    ldr     r1, =0x010F0000
+    cmp     r4, r1                          /* Check for MSR / MRS instruction */
 
-@@@@@
+_arm_is_msr_mrs_instr:
+    moveq   r0, r6                          /* Copy default next instruciton address to R0 */
+    beq     _exit_arm_data_instr_handler    /* Return default next instruction address */
+
+    /* Not MSR / MRS, so process normally */
+_arm_normal_data_instr:
+    and     r4, r0, #0x01E00000             /* Mask Instruction Opcode into R4 */
+    and     r5, r0, #0x000F0000             /* Store Rn (Operand 1) Register Enum into R5[19:16] */
+    lsr     r5, r5, #16                     /* Shift into R5[3:0] */
+
+_arm_check_operand2_type:
+    tst     r0, #0x02000000                 /* Check for Immediate (1) or Register (0) Operand 2 */
+    beq     _arm_op2_is_reg
+
+_arm_op2_is_imm:
+    and     r1, r0, #BYTE0                  /* 8 bit unsigned constant in R1 */
+    and     r2, r0, #NIBBLE2                /* (rotate count / 2) in R2[11:8] */
+    lsr     r2, r2, #7                      /* actual rotate count in R2[4:0] */
+    ror     r1, r1, r2                      /* Rotated constant in R1 */
+    b       _arm_get_operand1_val
+
+_arm_op2_is_reg:
+    ldr     r1, =(NIBBLE2|BYTE0)
+    and     r0, r0, r1                      /* 12 bit register operand in R1 */
+    bl      _arm_rmshifted_val              /* R0 contains the Rm shifted val */
+    mov     r1, r0                          /* move to R1 for later processing */
+
+_arm_get_operand1_val:
+    _regenum2index  r5, r1                  /* Convert Enum into Index in R1 */
+    _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R4 */
+    teq     r5, #REG_PC                     /* Check if it is PC relative */
+    addeq   r0, r0, #8                      /* adjust for PC relative (+8) */
+
+_arm_calc_data_instr_val:
+    mov     r2, r6                          /* Retrieve Following Instruction Address in R6 to R2 */
+    /* Calculate data instruction value from R0: Rn Register (Op1) val, R1: Operand 2 val, R2: Default Next Instr Addr */
+    _dbg_jumpTableHandler   debug_dataInstrJumpTable, r3, r4    /* Next Instruction Address in R0 */
+_exit_arm_data_instr_handler:
     ldmfd   sp!, {pc}
 
+
+/* Data Processing Instruction Jump Table Routines
+ * On entry:
+ *      R0: Register Rn (Operand 1) value
+ *      R1: Operand 2 value
+ *      R2: Default Next Instruction Address
+ * On exit:
+ *      R0: Calculated result
+ *      R1, R2, R3: Destroyed
+ *
+ */
 _opcode_and:
     and r0, r0, r1
     bx  lr
@@ -2165,11 +2252,12 @@ _opcode_mvn:
 
 
 /* _arm_bx_blx_handler
- *      BX or BLX Handler
+ *      BX or BLX Handler. Note v4t does not have BLX instr
  *      On entry:
  *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
  *      On exit:
- *          R0: next instruction address
+ *          R0: following instruction address
  *          R1: destroyed
  */
 _arm_bx_blx_handler:
@@ -2177,16 +2265,16 @@ _arm_bx_blx_handler:
     and     r0, r0, #NIBBLE0                /* Register Rn Enum in R0 */
     _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
     _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R0 */
+    bic     r0, #0x01                       /* Clear R0[0] since it is used to indicates Thumb mode */
     ldmfd   sp!, {pc}
 
-
-@@@@@@@
 /* _arm_ldr_pc_handler
  *      LDR with Rd = PC
  *      On entry:
  *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
  *      On exit:
- *          R0: next instruction address
+ *          R0: following instruction address
  *          R1, R2, R3, R4, R5: destroyed
  */
 
@@ -2202,7 +2290,8 @@ _arm_ldr_pc_handler:
     tst     r5, #0x01000000                 /* Pre (1) or Post (0) Indexed */
     beq     _exit_arm_ldr_pc_handler        /* If Post-Indexed, just return value of Rn */
     /* Pre-Indexed */
-    and     r0, r5, #(BYTE0+NIBBLE2)        /* 12 bit Immediate value or Shifted Reg operand */
+    ldr     r0, =(NIBBLE2|BYTE0)
+    and     r0, r5, r0                      /* 12 bit Immediate value or Shifted Reg operand */
     tst     r5, #0x02000000                 /* Immediate (0) or Register (1) */
     beq     _calc_ldr_pc_offset             /* Immediate value is already in R0 */
 
@@ -2219,15 +2308,52 @@ _exit_arm_ldr_pc_handler:
     ldmfd   sp!, {pc}
 
 
+/* _arm_ldm_pc_handler
+ *      LDM {pc}
+ *      On entry:
+ *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
+ *      On exit:
+ *          R0: following instruction address
+ *          R1, R2, R3: destroyed
+ *
+ *      FIXME: The algorithm from eCos arm_stub.c does not deal with the Pre/Post-Indexed addressing (P) bit.
+ */
+_arm_ldm_pc_handler:
+    stmfd   sp!, {lr}
+    and     r3, r0, #0x000F0000             /* Store Rn (Operand 1) Register Enum into R3[19:16] */
+    lsr     r3, r3, #16                     /* Shift into R3[3:0] */
 
-_arm_ldm_pc_handler:		/* LDM {pc} */
+_arm_get_Rn_val:
+    _regenum2index  r3, r2                  /* Convert Enum into Index in R2 */
+    _getdbgregisterfromindex r2, r1         /* Retrieve Register contents from Index (R2) into R1 */
+    teq     r3, #REG_PC                     /* Check if it is PC relative */
+    addeq   r1, r1, #8                      /* adjust Rn (R1) for PC relative (+8) */
+
+_arm_get_regcount:
+    mov     r2, #0                          /* Initialize reg_count (R2) to 0 */
+    ldr     r3, =HLFWRD0
+    and     r3, r0, r3                      /* Register List Bit vector */
+1:  movs    r3, r3, lsl #1                  /* count number of '1' bits */
+    addcs   r2, r2, #1                      /* increment reg_count (R2) if C Flag set */
+    bne     1b                              /* continue until vector is empty */
+
+_arm_check_updown_offset:
+    tst     r0, #0x00800000                 /* Check Up (1) or Down (0) */
+    addne   r1, r1, r2, lsl #2              /* Ascending: Rn (R1) += reg_count (R2) x 4 */
+    subeq   r1, r1, #4                      /* Descending: Rn (R1) -= 4 */
+    ldr     r0, [r1]                        /* Retrieve stack content for new PC value */
+    ldmfd   sp!, {pc}
+
+
 
 /* _arm_b_bl_handler
  *      B or BL. Note v4t does not have BLX instr
  *      On entry:
  *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
  *      On exit:
- *          R0: next instruction address
+ *          R0: following instruction address
  *          R1, R2: destroyed
  */
 
@@ -2235,7 +2361,7 @@ _arm_b_bl_handler:
     stmfd   sp!, {lr}
     and     r0, r0, #(BYTE2|BYTE1|BYTE0)    /* Encoded Branch offset */
     lsl     r0, r0, #2                      /* Actual Offset = Encoded Offset x 2 */
-    tst     r0, r0, #0x02000000             /* Check sign of actual offset (B25) */
+    tst     r0, #0x02000000                 /* Check sign of actual offset (B25) */
     orrne   r0, r0, #0xFC000000             /* sign extend if B25 is set */
     add     r0, r0, #8                      /* PC prefetch (+8) */
     mov     r1, #REG_PC                     /* Get PC */
@@ -2244,10 +2370,52 @@ _arm_b_bl_handler:
     add     r0, r0, r2                      /* Calculate Branch Target Address */
     ldmfd   sp!, {pc}
 
+/* _arm_coproc_swi_handler
+ *      SVC (SWI) or Coprocessor instruction
+ *      On entry:
+ *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
+ *      On exit:
+ *          R0: following instruction address
+ *          R1: destroyed
+ */
 
-_arm_coproc_swi_handler:	/* Coprocessor instr or SWI */
-	bx	lr
+_arm_coproc_swi_handler:
+    teq     r0, #0x0F000000                 /* SVC (SWI) instruction */
 
+_arm_swi_instr:
+    ldreq   r0, =SVC_VECTOR                 /* Return SVC Vector Address */
+    beq     _exit_arm_coproc_swi_handler
+
+_arm_coproc_instr:
+    mov     r0, r1                          /* Use default Following Instruction Address */
+_exit_arm_coproc_swi_handler:
+	bx	    lr
+
+
+/* _eval_thumb_instruction
+ *      Evaluate ARM instruction to determine following instruction address
+ *      On entry:
+ *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
+ *          R5[3:0]: CPSR condition codes
+ *      On exit:
+ *          R0: following instruction address
+ *          R1-R6: destroyed
+ */
+_eval_thumb_instruction:
+@@@@@@@@
+    bx      lr
+
+/* _thumb_bx_blx_handler
+ *      BX or BLX Handler. Note v4t does not have BLX instr
+ *      On entry:
+ *          R0: instruction to be executed
+ *          R1: Default Following Instruction Address
+ *      On exit:
+ *          R0: following instruction address
+ *          R1: destroyed
+ */
 _thumb_bx_blx_handler:				/* BX or BLX. Note: b7 (H1) is not matched in the mask */
 _thumb_poppc_handler:				/* PUSH/POP, specifically POP {Rlist,PC} */
 _thumb_bcond_swi_handler:			/* B<cond> or SWI */
