@@ -155,6 +155,26 @@
 #define DBGSTACK_USERPC_INDEX   (DBGSTACK_USERREG_INDEX + REG_PC)     /* PC is R15 */
 /*@}*/
 
+
+/** @name Exception Handler Vector Definitions.
+ *
+ * Exception Handler Vectors.
+ */
+/*@{*/
+
+#define RESET_VECTOR	0x00000000
+#define UNDEF_VECTOR	0x00000004
+#define SVC_VECTOR	    0x00000008
+#define PABRT_VECTOR	0x0000000C
+#define DABRT_VECTOR	0x00000010
+#define RESERVED_VECTOR 0x00000014
+#define IRQ_VECTOR		0x00000018
+#define FIQ_VECTOR		0x0000001C
+
+
+/*@}*/
+
+
 /** @name Bitmask Definitions.
  *
  * Various Bitmasks used for data manipulation.
@@ -226,7 +246,7 @@ ENUM_END(dbg_state_t)
  * The enums must be consecutive, starting from 0
  */
 ENUM_BEGIN
-ENUM_VALASSIGN(DBG_AUTO_BKPT,0)         /**< Auto Thumb Breakpoint (Instruction resume after breakpoint). */
+ENUM_VALASSIGN(DBG_AUTO_BKPT,0)         /**< Auto Breakpoint (Instruction resume after breakpoint). */
 ENUM_VAL(DBG_MANUAL_BKPT_ARM)           /**< Manual ARM Breakpoint. */
 ENUM_VAL(DBG_NORMAL_BKPT_ARM)           /**< Normal ARM Breakpoint (Single Step, Normal). */
 ENUM_VAL(DBG_MANUAL_BKPT_THUMB)         /**< Manual Thumb Breakpoint. */
