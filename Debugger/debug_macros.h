@@ -380,27 +380,6 @@
 	strb \reg, [r1]
 	.endm
 
-/* _dbg_getabortedinstr_addr
- *	Get aborted instruction address
- *	On exit:
- *	  reg: aborted instruction address
- */
-        .macro _dbg_getabortedinstr_addr  reg
-	ldr	 \reg, =__debugger_stack_bottom__
-	ldr	 \reg, [\reg]
-	.endm
-
-/* _dbg_setabortedinstr_addr
- *	Set aborted instruction address
- *	On exit:
- *	  r1: destroyed
- */
-        .macro _dbg_setabortedinstr_addr  reg
-        ldr   r1, =__debugger_stack_bottom__
-        str   \reg, [r1]
-        .endm
-
-
  /*@}*/
 
 #endif /* __DEBUG_MACROS_H__ */
