@@ -1195,7 +1195,7 @@ _dbg__cmd_WriteMem:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              Optional: AA..AA
  *      On exit:
- *          r0, r1, r2: destroyed
+ *          r0-r7: destroyed
  *			Note: This routine does not return to caller. Instead it switches
  *				  operating mode to UNDEF and returns to previously active program
  */
@@ -1253,7 +1253,7 @@ _dbg__cont_is_manual_bkpt_or_address_specified:
  *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              Optional: AA..AA
  *      On exit:
- *          r0, r1, r2: destroyed
+ *          r0-r7: destroyed
  *          Note: This routine does not return to caller. Instead it switches
  *                operating mode to UNDEF and returns to previously active program
  */
@@ -1857,7 +1857,7 @@ void __single_step (void)
  *		On exit:
  *          R0: Destroyed
  *			R1: Following Instruction Address (31 bits, b0 = THUMB flag)
- *          R2-R6: Destroyed
+ *          R2-R7: Destroyed
  *
  *	Here we make use of the Debugger Stack which contains the address of the aborted instruction that will be reexecuted
  *	when we resume the program.
@@ -1934,7 +1934,7 @@ _exit_dbg_following_instruction_addr:
  *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1-R6: destroyed
+ *          R1-R7: destroyed
  */
 _eval_arm_instruction:
     stmfd   sp!, {lr}
@@ -1952,8 +1952,8 @@ _will_execute_arm_instr:
     teq     r2, #0                      /* Check for Null Entry (End of Table marker) */
     moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
     beq     _exit_eval_arm_instruction
-    and     r5, r0, r3                  /* Use R5 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
-    teq     r5, r2
+    and     r7, r0, r3                  /* Use R7 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
+    teq     r7, r2
     addne   r1, r1, #1                  /* No match, so keep looking */
     bne     1b
 
@@ -1973,7 +1973,7 @@ _exit_eval_arm_instruction:
  *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1-R6: destroyed
+ *          R1-R7: destroyed
  */
 _eval_thumb_instruction:
     stmfd   sp!, {lr}
@@ -1994,11 +1994,9 @@ _will_execute_thumb_instr:
     teq     r2, #0                      /* Check for Null Entry (End of Table marker) */
     moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
     beq     _exit_eval_thumb_instruction
-@@@@@@
-/* FIXME: we need to keep condition codes in R5 for B<cond> */
 
-    and     r5, r0, r3                  /* Use R5 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
-    teq     r5, r2
+    and     r7, r0, r3                  /* Use R5 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
+    teq     r7, r2
     addne   r1, r1, #1                  /* No match, so keep looking */
     bne     1b
 
@@ -2202,6 +2200,7 @@ _reg_rrx:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+4)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address
  *          R1, R2, R3, R4, R5, R6: Destroyed
@@ -2332,6 +2331,7 @@ _opcode_mvn:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+4)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1, R2: destroyed
@@ -2352,6 +2352,7 @@ _arm_bx_blx_handler:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+4)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address
  *          R1, R2, R3, R4, R5: destroyed
@@ -2392,6 +2393,7 @@ _exit_arm_ldr_pc_handler:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+4)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address
  *          R1, R2, R3: destroyed
@@ -2431,6 +2433,7 @@ _arm_check_updown_offset:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+4)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address
  *          R1, R2, R3: destroyed
@@ -2468,13 +2471,15 @@ _exit_arm_b_bl_blx_handler:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+4)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address
- *          R1: destroyed
+ *          R1, R2: destroyed
  */
 
 _arm_coproc_swi_handler:
-    teq     r0, #0x0F000000                 /* SVC (SWI) instruction */
+    and     r2, r0, #0x0F000000
+    teq     r2, #0x0F000000                 /* SVC (SWI) instruction */
 
 _arm_swi_instr:
     ldreq   r0, =SVC_VECTOR                 /* Return SVC Vector Address */
@@ -2491,6 +2496,7 @@ _exit_arm_coproc_swi_handler:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+2)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1: destroyed
@@ -2509,6 +2515,7 @@ _thumb_bx_blx_handler:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+2)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1: destroyed
@@ -2544,18 +2551,28 @@ _thumb_get_regcount:
  * 			R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1, R3: destroyed
+ *          R1, R2, R3, R4, R5: destroyed
  */
 _thumb_bcond_swi_handler:
+	mov		r4, r0					        /* Keep instruction in R4 */
+	mov     r5, r1                          /* Store Default Following Instruction Address in R5 */
+	lsl		r0, r0, #(32-12)		        /* Shift condition code in R4[11:8] to R0[31:28] */
+    and     r2, r0, #0xF0000000
+    teq     r2, #0xF0000000                 /* SVC (SWI) instruction */
+
+_thumb_swi_instr:
+    ldreq   r0, =SVC_VECTOR                 /* Return SVC Vector Address */
+    beq     _exit_thumb_bcond_swi_handler
+
+_thumb_bcond_instr:
+	bl		_dbg_check_arm_condcode	        /* Use ARM condition code checking routine to test (R4 unchanged) */
+    teq     r0, #FALSE
+    moveq   r0, r5                          /* False (don't execute), so use Default Following Instruction Address */
+    bne     _exit_thumb_bcond_swi_handler
 /* FIXME */
-@@@@@@@@
-
-	mov		r3, r0					/* Keep instruction in R3 */
-	lsl		r0, r3, #(32-12)		/* Shift condition code in R3[11:8] to R0[31:28] */
-	bl		_dbg_check_arm_condcode	/* Use ARM condition code checking routine to test */
-
 @@@@@@
-    orr     r0, r0, #0x01           /* Set R0[0] since it is used to indicates Thumb mode */
+    orr     r0, r0, #0x01                   /* Set R0[0] since it is used to indicates Thumb mode */
+_exit_thumb_bcond_swi_handler:
 	bx	lr
 
 /* _thumb_b_handler
@@ -2563,6 +2580,7 @@ _thumb_bcond_swi_handler:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+2)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1: destroyed
@@ -2583,6 +2601,7 @@ _thumb_b_handler:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+2)
+ *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1, R2, R3: destroyed
