@@ -271,6 +271,7 @@ debug_regShiftJumpTable:
  *      R0: Register Rn (Operand 1) value
  *      R1: Operand 2 value
  *      R2: Default Next Instruction Address
+ *      R5[3:0]: CPSR condition codes
  * On exit:
  *      R0: Calculated result
  *      R1, R2, R3: Destroyed
@@ -2203,7 +2204,7 @@ _reg_rrx:
  *          R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address
- *          R1, R2, R3, R4, R5, R6: Destroyed
+ *          R1-R7: Destroyed
  */
 _arm_data_instr_handler:
     stmfd   sp!, {lr}
@@ -2219,9 +2220,10 @@ _arm_is_msr_mrs_instr:
 
     /* Not MSR / MRS, so process normally */
 _arm_normal_data_instr:
-    and     r4, r0, #0x01E00000             /* Mask Instruction Opcode into R4 */
-    and     r5, r0, #0x000F0000             /* Store Rn (Operand 1) Register Enum into R5[19:16] */
-    lsr     r5, r5, #16                     /* Shift into R5[3:0] */
+    and     r4, r0, #0x01E00000             /* Mask Instruction Opcode into R4[24:21] */
+    lsr     r4, r4, #21                     /* Shift Data Processing Opcode into R4[3:0] */
+    and     r7, r0, #0x000F0000             /* Store Rn (Operand 1) Register Enum into R7[19:16] */
+    lsr     r7, r7, #16                     /* Shift into R7[3:0] */
 
 _arm_check_operand2_type:
     tst     r0, #0x02000000                 /* Check for Immediate (1) or Register (0) Operand 2 */
@@ -2241,15 +2243,15 @@ _arm_op2_is_reg:
     mov     r1, r0                          /* move to R1 for later processing */
 
 _arm_get_operand1_val:
-    _regenum2index  r5, r1                  /* Convert Enum into Index in R1 */
+    _regenum2index  r7, r1                  /* Convert Enum into Index in R1 */
     _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R4 */
-    teq     r5, #REG_PC                     /* Check if it is PC relative */
+    teq     r7, #REG_PC                     /* Check if it is PC relative */
     addeq   r0, r0, #8                      /* adjust for PC relative (+8) */
 
 _arm_calc_data_instr_val:
     mov     r2, r6                          /* Retrieve Following Instruction Address in R6 to R2 */
     /* Calculate data instruction value from R0: Rn Register (Op1) val, R1: Operand 2 val, R2: Default Next Instr Addr */
-    _dbg_jumpTableHandler   debug_dataInstrJumpTable, r3, r4    /* Next Instruction Address in R0 */
+    _dbg_jumpTableHandler   debug_dataInstrJumpTable, r6, r4    /* Next Instruction Address in R0 */
 _exit_arm_data_instr_handler:
     ldmfd   sp!, {pc}
 
@@ -2259,6 +2261,7 @@ _exit_arm_data_instr_handler:
  *      R0: Register Rn (Operand 1) value
  *      R1: Operand 2 value
  *      R2: Default Next Instruction Address (PC+4)
+ *      R5[3:0]: CPSR condition codes
  * On exit:
  *      R0: Calculated result
  *      R1, R2, R3: Destroyed
@@ -2286,27 +2289,36 @@ _opcode_add:
 
 _opcode_adc:
     /* Op1 + Op2 + C */
+#if 0
     moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
     _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
     ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
+#endif
+    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value */
     add     r0, r0, r1
     addne   r0, r0, #1                      /* Add C if set */
     bx      lr
 
 _opcode_sbc:
     /* Op1 - Op2 + C - 1 */
+#if 0
     moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
     _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
     ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
+#endif
+    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value */
     sub     r0, r0, r1
     subeq   r0, r0, #1                      /* If C clear, subtract 1, else (C - 1) = 0 */
     bx      lr
 
 _opcode_rsc:
     /* Op2 - Op1 + C - 1 */
+#if 0
     moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
     _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
     ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
+#endif
+    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value */
     rsb     r0, r0, r1
     subeq   r0, r0, #1                      /* If C clear, subtract 1, else (C - 1) = 0 */
     bx  lr
