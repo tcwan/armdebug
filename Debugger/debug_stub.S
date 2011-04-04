@@ -1994,6 +1994,9 @@ _will_execute_thumb_instr:
     teq     r2, #0                      /* Check for Null Entry (End of Table marker) */
     moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
     beq     _exit_eval_thumb_instruction
+@@@@@@
+/* FIXME: we need to keep condition codes in R5 for B<cond> */
+
     and     r5, r0, r3                  /* Use R5 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
     teq     r5, r2
     addne   r1, r1, #1                  /* No match, so keep looking */
@@ -2538,11 +2541,20 @@ _thumb_get_regcount:
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address (PC+2)
+ * 			R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1: destroyed
+ *          R1, R3: destroyed
  */
 _thumb_bcond_swi_handler:
+/* FIXME */
+@@@@@@@@
+
+	mov		r3, r0					/* Keep instruction in R3 */
+	lsl		r0, r3, #(32-12)		/* Shift condition code in R3[11:8] to R0[31:28] */
+	bl		_dbg_check_arm_condcode	/* Use ARM condition code checking routine to test */
+
+@@@@@@
     orr     r0, r0, #0x01           /* Set R0[0] since it is used to indicates Thumb mode */
 	bx	lr
 
