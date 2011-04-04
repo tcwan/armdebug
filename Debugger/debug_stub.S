@@ -1904,12 +1904,13 @@ _dbg_get_aborted_instr:
     beq     _following_instr_is_arm
 _following_instr_is_thumb:
     add     r6, r6, #2                                  /* Store following Thumb instruction address to R1 */
+    orr     r6, r6, #BKPT_STATE_THUMB_FLAG              /* Set b0 to indicate Thumb instruction */
     /* R0: Candidate Instruction Opcode
-     * R1: Default Following Instruction Address
+     * R5[3:0]: CPSR condition codes
+     * R6: Default Following Instruction Address
      */
-    bl      _eval_thumb_instruction
-    /* We must set this within the instruction handler since BX would switch modes */
-    /* orr     r0, r0, #BKPT_STATE_THUMB_FLAG    */          /* Set b0 to indicate Thumb instruction */
+    bl      _eval_thumb_instruction						/* following address is either ARM or Thumb */
+    /* We must set this the Thumb bit only within the instruction handler since BX would switch modes */
     b       _exit_dbg_following_instruction_addr
 
 _following_instr_is_arm:
@@ -1921,7 +1922,7 @@ _following_instr_is_arm:
     bl      _eval_arm_instruction
 
 _exit_dbg_following_instruction_addr:
-    mov     r1, r0                                      /* Return Actual Following Instruction Address in R1 */
+    mov     r1, r0                                      /* Return Actual Following Instruction Address in R1 (B0 set to indicate Thumb mode) */
     ldmfd   sp!, {pc}
 
 
@@ -1932,7 +1933,7 @@ _exit_dbg_following_instruction_addr:
  *          R5[3:0]: CPSR condition codes
  *          R6: Default Following Instruction Address
  *      On exit:
- *          R0: following instruction address
+ *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1-R6: destroyed
  */
 _eval_arm_instruction:
@@ -1961,7 +1962,7 @@ _call_arm_code_handler:
     mov     lr, pc
     bx      r4                          /* Call Code Handler with R0: Instruction Opcode, R1: Default Following Instruction Address */
 _exit_eval_arm_instruction:
-    /* Returned Following Address Instruction in R0 */
+    /* Returned Following Address Instruction in R0 (B0 set to indicate Thumb mode)  */
     ldmfd   sp!, {pc}
 
 /* _eval_thumb_instruction
@@ -1971,12 +1972,14 @@ _exit_eval_arm_instruction:
  *          R5[3:0]: CPSR condition codes
  *          R6: Default Following Instruction Address
  *      On exit:
- *          R0: following instruction address
+ *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1-R6: destroyed
  */
 _eval_thumb_instruction:
     stmfd   sp!, {lr}
+#if 0
     mov     r4, r0                      /* Keep Instruction Opcode in R4 */
+	/* Only B<cond> instructions are conditionally executed, deal with it in that Code Handler */
     bl      _dbg_check_thumb_condcode
     teq     r0, #FALSE
     moveq   r0, r6                      /* False (don't execute), so use Default Following Instruction Address */
@@ -1984,7 +1987,8 @@ _eval_thumb_instruction:
 
 _will_execute_thumb_instr:
     mov     r0, r4                      /* Copy instruction opcode to R0 as Code Handler parameter */
-    mov     r1, #0                      /* initialize ARM Decode Entry Table index register */
+#endif
+    mov     r1, #0                      /* initialize Thumb Decode Entry Table index register */
 1:
     _dbg_thumbDecodeEntry r2, r3, r4, r1  /* instrreg (R2), instrmask (R3), codehandler (R4), indexreg (R1) */
     teq     r2, #0                      /* Check for Null Entry (End of Table marker) */
@@ -2326,7 +2330,7 @@ _opcode_mvn:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address
  *      On exit:
- *          R0: following instruction address
+ *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1: destroyed
  */
 _arm_bx_blx_handler:
@@ -2334,7 +2338,10 @@ _arm_bx_blx_handler:
     and     r0, r0, #NIBBLE0                /* Register Rn Enum in R0 */
     _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
     _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R0 */
+	/* Here, the register value would have B0 set to indicate switch to Thumb mode  */
+#if 0
     bic     r0, #0x01                       /* Clear R0[0] since it is used to indicates Thumb mode */
+#endif
     ldmfd   sp!, {pc}
 
 /* _arm_ldr_pc_handler
@@ -2463,19 +2470,28 @@ _exit_arm_coproc_swi_handler:
 
 
 /* _thumb_bx_blx_handler
- *      BX or BLX Handler. Note v4t does not have BLX instr
+ *      BX or BLX Handler. Note: b7 (H1) is not matched in the mask; armv4t does not support BLX.
  *      On entry:
  *          R0: instruction to be executed
  *          R1: Default Following Instruction Address
  *      On exit:
- *          R0: following instruction address
+ *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1: destroyed
  */
-_thumb_bx_blx_handler:				/* BX or BLX. Note: b7 (H1) is not matched in the mask */
+_thumb_bx_blx_handler:
+    stmfd   sp!, {lr}
+    and     r0, r0, #0x38                	/* Register Rn Enum in R0[5:3] */
+    mov		r0, r0, lsr #3					/* Shift Rn Enum to R0[2:0] */
+    _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
+    _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R0 */
+	/* Here, the register value would have B0 set to indicate switch to Thumb mode  */
+    ldmfd   sp!, {pc}
+
 _thumb_poppc_handler:				/* PUSH/POP, specifically POP {Rlist,PC} */
 _thumb_bcond_swi_handler:			/* B<cond> or SWI */
 _thumb_b_handler:					/* B */
 _thumb_long_b_handler:				/* Long BL or BLX (4 bytes) Note: b11 (H) indicates 1st or 2nd instr */
+    orr     r0, r0, #0x01           /* Set R0[0] since it is used to indicates Thumb mode */
 	bx	lr
 
 
