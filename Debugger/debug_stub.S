@@ -2284,6 +2284,15 @@ _opcode_add:
     add r0, r0, r1
     bx  lr
 
+_opcode_adc:
+    /* Op1 + Op2 + C */
+    moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
+    _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
+    ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
+    add     r0, r0, r1
+    addne   r0, r0, #1                      /* Add C if set */
+    bx      lr
+
 _opcode_sbc:
     /* Op1 - Op2 + C - 1 */
     moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
