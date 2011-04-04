@@ -2551,26 +2551,34 @@ _thumb_get_regcount:
  * 			R5[3:0]: CPSR condition codes
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1, R2, R3, R4, R5: destroyed
+ *          R1-R6: destroyed
  */
 _thumb_bcond_swi_handler:
 	mov		r4, r0					        /* Keep instruction in R4 */
-	mov     r5, r1                          /* Store Default Following Instruction Address in R5 */
-	lsl		r0, r0, #(32-12)		        /* Shift condition code in R4[11:8] to R0[31:28] */
-    and     r2, r0, #0xF0000000
-    teq     r2, #0xF0000000                 /* SVC (SWI) instruction */
-
+    and     r2, r0, #0x0F00					/* Keep Condition Code R2[11:8] */
+    teq     r2, #0x0F00 	                /* SVC (SWI) instruction */
 _thumb_swi_instr:
     ldreq   r0, =SVC_VECTOR                 /* Return SVC Vector Address */
-    beq     _exit_thumb_bcond_swi_handler
+    beq     _exit_thumb_bcond_swi_handler	/* Switch to ARM mode for SVC */
+_thum_bcond_unused_instr:
+    teq		r2, #0x0E00
+    moveq   r0, r6                          /* False (don't execute), so use Default Following Instruction Address */
+    beq     _exit_thumb_bcond_instr
 
 _thumb_bcond_instr:
-	bl		_dbg_check_arm_condcode	        /* Use ARM condition code checking routine to test (R4 unchanged) */
+	mov     r6, r1                          /* Store Default Following Instruction Address in R6 */
+	lsl		r0, r2, #(32-12)		        /* Shift condition code in R2[11:8] to R0[31:28] to match ARM cond-code format */
+	bl		_dbg_check_arm_condcode	        /* Use ARM condition code checking routine to test (R4, R6 unchanged) */
     teq     r0, #FALSE
-    moveq   r0, r5                          /* False (don't execute), so use Default Following Instruction Address */
-    bne     _exit_thumb_bcond_swi_handler
-/* FIXME */
-@@@@@@
+    moveq   r0, r6                          /* False (don't execute), so use Default Following Instruction Address */
+    beq     _exit_thumb_bcond_instr
+
+_thumb_calc_bcond_offset:
+    lsl		r0, r4, #(32-8)					/* Shift 8-bit offset in R4[7:0] to R0[31:24] */
+    asr		r0, r0, #(32-9)					/* Convert into 9-bit signed offset in R0[8:0] */
+    add		r0, r6, r0						/* PC+2 + signed offset */
+    add		r0, r0, #2						/* PC+4 + signed offset */
+_exit_thumb_bcond_instr:
     orr     r0, r0, #0x01                   /* Set R0[0] since it is used to indicates Thumb mode */
 _exit_thumb_bcond_swi_handler:
 	bx	lr
