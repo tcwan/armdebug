@@ -1908,7 +1908,8 @@ _following_instr_is_thumb:
      * R1: Default Following Instruction Address
      */
     bl      _eval_thumb_instruction
-    orr     r0, r0, #BKPT_STATE_THUMB_FLAG              /* Set b0 to indicate Thumb instruction */
+    /* We must set this within the instruction handler since BX would switch modes */
+    /* orr     r0, r0, #BKPT_STATE_THUMB_FLAG    */          /* Set b0 to indicate Thumb instruction */
     b       _exit_dbg_following_instruction_addr
 
 _following_instr_is_arm:
@@ -1938,8 +1939,8 @@ _eval_arm_instruction:
     stmfd   sp!, {lr}
     mov     r4, r0                      /* Keep Instruction Opcode in R4 */
     bl      _dbg_check_arm_condcode
-    teq     r0, #TRUE
-    movne   r0, r6                      /* False (don't execute), so use Default Following Instruction Address */
+    teq     r0, #FALSE
+    moveq   r0, r6                      /* False (don't execute), so use Default Following Instruction Address */
     bne     _exit_eval_arm_instruction
 
 _will_execute_arm_instr:
@@ -1960,6 +1961,45 @@ _call_arm_code_handler:
     mov     lr, pc
     bx      r4                          /* Call Code Handler with R0: Instruction Opcode, R1: Default Following Instruction Address */
 _exit_eval_arm_instruction:
+    /* Returned Following Address Instruction in R0 */
+    ldmfd   sp!, {pc}
+
+/* _eval_thumb_instruction
+ *      Evaluate Thumb instruction to determine following instruction address
+ *      On entry:
+ *          R0: instruction to be executed
+ *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address
+ *      On exit:
+ *          R0: following instruction address
+ *          R1-R6: destroyed
+ */
+_eval_thumb_instruction:
+    stmfd   sp!, {lr}
+    mov     r4, r0                      /* Keep Instruction Opcode in R4 */
+    bl      _dbg_check_thumb_condcode
+    teq     r0, #FALSE
+    moveq   r0, r6                      /* False (don't execute), so use Default Following Instruction Address */
+    bne     _exit_eval_thumb_instruction
+
+_will_execute_thumb_instr:
+    mov     r0, r4                      /* Copy instruction opcode to R0 as Code Handler parameter */
+    mov     r1, #0                      /* initialize ARM Decode Entry Table index register */
+1:
+    _dbg_thumbDecodeEntry r2, r3, r4, r1  /* instrreg (R2), instrmask (R3), codehandler (R4), indexreg (R1) */
+    teq     r2, #0                      /* Check for Null Entry (End of Table marker) */
+    moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
+    beq     _exit_eval_thumb_instruction
+    and     r5, r0, r3                  /* Use R5 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
+    teq     r5, r2
+    addne   r1, r1, #1                  /* No match, so keep looking */
+    bne     1b
+
+_call_thumb_code_handler:
+    mov     r1, r6                      /* Copy Default Following Instruction Address to R1 as Code Handler Parameter */
+    mov     lr, pc
+    bx      r4                          /* Call Code Handler with R0: Instruction Opcode, R1: Default Following Instruction Address */
+_exit_eval_thumb_instruction:
     /* Returned Following Address Instruction in R0 */
     ldmfd   sp!, {pc}
 
@@ -2361,8 +2401,8 @@ _arm_get_Rn_val:
 
 _arm_get_regcount:
     mov     r2, #0                          /* Initialize reg_count (R2) to 0 */
-    ldr     r3, =HLFWRD0
-    and     r3, r0, r3                      /* Register List Bit vector */
+    mov     r3, r0, lsl #16					/* Keep HLFWORD0 containing vector bits in R3[31:16] */
+	/* This shortens the checking to a max of 16 iterations, since the PC bit should be set */
 1:  movs    r3, r3, lsl #1                  /* count number of '1' bits */
     addcs   r2, r2, #1                      /* increment reg_count (R2) if C Flag set */
     bne     1b                              /* continue until vector is empty */
@@ -2421,20 +2461,6 @@ _arm_coproc_instr:
 _exit_arm_coproc_swi_handler:
 	bx	    lr
 
-
-/* _eval_thumb_instruction
- *      Evaluate ARM instruction to determine following instruction address
- *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address
- *          R5[3:0]: CPSR condition codes
- *      On exit:
- *          R0: following instruction address
- *          R1-R6: destroyed
- */
-_eval_thumb_instruction:
-@@@@@@@@
-    bx      lr
 
 /* _thumb_bx_blx_handler
  *      BX or BLX Handler. Note v4t does not have BLX instr

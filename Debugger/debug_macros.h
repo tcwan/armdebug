@@ -52,7 +52,8 @@
         add      \instrmask, \instrmask, \indexreg, lsl #3
         ldm      \instrmask, {\instrreg, \codehandler}                  /* LSHW: IID, MSHW: IBM */
         mov      \instrmask, \instrreg, lsr #16
-        and      \instrreg, \instrreg, #HLFWRD0
+        mov      \instrreg, \instrreg, lsl #16
+        mov      \instrreg, \instrreg, lsr #16                          /* Keep HLFWORD0 containing instruction */
         .endm
 
 /* _dbg_armDecodeEntry
