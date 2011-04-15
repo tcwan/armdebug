@@ -42,8 +42,11 @@
   .extern      dUsbWrite
   .extern      dUsbRead
   .extern      dUsbIsConfigured
+  .extern      dBtSendMsg
   .equ         nxt_UBYTE_TRUE, 1
   .equ         nxt_UBYTE_FALSE, 0
+  .equ         USB_CMD_READY, 0x01			/* From c_comm.iom */
+  .equ         BT_CMD_READY, 0x02			/* From c_comm.iom */
 
 #endif
 

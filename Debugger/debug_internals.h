@@ -38,16 +38,16 @@
 
 #define USB_BUFSIZE     64                                      /* USB Buffer size for AT91SAM7S */
 
-#define USB_NXT_TELEGRAMTYPE_OFFSET     0                       /* NXT Direct Command/Response Header */
-#define USB_NXT_SEGNUM_OFFSET           1
-#define USB_NXT_TELEGRAMSIZE_OFFSET     2
+#define NXT_MSG_TELEGRAMTYPE_OFFSET     0                       /* NXT Direct Command/Response Header */
+#define NXT_MSG_SEGNUM_OFFSET           1
+#define NXT_MSG_TELEGRAMSIZE_OFFSET     2
 
-#define USB_NXT_TELEGRAMTYPE            0x8d                    /* GDB debugger specific, no Response required */
+#define NXT_GDBMSG_TELEGRAMTYPE            0x8d                 /* GDB debugger specific, no Response required */
 
-#define USB_GDBMSG_START                3                       /* Offset into USB Telegram buffer */
+#define NXT_GDBMSG_START                3                       /* Offset into USB Telegram buffer */
 
 #define MSG_NUMSEGMENTS  		3                       /* For packet transfers */
-#define MSG_SEGMENTSIZE (USB_BUFSIZE - USB_GDBMSG_START)        /* 61 bytes per segment */
+#define MSG_SEGMENTSIZE (USB_BUFSIZE - NXT_GDBMSG_START)        /* 61 bytes per segment */
 #define MSGBUF_SIZE     (MSG_SEGMENTSIZE*MSG_NUMSEGMENTS)       /* Debug Message Buffer Size, 61 x 3 = 183 chars = ~80 bytes of actual data */
 #define MSGBUF_CHKSUMOFFSET             3                       /* to be subtracted from message length */
 #define MSGBUF_IN_OVERHEADLEN		5			/* For calculating max message data length (exclude ASCIIZ char) */

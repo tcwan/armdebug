@@ -25,9 +25,9 @@
 .bss
 .align 4
 
-debug_InUSBBuf:
+debug_InCommBuf:
 	.space	USB_BUFSIZE,0
-debug_OutUSBBuf:
+debug_OutCommBuf:
 	.space	USB_BUFSIZE,0
 
 debug_msgRxBufPtr:
@@ -47,15 +47,21 @@ debug_segmentRxNum:				/* Current Rx Segment Number */
 	.word	0x0
 
 #ifndef __NXOS__
-debug_nxtMsgLength:            /* NXT Firmware Received USB Message Length */
+debug_nxtMsgLength:            /* NXT Firmware Received Message Length */
     .word   0x0
+
+debug_nxtCommChannel:
+    .word   0x0
+
+    .equ    NXTCOMMCHANNEL_OFFSET, (debug_nxtCommChannel - debug_nxtMsgLength)
+
 #endif
 
 .data
 .align 4
 
-nxt_usbcmd_header:
-	.byte	USB_NXT_TELEGRAMTYPE, 0x00, 0x00		/* padded to 3 bytes */
+nxt_commcmd_header:
+	.byte	NXT_GDBMSG_TELEGRAMTYPE, 0x00, 0x00		/* padded to 3 bytes */
 
 hex2char_lut:
 	.ascii	"0123456789ABCDEF"
@@ -512,7 +518,7 @@ _exit_conv_ascii2byte_le:
  *
  *		GDB Command
  *		===========
- *			Byte 0:	Telegram Type Field (0x8d Direct Command, No response required)	| USB Channel Header
+ *			Byte 0:	Telegram Type Field (0x8d Direct Command, No response required)	| NXT Msg Header
  *			Byte 1:	Segment No (1-255, 0: Last Segment; limit is MSG_NUMSEGMENTS)	|
  *			Byte 2:	Telegram Size (Len of USB Buffer - 3, max is MSG_SEGMENTSIZE)	|
  *			Byte 3-N: Message data													| GDB Command
@@ -531,7 +537,7 @@ _exit_conv_ascii2byte_le:
  *
  *		GDB Response
  *		============
- *			Byte 0:	Telegram Type Field (0x8d Direct Command, No response required)	| USB Channel Header
+ *			Byte 0:	Telegram Type Field (0x8d Direct Command, No response required)	| NXT Msg Header
  *			Byte 1:	Segment No (1-255, 0: Last Segment; limit is MSG_NUMSEGMENTS)	|
  *			Byte 2:	Telegram Size (Len of USB Buffer - 3, max is MSG_SEGMENTSIZE)	|
  *			Byte 3-N: Message data													| GDB Response
@@ -567,13 +573,13 @@ dbg__comm_init:
 	ldr     r2, =debug_msgRxBufPtr
 	stmia   r2!, {r0, r1}          /* debug_msgRxBufPtr and debug_msgTxBufPtr */
 	stmia   r2!, {r0, r1}          /* debug_msgRxBuf_AppendPtr and debug_msgTxBuf_AppendPtr */
-	bl		_dbg__usb_readbuf_reset
+	bl		_dbg__comm_readbuf_reset
 	ldmfd	sp!, {pc}
 
-_dbg__usb_readbuf_reset:
+_dbg__comm_readbuf_reset:
 #ifdef __NXOS__
 	stmfd	sp!, {lr}
-	ldr		r0, =debug_InUSBBuf
+	ldr		r0, =debug_InCommBuf
 	mov		r1, #USB_BUFSIZE
 	ldr		r2, =nx_usb_read
 	mov		lr, pc
@@ -582,24 +588,26 @@ _dbg__usb_readbuf_reset:
 #else
     ldr     r1, =debug_nxtMsgLength
     mov     r0, #0
-    str     r0, [r1]                        /* Clear NXT USB Received Message Length */
+    str     r0, [r1]                            /* Clear NXT Received Message Length */
+    str     r0, [r1, #NXTCOMMCHANNEL_OFFSET]    /* Clear NXT Channel */
 	bx		lr
 
     .global dbg__copyNxtDebugMsg
 /* dbg__copyNxtDebugMsg
  *      Copy NXT Firmware Debug Message to our own Buffers, indicate Msg Received status.
  *      On Entry:
- *          R0: NXT USB Input Buf Pointer
- *          R1: USB Command Bit
- *          R2: USB Raw Message Length
+ *          R0: NXT Input Buf Pointer
+ *          R1: NXT Communications Channel Enum (CmdBit)
+ *          R2: NXT Raw Message Length
  *      On Exit:
  *          R0-R3: Destroyed
  */
 
 dbg__copyNxtDebugMsg:
-    ldr     r1, =debug_nxtMsgLength
-    str     r2, [r1]
-    ldr     r1, =debug_InUSBBuf
+    ldr     r3, =debug_nxtMsgLength
+    str     r1, [r3, #NXTCOMMCHANNEL_OFFSET]
+    str     r2, [r3]
+    ldr     r1, =debug_InCommBuf
     _dbg_memcpy r1, r0, r2, r3                  /* r3: scratch register */
     bx      lr
 #endif
@@ -616,45 +624,45 @@ _dbg_reset_msgTxBuf_AppendPtr:
     str     r0, [r1, #TXAPPENDPTR_OFFSET]
     mov     pc, lr
 
-/* _dbg__usbHasMsg
+/* _dbg__commHasMsg
  *		Internal Segment Reassembly Routine.
  *		On exit:
  *			r0: !0: (Availale Telegram Message Size), 0: no incoming message/segment
  *			r1: message segment number
  */
-_dbg__usbHasMsg:
+_dbg__commHasMsg:
 	stmfd	sp!, {lr}
 #ifdef __NXOS__
 	ldr		r2, =nx_usb_data_read
 	mov		lr,pc
 	bx		r2					    /* Number of bytes read in R0 */
-	/* Note: The return value in R0 is the USB Buffer Size, includes NXT Direct Command Header */
+	/* Note: The return value in R0 is the Comm Buffer Size, includes NXT Direct Command Header */
 #else
     ldr     r0, =debug_nxtMsgLength
-    ldr     r0, [r0]                /* R0 contains the USB Buffer Size, including the NXT Direct Command Header */
+    ldr     r0, [r0]                /* R0 contains the Comm Buffer Size, including the NXT Direct Command Header */
 #endif
 
-	ldr		r2, =debug_InUSBBuf
-	ldrb    r1, [r2, #USB_NXT_TELEGRAMTYPE_OFFSET]
-	cmp     r1, #USB_NXT_TELEGRAMTYPE
-	bne     invalid_USBMsg          /* Invalid telegram type, ignore */
+	ldr		r2, =debug_InCommBuf
+	ldrb    r1, [r2, #NXT_MSG_TELEGRAMTYPE_OFFSET]
+	cmp     r1, #NXT_GDBMSG_TELEGRAMTYPE
+	bne     invalid_CommMsg          /* Invalid telegram type, ignore */
 
-	ldrb	r1, [r2, #USB_NXT_TELEGRAMSIZE_OFFSET]
-	sub     r0, r0, r1              /* USB Buffer Size - Telegram Size = 3 (header size) */
-	cmp     r0, #USB_GDBMSG_START   /* Start offset is equal to header size */
-    bne     invalid_USBMsg          /* Invalid Message Length, ignore */
+	ldrb	r1, [r2, #NXT_MSG_TELEGRAMSIZE_OFFSET]
+	sub     r0, r0, r1              /* Comm Buffer Size - Telegram Size = 3 (header size) */
+	cmp     r0, #NXT_GDBMSG_START   /* Start offset is equal to header size */
+    bne     invalid_CommMsg          /* Invalid Message Length, ignore */
 
     mov     r0, r1                  /* Telegram Message Size */
-	ldrb	r1, [r2, #USB_NXT_SEGNUM_OFFSET]
-    b       _exit_dbg__usbHasMsg
+	ldrb	r1, [r2, #NXT_MSG_SEGNUM_OFFSET]
+    b       _exit_dbg__commHasMsg
 
-invalid_USBMsg:
+invalid_CommMsg:
     mov   r0, #0
-_exit_dbg__usbHasMsg:
+_exit_dbg__commHasMsg:
     ldmfd   sp!, {pc}
 
-/* _copy_msg_from_usbbuf
- *      Internal USB buffer copy routine, handles segment reassembly.
+/* _copy_msg_from_commbuf
+ *      Internal Comm buffer copy routine, handles segment reassembly.
  *      On entry:
  *          r0: number of bytes to copy
  *          r1: segment number
@@ -663,10 +671,10 @@ _exit_dbg__usbHasMsg:
  *          r1: segment number
  *          r2, r3: Destroyed
  */
-_copy_msg_from_usbbuf:
+_copy_msg_from_commbuf:
     stmfd   sp!, {r1,r4,r5,r6,lr}
     movs    r4, r0
-    beq     _exit_copy_msg_from_usbbuf
+    beq     _exit_copy_msg_from_commbuf
 
     ldr     r6, =debug_msgRxBufPtr              /* Address of Pointers */
     ldr     r5, [r6]                            /* Rx buffer Start Address */
@@ -677,10 +685,10 @@ _copy_msg_from_usbbuf:
     cmp     r3, #MSGBUF_SIZE
     movhi   r4, #0                              /* Buffer overflow! */
     strhi   r5, [r6, #RXAPPENDPTR_OFFSET]       /* Reset AppendPtr to beginning of Rx Buffer */
-    bhi     _exit_copy_msg_from_usbbuf
+    bhi     _exit_copy_msg_from_commbuf
 
-    ldr     r3, =debug_InUSBBuf
-    add     r3, r3, #USB_GDBMSG_START
+    ldr     r3, =debug_InCommBuf
+    add     r3, r3, #NXT_GDBMSG_START
     _dbg_memcpy r2, r3, r4, r0                  /* r2 updated to point to next empty char slot in Rx buffer */
     sub     r4, r2, r5                          /* r4: cummulative length of message */
 
@@ -689,8 +697,8 @@ _copy_msg_from_usbbuf:
     streq   r5, [r6, #RXAPPENDPTR_OFFSET]       /* Reset AppendPtr to beginning of Rx Buffer if so */
     strne   r2, [r6, #RXAPPENDPTR_OFFSET]       /* Otherwise, update Append Pointer to receive next segment */
 
-_exit_copy_msg_from_usbbuf:
-    bl      _dbg__usb_readbuf_reset             /* Next USB telegram transaction */
+_exit_copy_msg_from_commbuf:
+    bl      _dbg__comm_readbuf_reset             /* Next Comm telegram transaction */
     mov     r0, r4                              /* Return cummulative message length in R0 */
     ldmfd   sp!, {r1,r4,r5,r6,pc}               /* Return segment number in R1 */
 
@@ -730,7 +738,7 @@ _msgbuf_checksum:
  */
 dbg__getDebugMsg:
     stmfd   sp!, {r4,r5,lr}
-    bl      _dbg__usbHasMsg                     /* r0: message length, r1: segment number */
+    bl      _dbg__commHasMsg                     /* r0: message length, r1: segment number */
     teq     r0, #0
     beq     exit_dbg__getDebugMsg               /* no new message, exit with R0 = 0 */
 
@@ -746,14 +754,14 @@ dbg__getDebugMsg:
     beq     _hasMsg2Copy                        /* Segment Number matches Expected Segment Number, update buffers */
 
 _invalid_segment:
-    bl      _dbg__usb_readbuf_reset             /* Invalid, Next USB telegram transaction */
+    bl      _dbg__comm_readbuf_reset             /* Invalid, Next Comm telegram transaction */
     mov     r0, #0                              /* Reset Segment Number */
     str     r0, [r4]                            /* Update current Segment Number with 0 to prepare for new message */
     b       exit_dbg__getMsgError               /* Exit with error */
 
 _hasMsg2Copy:
     str     r1, [r4]                            /* Update current Segment Number */
-    bl      _copy_msg_from_usbbuf               /* r0: cummulative message length, r1: segment number */
+    bl      _copy_msg_from_commbuf               /* r0: cummulative message length, r1: segment number */
     teq     r1, #0
     movne   r0, #0                              /* Incomplete message, ignore for now */
     bne     exit_dbg__getDebugMsg               /* Message not complete yet, exit */
@@ -812,25 +820,25 @@ exit_dbg__getDebugMsg:
     mov     r1, r5                              /* Return GDB Message Buffer Pointer in R1 */
 	ldmfd	sp!, {r4,r5,pc}
 
-/* _dbg__sendUSBMsg
- *      Internal USB send routine (interfaces with drivers).
+/* _dbg__sendCommMsg
+ *      Internal send routine (interfaces with drivers).
  *      On entry:
- *          R0: Total USB Message Buffer length
+ *          R0: Total Message Buffer length
  *      On exit:
             R0: Tx Status (TRUE if data sent)
  */
-_dbg__sendUSBMsg:
+_dbg__sendCommMsg:
     stmfd   sp!, {r4, lr}
-    mov     r4, r0                              /* Keep USB Buffer length in R4 */
+    mov     r4, r0                              /* Keep Comm Buffer length in R4 */
 #ifdef __NXOS__
     /* Check USB bus status, transmit message if possible */
     bl      nx_usb_is_connected                 /* R0 = True if USB is ready */
     cmp     r0, #TRUE
-    bne     _exit_dbg__sendUSBMsg
+    bne     _exit_dbg__sendCommMsg
 
     /* Actual transmission (blocking) */
-    ldr     r0, =debug_OutUSBBuf                /* data pointer parameter */
-    mov     r1, r4                              /* USB buffer length */
+    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
+    mov     r1, r4                              /* Comm buffer length */
     bl      nx_usb_write
 
 1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
@@ -838,27 +846,47 @@ _dbg__sendUSBMsg:
     /* FIXME: implement timeout */
     bne     1b                                  /* Busy Wait Loop */
 #else
+    ldr     r0, =debug_nxtCommChannel
+    ldr     r0, [r0]                            /* Get Channel Enum */
+    teq     r0, #BT_CMD_READY
+    beq     _dbg__sendBTMsg
+    teq     r0, #USB_CMD_READY
+    beq     _dbg__sendUSBMsg
+    b       _dbg__sendCommMsgFailed                 /* Channel Enum Doesn't Match, shouldn't happen? */
+
+_dbg__sendBTMsg:
+    /* NXT BT routines do not have any configuration checks */
+    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
+    mov     r1, r4                              /* BT Bytes to Send */
+    mov     r2, r4                              /* BT Message Size */
+    bl      dBtSendMsg                          /* Send it via Bluetooth (complete message) */
+    mov     r0, #TRUE                           /* Always flag Success */
+    b       _exit_dbg__sendCommMsg
+
+_dbg__sendUSBMsg:
     /* Check USB bus status, transmit message if possible */
     bl      dUsbIsConfigured                    /* R0: UByte status, TRUE / FALSE */
     teq     r0, #nxt_UBYTE_TRUE
-    movne   r0, #FALSE
-    bne     _exit_dbg__sendUSBMsg
+    bne     _dbg__sendCommMsgFailed
 
     /* Actual transmission (blocking) */
-    ldr     r0, =debug_OutUSBBuf                /* data pointer parameter */
-    mov     r1, r4                              /* USB buffer length */
+    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
+    mov     r1, r4                              /* Comm buffer length */
     bl      dUsbWrite                           /* call NXT Firmware USB driver, return 0: done, !0: remaining chars */
     teq     r0, #0                              /* Tx done if returned length is 0 */
-    movne   r0, #FALSE
     moveq   r0, #TRUE                           /* Convert NXT firmware return value to our Status (TRUE/FALSE) */
+    beq     _exit_dbg__sendCommMsg
 #endif
 
-_exit_dbg__sendUSBMsg:
+_dbg__sendCommMsgFailed:
+    mov     r0, #FALSE
+
+_exit_dbg__sendCommMsg:
     ldmfd   sp!, {r4, pc}
 
 
-/* _copy_msg_to_usbbuf
- *      Internal USB buffer copy routine, handles segment fragmentation.
+/* _copy_msg_to_commbuf
+ *      Internal Comm buffer copy routine, handles segment fragmentation.
  *      On entry:
  *          r0: number of bytes to copy
  *          r1: segment number
@@ -867,39 +895,39 @@ _exit_dbg__sendUSBMsg:
  *          r1: segment number
  *          r2, r3: Destroyed
  */
-_copy_msg_to_usbbuf:
+_copy_msg_to_commbuf:
     stmfd   sp!, {r1,r4,r5,r6,lr}
     ldr     r6, =debug_msgTxBufPtr              /* Address of Pointers */
     ldr     r5, [r6, #TXAPPENDPTR_OFFSET]       /* Retrieve Tx Append Pointer */
 
     movs    r4, r0
-    beq     _exit_copy_msg_to_usbbuf
+    beq     _exit_copy_msg_to_commbuf
 
 #ifdef CHECK_TXLEN
-    add     r0, r4, #USB_GDBMSG_START   /* offset = header size */
+    add     r0, r4, #NXT_GDBMSG_START   /* offset = header size */
     cmp     r0, #USB_BUFSIZE
-    bhi     _exit_copy_msg_to_usbbuf    /* We let calling routine detect problem (segment number will increment) */
+    bhi     _exit_copy_msg_to_commbuf    /* We let calling routine detect problem (segment number will increment) */
 #endif
 
-    /* Fill in USB Message Header */
-    ldr     r3, =debug_OutUSBBuf
-    mov     r2, #USB_NXT_TELEGRAMTYPE
+    /* Fill in Comm Message Header */
+    ldr     r3, =debug_OutCommBuf
+    mov     r2, #NXT_GDBMSG_TELEGRAMTYPE
     strb    r2, [r3], #1            /* Telegram type */
     strb    r1, [r3], #1            /* Segment Number */
     strb    r0, [r3], #1            /* Message Length */
 
     mov     r2, r5                              /* Copy to R2 for updating */
-    mov     r1, r4                              /* actual GDB message fragment length (exclude USB header) */
+    mov     r1, r4                              /* actual GDB message fragment length (exclude Comm header) */
     _dbg_memcpy r3, r2, r1, r0                  /* This copies over the message fragment, r3, r2 updated */
     mov     r5, r2                              /* Updated Tx Append Pointer, keep in R5 for now */
 
-    add     r0, r4, #USB_GDBMSG_START           /* Total USB Buffer Size for Tx (USB_GDBMSG_START offset = header size) */
-    bl      _dbg__sendUSBMsg                    /* Common interface routine to USB drivers */
+    add     r0, r4, #NXT_GDBMSG_START           /* Total Comm Buffer Size for Tx (NXT_GDBMSG_START offset = header size) */
+    bl      _dbg__sendCommMsg                    /* Common interface routine to commnuncations drivers */
     cmp     r0, #TRUE
     ldrne   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Tx failed, Retrieve Original Tx Append Pointer */
     streq   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Tx succeeded, Update Tx Append Pointer to new position */
 
-_exit_copy_msg_to_usbbuf:
+_exit_copy_msg_to_commbuf:
     ldr     r6, [r6]                            /* Retrieve Tx Buffer Start Address */
     sub     r0, r5, r6                          /* Return calculated cummulative message length (R0) */
     ldmfd   sp!, {r1,r4,r5,r6,pc}               /* Return segment number in R1 */
@@ -952,7 +980,7 @@ _cont_putMsg:
     addhi   r1, r1, #1                          /* Increment Segment Number */
     cmp     r1, #MSG_NUMSEGMENTS
     bhs     exit_dbg__putMsgError               /* If Segment Number >= MSG_NUMSEGMENTS, flag error */
-    bl      _copy_msg_to_usbbuf                 /* R0: cummulative message length, R1: segment number */
+    bl      _copy_msg_to_commbuf                 /* R0: cummulative message length, R1: segment number */
     teq     r5, r0                              /* Check if we managed to transmit the previous message */
     beq     exit_dbg__putMsgError               /* No, flag error */
     movne   r5, r0                              /* Update previous cummulative message length */
@@ -972,7 +1000,7 @@ exit_dbg__putDebugMsg:
  *		On exit:
  *			r0: status (0: success, -1: error)
  *			r1: destroyed
- *      Note: An Ack Or Nak is indicated by '+' or '-', which is prepended with the USB header and sent (without checksum)
+ *      Note: An Ack Or Nak is indicated by '+' or '-', which is prepended with the Comm header and sent (without checksum)
  *			  Sending Ack is only done for Continue and Step commands, where GDB does not expect any replies.
  */
 dbg__sendAckOrNak:
@@ -983,7 +1011,7 @@ dbg__sendAckOrNak:
 
 	mov     r1, #0                              /* Initialize Segment Number = 0 (last segment) */
     mov     r0, #1                              /* Retransmission message length = 1 */
-    bl      _copy_msg_to_usbbuf                 /* R0: cummulative message length, R1: segment number */
+    bl      _copy_msg_to_commbuf                 /* R0: cummulative message length, R1: segment number */
     cmp     r0, #1                              /* Check if we managed to transmit the previous message */
     moveq	r0, #0								/* R0: Exit status (success) */
     movne	r0, #MSGBUF_MSGERROR				/* R0: Exit status (error) */
