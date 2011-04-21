@@ -164,15 +164,15 @@ mycflags.append('-g')
 mycflags.append('-ggdb')
 # Big Endian Output (disabled by default)
 #mycflags.append('-D__BIG_ENDIAN__')
-# Test build for NXT Firmware first
-#mycflags.append('-D__NXOS__')
+# Test build for NxOS (Comment out for NXT Firmware)
+mycflags.append('-D__NXOS__')
 
 myasflags.append('-g')
 myasflags.append('-ggdb')
 # Big Endian Output (disabled by default)
 #mycflags.append('-D__BIG_ENDIAN__')
-# Test build for NXT Firmware first
-#myasflags.append('-D__NXOS__')
+# Test build for NxOS (Comment out for NXT Firmware)
+myasflags.append('-D__NXOS__')
 
 env.Replace(CCFLAGS = mycflags, ASFLAGS = myasflags )
 

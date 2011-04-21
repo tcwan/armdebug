@@ -602,12 +602,14 @@ _dbg__comm_readbuf_reset:
  *      On Exit:
  *          R0-R3: Destroyed
  */
-
 dbg__copyNxtDebugMsg:
     ldr     r3, =debug_nxtMsgLength
     str     r1, [r3, #NXTCOMMCHANNEL_OFFSET]
     str     r2, [r3]
     ldr     r1, =debug_InCommBuf
+/* FIXME: We can probably save some cycles and buffer space by using the
+ * NXT comms buffer specified in R0 directly without copying to internal buffers
+ */
     _dbg_memcpy r1, r0, r2, r3                  /* r3: scratch register */
     bx      lr
 #endif
