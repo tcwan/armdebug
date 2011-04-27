@@ -36,3 +36,6 @@ commit.msg
 
 # The option-cache
 scons.options
+
+# pyfantom related
+pyfantom.py
