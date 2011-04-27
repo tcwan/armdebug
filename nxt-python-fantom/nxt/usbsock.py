@@ -29,8 +29,7 @@ class USBSock(object):
         self.debug = False
 
     def __str__(self):
-        # FIXME: This breaks encapsulation
-        return 'USB (%s)' % (self.sock.filename)
+        return 'USB (%s)' % (self.sock.device_name())
 
     def connect(self):
         'Use to connect to NXT.'

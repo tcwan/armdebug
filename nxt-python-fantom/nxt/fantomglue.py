@@ -91,6 +91,10 @@ class USBSocket:
         self._sock = device
         self.debug = False
 
+    def device_name(self):
+        devinfo = self._sock.deviceinfo()
+        return devinfo.name
+
     def connect(self):
         addr, port = addrport
         if self._sock is None:

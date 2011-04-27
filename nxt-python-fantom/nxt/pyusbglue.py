@@ -28,8 +28,8 @@ class USBSocket:
         self.handle = None
         self.debug = False
 
-    def __str__(self):
-        return 'USB (%s)' % (self.device.filename)
+    def device_name(self):
+        return self.device.filename
 
     def connect(self):
         'Use to connect to NXT.'
