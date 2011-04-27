@@ -15,7 +15,11 @@
 try:
     import bluetooth
 except ImportError:
-    import lightblueglue as bluetooth
+    try:
+        import lightblueglue as bluetooth
+    except ImportError:
+        import pyfantom as bluetooth
+        
 import os
 from .brick import Brick
 

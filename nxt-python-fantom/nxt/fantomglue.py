@@ -16,40 +16,92 @@
 
 import pyfantom
 
-FANTOM_BT='BT'
-FANTOM_USB='USB'
+RFCOMM=11           # lightblue const
+FANTOM_BT = RFCOMM  # For compatibilty with lightblue
+FANTOM_USB = 0
 
-
+# Bluetooth Iterator
 def discover_devices(lookup_names=False):  # parameter is ignored
     pairs = []
-    d = pyfantom.finddevices(proto = FANTOM_BT)
-    for p in d:
-        h = p[0]
-        n = p[1]
+    for d in NXTIterator(True):
+        # h: host, n: name
+        h = d.get_resource_string()
+        nxt = d.get_nxt()
+        device_info = nxt.get_device_info()
+        n = device_info.name
+        del nxt
         pairs.append((h, n))
     return pairs
 
 class BluetoothSocket:
 
     def __init__(self, proto = FANTOM_BT, _sock=None):
-        if _sock is None:
-            _sock = pyfantom.socket(proto, passkey = None)
+        # We instantiate a NXT object only when we connect if none supplied
         self._sock = _sock
         self._proto = proto
 
     def connect(self, addrport):
         addr, port = addrport
-        self._sock.connect( (addr, port ))
+        if self._sock is None:
+            # Port is ignored
+            self._sock = NXT(addr)
     
     def send(self, data):
-        return self._sock.send( data )
+        return self._sock.write( data )
 
     def recv(self, numbytes):
-        return self._sock.recv( numbytes )
+        return self._sock.read( numbytes )
     
     def close(self):
-        return self._sock.close()
+        del self._sock
     
 class BluetoothError(IOError):
     pass    
 
+def _check_brick(arg, value):
+    return arg is None or arg == value
+
+
+def find_devices(lookup_names=False):  # parameter is ignored
+    devicelist = []
+    for d in NXTIterator(False):
+        nxt = d.get_nxt()
+        devicelist.append(nxt)
+    return devicelist
+
+# FIXME: The semantics of find_devices is different from discover_devices
+#
+#        # h: host, n: name
+#        hostmatched = None
+#        namematched = None
+#        h = d.get_resource_string()
+#        nxt = d.get_nxt()
+#        device_info = nxt.get_device_info()
+#        n = device_info.name
+#        if _check_brick(host, h) and _check_brick(name, n):
+#            yield nxt
+#        else:
+#            del nxt             # Does not match criteria
+
+class USBSocket:
+
+    def __init__(self, device=None):
+        # We instantiate a NXT object only when we connect if none supplied
+        #self.device = device
+        self._sock = device
+        self.debug = False
+
+    def connect(self):
+        addr, port = addrport
+        if self._sock is None:
+            # Port is ignored
+            self._sock = NXT(addr)
+    
+    def send(self, data):
+        return self._sock.write( data )
+
+    def recv(self, numbytes):
+        return self._sock.read( numbytes )
+    
+    def close(self):
+        del self._sock
