@@ -13,9 +13,9 @@
 # GNU General Public License for more details.
 
 try:
-    import pyusbglue as usb
+    import fantomglue as usb
 except ImportError:
-    import pyfantom as usb
+    import pyusbglue as usb
 
 from nxt.brick import Brick
 

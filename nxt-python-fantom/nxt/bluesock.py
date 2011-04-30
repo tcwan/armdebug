@@ -13,12 +13,12 @@
 # GNU General Public License for more details.
 
 try:
-    import bluetooth
+    import fantomglue as bluetooth
 except ImportError:
     try:
-        import lightblueglue as bluetooth
+        import bluetooth
     except ImportError:
-        import pyfantom as bluetooth
+        import lightblueglue as bluetooth
         
 import os
 from .brick import Brick

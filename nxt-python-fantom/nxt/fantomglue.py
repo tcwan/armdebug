@@ -23,7 +23,7 @@ FANTOM_USB = 0
 # Bluetooth Iterator
 def discover_devices(lookup_names=False):  # parameter is ignored
     pairs = []
-    for d in NXTIterator(True):
+    for d in pyfantom.NXTIterator(True):
         # h: host, n: name
         h = d.get_resource_string()
         nxt = d.get_nxt()
@@ -44,7 +44,7 @@ class BluetoothSocket:
         addr, port = addrport
         if self._sock is None:
             # Port is ignored
-            self._sock = NXT(addr)
+            self._sock = pyfantom.NXT(addr)
     
     def send(self, data):
         return self._sock.write( data )
@@ -64,7 +64,7 @@ def _check_brick(arg, value):
 
 def find_devices(lookup_names=False):  # parameter is ignored
     devicelist = []
-    for d in NXTIterator(False):
+    for d in pyfantom.NXTIterator(False):
         nxt = d.get_nxt()
         devicelist.append(nxt)
     return devicelist
@@ -99,7 +99,7 @@ class USBSocket:
         addr, port = addrport
         if self._sock is None:
             # Port is ignored
-            self._sock = NXT(addr)
+            self._sock = pyfantom.NXT(addr)
     
     def send(self, data):
         return self._sock.write( data )
