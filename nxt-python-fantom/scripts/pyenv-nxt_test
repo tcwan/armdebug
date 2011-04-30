@@ -1,0 +1,3 @@
+#!/bin/sh
+export PYTHONPATH=/Users/tcmac/gitrepo/armdebug/nxt-python-fantom
+arch -i386 /usr/bin/python2.6 /Users/tcmac/gitrepo/armdebug/nxt-python-fantom/scripts/nxt_test
