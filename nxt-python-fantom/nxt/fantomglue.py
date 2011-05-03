@@ -53,7 +53,7 @@ class BluetoothSocket:
         return self._sock.read( numbytes )
     
     def close(self):
-        if sef._sock is not None:
+        if self._sock is not None:
             del self._sock
     
 class BluetoothError(IOError):
@@ -66,6 +66,8 @@ def _check_brick(arg, value):
 def find_devices(lookup_names=False):  # parameter is ignored
     devicelist = []
     for d in pyfantom.NXTIterator(False):
+        #name = d.get_name()
+        #print "NXT name: ", name
         nxt = d.get_nxt()
         devicelist.append(nxt)
     return devicelist
@@ -108,5 +110,5 @@ class USBSocket:
         return self._sock.read( numbytes )
     
     def close(self):
-        if sef._sock is not None:
+        if self._sock is not None:
             del self._sock
