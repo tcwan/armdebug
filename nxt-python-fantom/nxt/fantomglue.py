@@ -53,7 +53,8 @@ class BluetoothSocket:
         return self._sock.read( numbytes )
     
     def close(self):
-        del self._sock
+        if sef._sock is not None:
+            del self._sock
     
 class BluetoothError(IOError):
     pass    
@@ -107,4 +108,5 @@ class USBSocket:
         return self._sock.read( numbytes )
     
     def close(self):
-        del self._sock
+        if sef._sock is not None:
+            del self._sock
