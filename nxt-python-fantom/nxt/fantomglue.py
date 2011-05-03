@@ -96,7 +96,6 @@ class USBSocket:
         return devinfo.name
 
     def connect(self):
-        addr, port = addrport
         if self._sock is None:
             # Port is ignored
             self._sock = pyfantom.NXT(addr)

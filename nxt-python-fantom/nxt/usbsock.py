@@ -25,7 +25,7 @@ class USBSock(object):
     bsize = 60  # USB socket block size
 
     def __init__(self, device):
-        self.sock = USBSocket(device)
+        self.sock = usb.USBSocket(device)
         self.debug = False
 
     def __str__(self):
