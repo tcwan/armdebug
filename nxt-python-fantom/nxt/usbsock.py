@@ -12,6 +12,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
+USB_BUFSIZE = 64
+
 try:
     import fantomglue as usb
 except ImportError:
@@ -55,7 +57,7 @@ class USBSock(object):
 
     def recv(self):
         'Use to recieve raw data over USB connection ***ADVANCED USERS ONLY***'
-        data = self.sock.recv(64)
+        data = self.sock.recv(USB_BUFSIZE)
         if self.debug:
             print 'Recv:',
             print ':'.join('%02x' % (c & 0xFF) for c in data)

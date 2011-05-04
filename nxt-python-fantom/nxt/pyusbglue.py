@@ -16,6 +16,7 @@
 
 import usb
 
+USB_BUFSIZE = 64
 
 ID_VENDOR_LEGO = 0x0694
 ID_PRODUCT_NXT = 0x0002
@@ -44,7 +45,6 @@ class USBSocket:
         self.handle.reset()
         if self.debug:
             print 'Connected.'
-        return Brick(self)
 
     def close(self):
         'Use to close the connection.'

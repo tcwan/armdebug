@@ -16,6 +16,8 @@
 
 import pyfantom
 
+USB_BUFSIZE = 64
+
 RFCOMM=11           # lightblue const
 FANTOM_BT = RFCOMM  # For compatibilty with lightblue
 FANTOM_USB = 0
@@ -66,9 +68,12 @@ def _check_brick(arg, value):
 def find_devices(lookup_names=False):  # parameter is ignored
     devicelist = []
     for d in pyfantom.NXTIterator(False):
-        #name = d.get_name()
-        #print "NXT name: ", name
+        addr = d.get_resource_string()
+        print "NXT addr: ", addr
         nxt = d.get_nxt()
+        # BUG?: If nxt.get_firware_version() is enabled, d.get_nxt() will throw an exception
+        # Related to Reference Counting for Obj-C Objects?
+        #print " firmware version:", nxt.get_firmware_version()
         devicelist.append(nxt)
     return devicelist
 
@@ -90,6 +95,7 @@ class USBSocket:
 
     def __init__(self, device=None):
         # We instantiate a NXT object only when we connect if none supplied
+        # FIXME: The addr is not passed in, so we can't actually create a NXT object later
         #self.device = device
         self._sock = device
         self.debug = False
@@ -101,7 +107,7 @@ class USBSocket:
     def connect(self):
         if self._sock is None:
             # Port is ignored
-            self._sock = pyfantom.NXT(addr)
+            self._sock = pyfantom.NXT(addr)         # FIXME: No address!
     
     def send(self, data):
         return self._sock.write( data )
