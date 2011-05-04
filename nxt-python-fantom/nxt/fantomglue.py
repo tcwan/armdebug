@@ -118,3 +118,52 @@ class USBSocket:
     def close(self):
         if self._sock is not None:
             del self._sock
+
+if __name__ == '__main__':
+    #get_info = False
+    get_info = True
+    write_read = True
+    for i in pyfantom.NXTIterator(False):
+    # Enable Bluetooth Interface
+    #for i in pyfantom.NXTIterator(True):
+        if get_info:
+            print "name:", i.get_name()
+            print "resource string:", i.get_resource_string()
+            print "get_nxt:"
+            nxt = i.get_nxt()
+            print " firmware version:", nxt.get_firmware_version()
+            print " get device info:", nxt.get_device_info()
+            rs = nxt.get_resource_string()
+            print " resource string:", rs
+            del nxt
+            print "NXT():"
+            nxt = pyfantom.NXT(rs)
+            print " resource string:", nxt.get_resource_string()
+            del nxt
+        if write_read:
+            nxt = i.get_nxt()
+            import struct
+            # Write VERSION SYS_CMD.
+            # Query:
+            #  SYS_CMD: 0x01
+            #  VERSION: 0x88
+            cmd = struct.pack('2B', 0x01, 0x88)
+            r = nxt.write(cmd)
+            print "wrote", r
+            # Response:
+            #  REPLY_CMD: 0x02
+            #  VERSION: 0x88
+            #  SUCCESS: 0x00
+            #  PROTOCOL_VERSION minor
+            #  PROTOCOL_VERSION major
+            #  FIRMWARE_VERSION minor
+            #  FIRMWARE_VERSION major
+            rep = nxt.read(7)
+            print "read", struct.unpack('%dB' % len(rep), rep)
+            # Same thing, without response.
+            cmd = struct.pack('2B', 0x81, 0x88)
+            r = nxt.write(cmd)
+            print "wrote", r
+            rep = nxt.read(7)
+            print "read", struct.unpack('%dB' % len(rep), rep)
+            del nxt
