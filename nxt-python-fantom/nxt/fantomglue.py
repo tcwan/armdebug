@@ -42,6 +42,13 @@ class BluetoothSocket:
         self._sock = _sock
         self._proto = proto
 
+    def __str__(self):
+        return 'FantomGlue BT (%s)' % self.device_name()
+
+    def device_name(self):
+        devinfo = self._sock.get_device_info()
+        return devinfo.name
+
     def connect(self, addrport):
         addr, port = addrport
         if self._sock is None:
@@ -72,9 +79,6 @@ def find_devices(lookup_names=False):  # parameter is ignored
         #addr = d.get_resource_string()
         #print "NXT addr: ", addr
         nxt = d.get_nxt()
-        # BUG?: If nxt.get_firware_version() is enabled, d.get_nxt() will throw an exception
-        # Related to Reference Counting for Obj-C Objects?
-        #print " firmware version:", nxt.get_firmware_version()
         devicelist.append(nxt)
     return devicelist
 
@@ -100,6 +104,9 @@ class USBSocket:
         #self.device = device
         self._sock = device
         self.debug = False
+
+    def __str__(self):
+        return 'FantomGlue USB (%s)' % self.device_name()
 
     def device_name(self):
         devinfo = self._sock.get_device_info()
@@ -129,11 +136,6 @@ if __name__ == '__main__':
     #get_info = False
     get_info = True
     write_read = True
-    #for i in pyfantom.NXTIterator(False):
-    # Enable Bluetooth Interface
-    #for i in pyfantom.NXTIterator(True):
-    #devices = find_devices()
-    #for i in devices:
     for i in find_devices():
         if get_info:
             print " firmware version:", i.get_firmware_version()
@@ -141,14 +143,14 @@ if __name__ == '__main__':
             rs = i.get_resource_string()
             print " resource string:", rs
         if write_read:
-            nxt = i
+            nxt = USBSocket(i)
             import struct
             # Write VERSION SYS_CMD.
             # Query:
             #  SYS_CMD: 0x01
             #  VERSION: 0x88
             cmd = struct.pack('2B', 0x01, 0x88)
-            r = nxt.write(cmd)
+            r = nxt.send(cmd)
             print "wrote", r
             # Response:
             #  REPLY_CMD: 0x02
@@ -158,12 +160,18 @@ if __name__ == '__main__':
             #  PROTOCOL_VERSION major
             #  FIRMWARE_VERSION minor
             #  FIRMWARE_VERSION major
-            rep = nxt.read(7)
+            #rep = nxt.recv(USB_BUFSIZE)    # Doesn't work if it exceeds buffer content length (exception)
+            #rep = nxt.recv(7)              # Works, since reply is 7 bytes
+            rep = nxt.recv(5)               # Works, read length < remaining buffer content length
             print "read", struct.unpack('%dB' % len(rep), rep)
+            rep = nxt.recv(2)               # Works, read length <= remaining buffer content length
+            print "read", struct.unpack('%dB' % len(rep), rep)
+            #rep = nxt.recv(1)              # Doesn't work if it exceeds buffer content length (exception)
             # Same thing, without response.
             #cmd = struct.pack('2B', 0x81, 0x88)
-            #r = nxt.write(cmd)
+            #r = nxt.send(cmd)
             #print "wrote", r
-            #rep = nxt.read(7)
+            #rep = nxt.recv(USB_BUFSIZE)
+            #rep = nxt.recv(7)
             #print "read", struct.unpack('%dB' % len(rep), rep)
             del nxt

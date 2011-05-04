@@ -57,7 +57,7 @@ class USBSock(object):
 
     def recv(self):
         'Use to recieve raw data over USB connection ***ADVANCED USERS ONLY***'
-        data = self.sock.recv(USB_BUFSIZE)
+        data = self.sock.recv(USB_BUFSIZE)      # FIXME: This will cause an exception since we cannot read more than the actual buffer contents
         if self.debug:
             print 'Recv:',
             print ':'.join('%02x' % (c & 0xFF) for c in data)
@@ -83,6 +83,7 @@ if __name__ == '__main__':
     write_read = True
     socks = find_bricks()
     for s in socks:
+        print s.sock
         brick = s.connect()
         if write_read:
             import struct
@@ -92,7 +93,8 @@ if __name__ == '__main__':
             #  VERSION: 0x88
             cmd = struct.pack('2B', 0x01, 0x88)
             #brick.sock.send(cmd)
-            s.send(cmd)
+            #s.send(cmd)
+            s.sock.send(cmd)
             print "wrote", len(cmd)
             # Response:
             #  REPLY_CMD: 0x02
@@ -103,7 +105,8 @@ if __name__ == '__main__':
             #  FIRMWARE_VERSION minor
             #  FIRMWARE_VERSION major
             #rep = brick.sock.recv()
-            rep = s.recv()
+            #rep = s.recv()
+            rep = s.sock.recv(7)
             print "read", struct.unpack('%dB' % len(rep), rep)
             # Same thing, without response.
             #cmd = struct.pack('2B', 0x81, 0x88)
@@ -113,4 +116,3 @@ if __name__ == '__main__':
             #print "read", struct.unpack('%dB' % len(rep), rep)
         del brick
 
-        
