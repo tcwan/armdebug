@@ -68,8 +68,9 @@ def _check_brick(arg, value):
 def find_devices(lookup_names=False):  # parameter is ignored
     devicelist = []
     for d in pyfantom.NXTIterator(False):
-        addr = d.get_resource_string()
-        print "NXT addr: ", addr
+        #name = d.get_name()
+        #addr = d.get_resource_string()
+        #print "NXT addr: ", addr
         nxt = d.get_nxt()
         # BUG?: If nxt.get_firware_version() is enabled, d.get_nxt() will throw an exception
         # Related to Reference Counting for Obj-C Objects?
@@ -101,13 +102,18 @@ class USBSocket:
         self.debug = False
 
     def device_name(self):
-        devinfo = self._sock.deviceinfo()
+        devinfo = self._sock.get_device_info()
         return devinfo.name
 
     def connect(self):
         if self._sock is None:
             # Port is ignored
+            if self.debug:
+                print "No NXT object assigned"
             self._sock = pyfantom.NXT(addr)         # FIXME: No address!
+        else:
+            if self.debug:
+                print "Using existing NXT object"
     
     def send(self, data):
         return self._sock.write( data )
@@ -123,25 +129,19 @@ if __name__ == '__main__':
     #get_info = False
     get_info = True
     write_read = True
-    for i in pyfantom.NXTIterator(False):
+    #for i in pyfantom.NXTIterator(False):
     # Enable Bluetooth Interface
     #for i in pyfantom.NXTIterator(True):
+    #devices = find_devices()
+    #for i in devices:
+    for i in find_devices():
         if get_info:
-            print "name:", i.get_name()
-            print "resource string:", i.get_resource_string()
-            print "get_nxt:"
-            nxt = i.get_nxt()
-            print " firmware version:", nxt.get_firmware_version()
-            print " get device info:", nxt.get_device_info()
-            rs = nxt.get_resource_string()
+            print " firmware version:", i.get_firmware_version()
+            print " get device info:", i.get_device_info()
+            rs = i.get_resource_string()
             print " resource string:", rs
-            del nxt
-            print "NXT():"
-            nxt = pyfantom.NXT(rs)
-            print " resource string:", nxt.get_resource_string()
-            del nxt
         if write_read:
-            nxt = i.get_nxt()
+            nxt = i
             import struct
             # Write VERSION SYS_CMD.
             # Query:
@@ -161,9 +161,9 @@ if __name__ == '__main__':
             rep = nxt.read(7)
             print "read", struct.unpack('%dB' % len(rep), rep)
             # Same thing, without response.
-            cmd = struct.pack('2B', 0x81, 0x88)
-            r = nxt.write(cmd)
-            print "wrote", r
-            rep = nxt.read(7)
-            print "read", struct.unpack('%dB' % len(rep), rep)
+            #cmd = struct.pack('2B', 0x81, 0x88)
+            #r = nxt.write(cmd)
+            #print "wrote", r
+            #rep = nxt.read(7)
+            #print "read", struct.unpack('%dB' % len(rep), rep)
             del nxt

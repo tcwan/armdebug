@@ -28,7 +28,7 @@ class USBSock(object):
 
     def __init__(self, device):
         self.sock = usb.USBSocket(device)
-        self.debug = False
+        self.debug = True
 
     def __str__(self):
         return 'USB (%s)' % (self.sock.device_name())
@@ -68,7 +68,49 @@ def _check_brick(arg, value):
     return arg is None or arg == value
 
 def find_bricks(host=None, name=None):
+    get_info = False
     'Use to look for NXTs connected by USB only. ***ADVANCED USERS ONLY***'
     for d in usb.find_devices(lookup_names=True):
+        if get_info:
+            print " firmware version:", d.get_firmware_version()
+            print " get device info:", d.get_device_info()
+            rs = d.get_resource_string()
+            print " resource string:", rs
         # FIXME: probably should check host and name
         yield USBSock(d)
+
+if __name__ == '__main__':
+    write_read = True
+    socks = find_bricks()
+    for s in socks:
+        brick = s.connect()
+        if write_read:
+            import struct
+            # Write VERSION SYS_CMD.
+            # Query:
+            #  SYS_CMD: 0x01
+            #  VERSION: 0x88
+            cmd = struct.pack('2B', 0x01, 0x88)
+            #brick.sock.send(cmd)
+            s.send(cmd)
+            print "wrote", len(cmd)
+            # Response:
+            #  REPLY_CMD: 0x02
+            #  VERSION: 0x88
+            #  SUCCESS: 0x00
+            #  PROTOCOL_VERSION minor
+            #  PROTOCOL_VERSION major
+            #  FIRMWARE_VERSION minor
+            #  FIRMWARE_VERSION major
+            #rep = brick.sock.recv()
+            rep = s.recv()
+            print "read", struct.unpack('%dB' % len(rep), rep)
+            # Same thing, without response.
+            #cmd = struct.pack('2B', 0x81, 0x88)
+            #brick.sock.send(cmd)
+            #print "wrote", cmd
+            #rep = brick.sock.recv()
+            #print "read", struct.unpack('%dB' % len(rep), rep)
+        del brick
+
+        
