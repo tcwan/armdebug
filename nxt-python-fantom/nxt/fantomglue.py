@@ -70,6 +70,9 @@ class BluetoothSocket:
         """Destroy interface."""
         if self._sock is not None:
             del self._sock
+            print "NXT object deleted"
+        else:
+            print "No NXT Object when calling __del__ for BluetoothSocket"
 
 class BluetoothError(IOError):
     pass    
@@ -149,6 +152,9 @@ class USBSocket:
         """Destroy interface."""
         if self._sock is not None:
             del self._sock
+            print "NXT object deleted"
+        else:
+            print "No NXT Object when calling __del__ for USBSocket"
 
 if __name__ == '__main__':
     #get_info = False

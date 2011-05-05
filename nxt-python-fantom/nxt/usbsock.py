@@ -128,6 +128,6 @@ if __name__ == '__main__':
             #print "read", struct.unpack('%dB' % len(rep), rep)
         #s.close()
         #del s
-        brick.sock.close()
+        #brick.sock.close()
         del brick
 

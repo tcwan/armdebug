@@ -217,6 +217,7 @@ class Brick(object): #TODO: this begs to have explicit methods
         sleep(duration / 1000.0)
 
     def __del__(self):
+        print "Deleting Brick"
         self.sock.close()
 
     find_files = FileFinder
