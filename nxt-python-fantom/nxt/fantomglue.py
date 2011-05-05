@@ -64,7 +64,13 @@ class BluetoothSocket:
     def close(self):
         if self._sock is not None:
             del self._sock
-    
+            self._sock = None
+
+    def __del__(self):
+        """Destroy interface."""
+        if self._sock is not None:
+            del self._sock
+
 class BluetoothError(IOError):
     pass    
 
@@ -127,8 +133,20 @@ class USBSocket:
 
     def recv(self, numbytes):
         return self._sock.read( numbytes )
+
+    #def poll_command(self, numbytes):
+        # I'm not sure if this is specific to Direct Command Processing
+        # Or if it refers to any data transmission
+        #print "Bytes Available:", self._sock.bytes_available()
+        #return self._sock.read_buffer( numbytes, 0 )
     
     def close(self):
+        if self._sock is not None:
+            del self._sock
+            self._sock = None
+
+    def __del__(self):
+        """Destroy interface."""
         if self._sock is not None:
             del self._sock
 

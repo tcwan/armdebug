@@ -45,6 +45,7 @@ class USBSock(object):
         if self.debug:
             print 'Closing USB connection...'
         self.sock.close()
+        #self.sock = None
         if self.debug:
             print 'USB connection closed.'
 
@@ -55,14 +56,21 @@ class USBSock(object):
             print ':'.join('%02x' % ord(c) for c in data)
         self.sock.send(data)
 
-    def recv(self):
+    def recv(self, num_bytes=USB_BUFSIZE):
         'Use to recieve raw data over USB connection ***ADVANCED USERS ONLY***'
-        data = self.sock.recv(USB_BUFSIZE)      # FIXME: This will cause an exception since we cannot read more than the actual buffer contents
+        data = self.sock.recv(num_bytes)
         if self.debug:
             print 'Recv:',
-            print ':'.join('%02x' % (c & 0xFF) for c in data)
-        # NOTE: bulkRead returns a tuple of ints ... make it sane
-        return ''.join(chr(d & 0xFF) for d in data)
+            print ':'.join('%02x' % ord(c) for c in data)
+        return data
+
+    def __del__(self):
+        """Destroy interface."""
+        if self.sock is not None:
+            del self.sock
+            if self.debug:
+                print 'Deleted USBSocket.'
+
 
 def _check_brick(arg, value):
     return arg is None or arg == value
@@ -72,6 +80,7 @@ def find_bricks(host=None, name=None):
     'Use to look for NXTs connected by USB only. ***ADVANCED USERS ONLY***'
     for d in usb.find_devices(lookup_names=True):
         if get_info:
+            # pyfantom specific debug info
             print " firmware version:", d.get_firmware_version()
             print " get device info:", d.get_device_info()
             rs = d.get_resource_string()
@@ -83,6 +92,9 @@ if __name__ == '__main__':
     write_read = True
     socks = find_bricks()
     for s in socks:
+    #llsocks = usb.find_devices()
+    #for ls in llsocks:
+        #s = USBSock(ls)
         print s.sock
         brick = s.connect()
         if write_read:
@@ -92,9 +104,9 @@ if __name__ == '__main__':
             #  SYS_CMD: 0x01
             #  VERSION: 0x88
             cmd = struct.pack('2B', 0x01, 0x88)
-            #brick.sock.send(cmd)
+            brick.sock.send(cmd)
             #s.send(cmd)
-            s.sock.send(cmd)
+            #s.sock.send(cmd)
             print "wrote", len(cmd)
             # Response:
             #  REPLY_CMD: 0x02
@@ -104,9 +116,9 @@ if __name__ == '__main__':
             #  PROTOCOL_VERSION major
             #  FIRMWARE_VERSION minor
             #  FIRMWARE_VERSION major
-            #rep = brick.sock.recv()
-            #rep = s.recv()
-            rep = s.sock.recv(7)
+            rep = brick.sock.recv(7)
+            #rep = s.recv(7)
+            #rep = s.sock.recv(7)
             print "read", struct.unpack('%dB' % len(rep), rep)
             # Same thing, without response.
             #cmd = struct.pack('2B', 0x81, 0x88)
@@ -114,5 +126,8 @@ if __name__ == '__main__':
             #print "wrote", cmd
             #rep = brick.sock.recv()
             #print "read", struct.unpack('%dB' % len(rep), rep)
+        #s.close()
+        #del s
+        brick.sock.close()
         del brick
 
