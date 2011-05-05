@@ -112,7 +112,7 @@ class USBSocket:
         # FIXME: The addr is not passed in, so we can't actually create a NXT object later
         #self.device = device
         self._sock = device
-        self.debug = False
+        self.debug = True
 
     def __str__(self):
         return 'FantomGlue USB (%s)' % self.device_name()
@@ -152,9 +152,11 @@ class USBSocket:
         """Destroy interface."""
         if self._sock is not None:
             del self._sock
-            print "NXT object deleted"
+            if self.debug:
+                print "NXT object deleted"
         else:
-            print "No NXT Object when calling __del__ for USBSocket"
+            if self.debug:
+                print "No NXT Object when calling __del__ for USBSocket"
 
 if __name__ == '__main__':
     #get_info = False
@@ -168,6 +170,7 @@ if __name__ == '__main__':
             print " resource string:", rs
         if write_read:
             nxt = USBSocket(i)
+            nxt.connect()
             import struct
             # Write VERSION SYS_CMD.
             # Query:
@@ -198,4 +201,5 @@ if __name__ == '__main__':
             #rep = nxt.recv(USB_BUFSIZE)
             #rep = nxt.recv(7)
             #print "read", struct.unpack('%dB' % len(rep), rep)
+            #nxt.close()
             del nxt
