@@ -41,6 +41,7 @@ class BluetoothSocket:
         # We instantiate a NXT object only when we connect if none supplied
         self._sock = _sock
         self._proto = proto
+        self.debug = True
 
     def __str__(self):
         return 'FantomGlue BT (%s)' % self.device_name()
@@ -63,16 +64,18 @@ class BluetoothSocket:
     
     def close(self):
         if self._sock is not None:
-            del self._sock
+            self._sock.close()
             self._sock = None
 
-    def __del__(self):
-        """Destroy interface."""
-        if self._sock is not None:
-            del self._sock
-            print "NXT object deleted"
-        else:
-            print "No NXT Object when calling __del__ for BluetoothSocket"
+    #def __del__(self):
+    #   """Destroy interface."""
+    #   if self._sock is not None:
+    #       del self._sock
+    #       if self.debug:
+    #           print "NXT object deleted"
+    #   else:
+    #       if self.debug:
+    #           print "No NXT Object when calling __del__ for BluetoothSocket"
 
 class BluetoothError(IOError):
     pass    
@@ -145,18 +148,18 @@ class USBSocket:
     
     def close(self):
         if self._sock is not None:
-            del self._sock
+            self._sock.close()
             self._sock = None
 
-    def __del__(self):
-        """Destroy interface."""
-        if self._sock is not None:
-            del self._sock
-            if self.debug:
-                print "NXT object deleted"
-        else:
-            if self.debug:
-                print "No NXT Object when calling __del__ for USBSocket"
+    #def __del__(self):
+    #   """Destroy interface."""
+    #   if self._sock is not None:
+    #       del self._sock
+    #       if self.debug:
+    #           print "NXT object deleted"
+    #   else:
+    #       if self.debug:
+    #           print "No NXT Object when calling __del__ for USBSocket"
 
 if __name__ == '__main__':
     #get_info = False
@@ -201,5 +204,5 @@ if __name__ == '__main__':
             #rep = nxt.recv(USB_BUFSIZE)
             #rep = nxt.recv(7)
             #print "read", struct.unpack('%dB' % len(rep), rep)
-            #nxt.close()
+            nxt.close()
             del nxt
