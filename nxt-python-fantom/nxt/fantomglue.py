@@ -54,7 +54,10 @@ class BluetoothSocket:
         addr, port = addrport
         if self._sock is None:
             # Port is ignored
-            self._sock = pyfantom.NXT(addr)
+            paired_addr = pair_bluetooth(addr)
+            if self.debug:
+                print "BT Paired Addr: ", paired_addr
+            self._sock = pyfantom.NXT(paired_addr)
     
     def send(self, data):
         return self._sock.write( data )
@@ -194,9 +197,9 @@ if __name__ == '__main__':
             #rep = nxt.recv(7)              # Works, since reply is 7 bytes
             rep = nxt.recv(5)               # Works, read length < remaining buffer content length
             print "read", struct.unpack('%dB' % len(rep), rep)
-            rep = nxt.recv(2)               # Works, read length <= remaining buffer content length
+            rep = nxt.recv(5)               # Works, remaining buffer content length is non-zero
             print "read", struct.unpack('%dB' % len(rep), rep)
-            #rep = nxt.recv(1)              # Doesn't work if it exceeds buffer content length (exception)
+            rep = nxt.recv(1)               # Doesn't work if no bytes are in read buffer
             # Same thing, without response.
             #cmd = struct.pack('2B', 0x81, 0x88)
             #r = nxt.send(cmd)
