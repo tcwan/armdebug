@@ -1,6 +1,4 @@
-# bluetooth.py module -- Glue code from NXT_Python to Lightblue, allowing
-# NXT_Python to run on Mac without modification.  Supports subset of
-# PyBluez/bluetooth.py used by NXT_Python.
+# pyusbglue.py module -- Glue code from NXT_Python to libusb for USB access. 
 #
 # Copyright (C) 2011  Tat-Chee Wan
 #
