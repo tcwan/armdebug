@@ -160,9 +160,9 @@ class NXTGDBServer:
                             print "[GDB->NXT] %s" % data
                         segments = self.segment (data)
                         data = ''
-                        for s in segments:
+                        for seg in segments:
                             try:
-                                brick.sock.send (s)
+                                brick.sock.send (seg)
                             except usb.USBError as e:
                                 # Some pyusb are buggy, ignore some "errors".
                                 if e.args != ('No error', ):
