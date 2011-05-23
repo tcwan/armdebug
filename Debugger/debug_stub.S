@@ -679,7 +679,10 @@ _proc_command:
 	teq		r0, #MSGBUF_CTRLC
 	bne		_dbg_check_gdb_command
 	/* Ctrl-C detected, do nothing (wait for next command from GDB) */
+#if 0
+	/* On entering the Debugger via Ctrl-C, _dbg__cmd_Status has already sent a reply, so just keep quiet */
 	bl		__dbg__procAckOnly				/* send Ack */
+#endif
 	b		dbg__bkpt_waitCMD_cont
 
 _dbg_check_gdb_command:
