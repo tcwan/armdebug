@@ -574,6 +574,11 @@ dbg__comm_init:
 	stmia   r2!, {r0, r1}          /* debug_msgRxBufPtr and debug_msgTxBufPtr */
 	stmia   r2!, {r0, r1}          /* debug_msgRxBuf_AppendPtr and debug_msgTxBuf_AppendPtr */
 	bl		_dbg__comm_readbuf_reset
+#ifndef __NXOS__
+    ldr     r1, =debug_nxtMsgLength
+    mov		r0, #0
+    str     r0, [r1, #NXTCOMMCHANNEL_OFFSET]    /* Clear NXT Channel on INIT */
+#endif
 	ldmfd	sp!, {pc}
 
 _dbg__comm_readbuf_reset:
@@ -589,7 +594,6 @@ _dbg__comm_readbuf_reset:
     ldr     r1, =debug_nxtMsgLength
     mov     r0, #0
     str     r0, [r1]                            /* Clear NXT Received Message Length */
-    str     r0, [r1, #NXTCOMMCHANNEL_OFFSET]    /* Clear NXT Channel */
 	bx		lr
 
     .global dbg__copyNxtDebugMsg
