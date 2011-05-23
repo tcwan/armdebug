@@ -19,7 +19,8 @@ import nxt.locator
 import socket
 import optparse
 import select
-import usb
+#import usb
+import nxt.pyfantom
 import struct
 
 CTRLC = chr(3)
