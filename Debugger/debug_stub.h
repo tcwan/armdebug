@@ -55,6 +55,25 @@
  */
 FUNCDEF void dbg__bkpt_init(void);
 
+#ifdef __NXOS__
+
+/** Communication Channel Enums
+ *
+ * Communication Channel Enums.
+ */
+ENUM_BEGIN
+ENUM_VALASSIGN(COMM_USB, 1)     /**< USB Communications */
+ENUM_VAL(COMM_BT)              /**< Bluetooth Communications */
+ENUM_END(comm_chan_t)
+
+/** Enable switch to Debugger Mode from NxOS operational mode
+ * 		Returns  0 if no mode switch needed (already in Debug mode)
+ * 				!0 if mode switch will happen
+ * 		Used by NxOS only
+ */
+FUNCDEF int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len);
+#endif
+
 #ifndef __NXOS__
 /** Switch Mode to Debugger.
  * 		Used by NXT Firmware only

@@ -469,6 +469,52 @@ debug_armComplexCCTable:
  /* FIXME: The Debugger Stack Frame is probably not 100% consistent with the order that
     GDB expects in the g/G messages. CSPR is probably located above R15 */
 
+#ifdef __NXOS__
+/****************************************************************************
+ *
+ * GDB Debugger Invocation Routine for NxOS
+ *
+ ****************************************************************************/
+	.code 32
+	.align 4
+	.global nxos__handleDebug
+/* nxos__handleDebug
+ * 		Prepare to switch to Debug Mode
+ * int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len);
+ *
+ * This routine is called from NxOS Fantom library to setup
+ * Single Step Breakpoint and copy Incoming Message to
+ * Debugger Message Buffers in preparation for Debugger invocation.
+ *
+ * If we're operating in normal NxOS mode, return True (!0)
+ * If we're already in Debugger Mode, return False (0)
+ */
+nxos__handleDebug:
+		push {lr}
+		/* When called, NxOS is in ISR servicing mode (MODE_IRQ) */
+		/* R0-R2 has received message related parameters */
+ 		mrs		r3, spsr				/* Copy SPSR to r3 */
+ 		and 	r3, r3, #CPSR_MODE		/* Get previous mode */
+ 		teq		r3, #MODE_ABT			/* Are we in Abort (Debug) mode? */
+ 		moveq	r0, #FALSE
+ 		beq		exit_nxos__handleDebug	/* Yes, return False */
+
+_nxos_switch2debug:
+        bl    dbg__copyNxtDebugMsg  	/* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
+
+		/* Retrieve ISR Return Address */
+ 		mrs		r3, spsr				/* Copy SPSR to r3 */
+ 		tst		r3, #CPSR_THUMB			/* Check for Thumb Mode */
+		sub		r1, r14, #4				/* R14 has PC + 4, need to setup Single Step Breakpoint at PC */
+ 		orrne	r1, r1, #1				/* Configure for Thumb Single Step Breakpoint */
+	    bl  	_dbg__install_singlestep /* Setup Single Step, next instruction address returned in r1 */
+		bl		_dbg__activate_singlestep
+		mov	    r0, #TRUE				/* We're going to switch to Debug Mode */
+exit_nxos__handleDebug:
+		pop	  {r1}
+    	bx    r1						/* Safe code: in case we have Interworking from different caller mode */
+#endif
+
 #ifndef __NXOS__
 /****************************************************************************
  *
