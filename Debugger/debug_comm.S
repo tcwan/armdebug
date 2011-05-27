@@ -46,7 +46,7 @@ debug_msgTxBuf_AppendPtr:
 debug_segmentRxNum:				/* Current Rx Segment Number */
 	.word	0x0
 
-#ifndef __NXOS__
+/* Incoming Message Length and Comm Channel is now common to both NxOS and NXT Firmware */
 debug_nxtMsgLength:            /* NXT Firmware Received Message Length */
     .word   0x0
 
@@ -54,8 +54,6 @@ debug_nxtCommChannel:
     .word   0x0
 
     .equ    NXTCOMMCHANNEL_OFFSET, (debug_nxtCommChannel - debug_nxtMsgLength)
-
-#endif
 
 .data
 .align 4
@@ -574,11 +572,9 @@ dbg__comm_init:
 	stmia   r2!, {r0, r1}          /* debug_msgRxBufPtr and debug_msgTxBufPtr */
 	stmia   r2!, {r0, r1}          /* debug_msgRxBuf_AppendPtr and debug_msgTxBuf_AppendPtr */
 	bl		_dbg__comm_readbuf_reset
-#ifndef __NXOS__
     ldr     r1, =debug_nxtMsgLength
     mov		r0, #0
     str     r0, [r1, #NXTCOMMCHANNEL_OFFSET]    /* Clear NXT Channel on INIT */
-#endif
 	ldmfd	sp!, {pc}
 
 _dbg__comm_readbuf_reset:
@@ -589,12 +585,16 @@ _dbg__comm_readbuf_reset:
 	ldr		r2, =nx_usb_read
 	mov		lr, pc
 	bx		r2
+    ldr     r1, =debug_nxtMsgLength
+    mov     r0, #0
+    str     r0, [r1]                            /* Clear NxOS Received Message Length */
 	ldmfd	sp!, {pc}
 #else
     ldr     r1, =debug_nxtMsgLength
     mov     r0, #0
     str     r0, [r1]                            /* Clear NXT Received Message Length */
 	bx		lr
+#endif
 
     .global dbg__copyNxtDebugMsg
 /* dbg__copyNxtDebugMsg
@@ -616,7 +616,6 @@ dbg__copyNxtDebugMsg:
  */
     _dbg_memcpy r1, r0, r2, r3                  /* r3: scratch register */
     bx      lr
-#endif
 
 /* _dbg_reset_msgTxBuf_AppendPtr
  *      Internal variable to reset pointers.
