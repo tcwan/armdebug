@@ -480,7 +480,7 @@ debug_armComplexCCTable:
 	.global nxos__handleDebug
 /* nxos__handleDebug
  * 		Prepare to switch to Debug Mode
- * int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len);
+ * int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len, void *isrRetAddr);
  *
  * This routine is called from NxOS Fantom library to setup
  * Single Step Breakpoint and copy Incoming Message to
@@ -490,9 +490,10 @@ debug_armComplexCCTable:
  * If we're already in Debugger Mode, return False (0)
  */
 nxos__handleDebug:
-		push {lr}
+		push {r4, lr}
 		/* When called, NxOS is in ISR servicing mode (MODE_IRQ) */
-		/* R0-R2 has received message related parameters */
+		/* R0-R3 has received message related parameters */
+		mov		r4, r3					/* Keep isrRetAddr in R4 */
  		mrs		r3, spsr				/* Copy SPSR to r3 */
  		and 	r3, r3, #CPSR_MODE		/* Get previous mode */
  		teq		r3, #MODE_ABT			/* Are we in Abort (Debug) mode? */
@@ -505,14 +506,15 @@ _nxos_switch2debug:
 		/* Retrieve ISR Return Address */
  		mrs		r3, spsr				/* Copy SPSR to r3 */
  		tst		r3, #CPSR_THUMB			/* Check for Thumb Mode */
-		sub		r1, r14, #4				/* R14 has PC + 4, need to setup Single Step Breakpoint at PC */
+		sub		r1, r4, #4				/* R3 (isrRetAddr) has PC + 4, need to setup Single Step Breakpoint at PC */
  		orrne	r1, r1, #1				/* Configure for Thumb Single Step Breakpoint */
 	    bl  	_dbg__install_singlestep /* Setup Single Step, next instruction address returned in r1 */
 		bl		_dbg__activate_singlestep
 		mov	    r0, #TRUE				/* We're going to switch to Debug Mode */
 exit_nxos__handleDebug:
-		pop	  {r1}
-    	bx    r1						/* Safe code: in case we have Interworking from different caller mode */
+		pop	  {r4, lr}
+		mov	  r1, lr					/* Safe code: Thumb mode can't access lr */
+    	bx    r1						/* In case we have Interworking from different caller mode */
 #endif
 
 #ifndef __NXOS__
