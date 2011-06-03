@@ -1,3 +1,0 @@
-#!/bin/sh
-export PYTHONPATH=~/gitrepo/armdebug/nxt-python-fantom
-arch -i386 /usr/bin/python2.6

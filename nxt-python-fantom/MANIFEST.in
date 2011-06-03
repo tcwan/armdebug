@@ -1,4 +1,0 @@
-include docs/*.html *.url *.css *.txt
-include README LICENSE install.bat MANIFEST.in
-include examples/*.py
-exclude arduino/*
