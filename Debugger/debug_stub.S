@@ -480,7 +480,7 @@ debug_armComplexCCTable:
 	.global nxos__handleDebug
 /* nxos__handleDebug
  * 		Prepare to switch to Debug Mode
- * int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len, void *isrRetAddr);
+ * int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len);
  *
  * This routine is called from NxOS Fantom library to setup
  * Single Step Breakpoint and copy Incoming Message to
@@ -490,11 +490,18 @@ debug_armComplexCCTable:
  * If we're already in Debugger Mode, return False (0)
  */
 nxos__handleDebug:
-		push {r4, lr}
-		/* When called, NxOS is in ISR servicing mode (MODE_IRQ) */
-		/* R0-R3 has received message related parameters */
-		mov		r4, r3					/* Keep isrRetAddr in R4 */
+		push {r4, r5, lr}
+		/* When called, NxOS is in Supervisor mode (MODE_SVC), called from nx__irq_handler()
+		 * The IRQ Stack contains the LR and SPSR from the topmost interrupted task
+		 * (NxOS supports nested IRQs)
+		 */
+		/* R0-R2 has received message related parameters */
+@@@@@@
+        /* Switch to IRQ mode get SPSR to find out how we were called */
+        msr cpsr_c, #(MODE_IRQ | IRQ_FIQ_MASK)
  		mrs		r3, spsr				/* Copy SPSR to r3 */
+@@@@@ FIXME: is this safe?
+        msr cpsr_c, #(MODE_SVC)			/* Return to SVC mode, restore interrupts */
  		and 	r3, r3, #CPSR_MODE		/* Get previous mode */
  		teq		r3, #MODE_ABT			/* Are we in Abort (Debug) mode? */
  		moveq	r0, #FALSE
@@ -504,15 +511,16 @@ _nxos_switch2debug:
         bl    dbg__copyNxtDebugMsg  	/* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
 
 		/* Retrieve ISR Return Address */
- 		mrs		r3, spsr				/* Copy SPSR to r3 */
- 		tst		r3, #CPSR_THUMB			/* Check for Thumb Mode */
-		sub		r1, r4, #4				/* R3 (isrRetAddr) has PC + 4, need to setup Single Step Breakpoint at PC */
+        ldr     r3, =__irq_stack__
+        ldmedb  r3, {r4,r5}				/* R4: SPSR, R5: LR */
+ 		tst		r4, #CPSR_THUMB			/* Check for Thumb Mode */
+		mov		r1, r5					/* R5 has interrupted instruction address, setup Single Step Breakpoint for it */
  		orrne	r1, r1, #1				/* Configure for Thumb Single Step Breakpoint */
 	    bl  	_dbg__install_singlestep /* Setup Single Step, next instruction address returned in r1 */
 		bl		_dbg__activate_singlestep
 		mov	    r0, #TRUE				/* We're going to switch to Debug Mode */
 exit_nxos__handleDebug:
-		pop	  {r4, lr}
+		pop	  {r4, r5, lr}
 		mov	  r1, lr					/* Safe code: Thumb mode can't access lr */
     	bx    r1						/* In case we have Interworking from different caller mode */
 #endif

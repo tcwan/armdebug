@@ -582,7 +582,7 @@ _dbg__comm_readbuf_reset:
 	stmfd	sp!, {lr}
 	ldr		r0, =debug_InCommBuf
 	mov		r1, #USB_BUFSIZE
-	ldr		r2, =nx_usb_read
+	ldr		r2, =nx_usb_fantom_read
 	mov		lr, pc
 	bx		r2
     ldr     r1, =debug_nxtMsgLength

@@ -71,7 +71,7 @@ ENUM_END(comm_chan_t)
  * 				!0 if mode switch will happen
  * 		Used by NxOS only
  */
-FUNCDEF int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len, void *isrRetAddr);
+FUNCDEF int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len);
 #endif
 
 #ifndef __NXOS__
