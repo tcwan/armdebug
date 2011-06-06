@@ -577,24 +577,26 @@ dbg__comm_init:
     str     r0, [r1, #NXTCOMMCHANNEL_OFFSET]    /* Clear NXT Channel on INIT */
 	ldmfd	sp!, {pc}
 
-_dbg__comm_readbuf_reset:
 #ifdef __NXOS__
+_dbg__comm_readbuf_reset:
 	stmfd	sp!, {lr}
 	ldr		r0, =debug_InCommBuf
 	mov		r1, #USB_BUFSIZE
 	ldr		r2, =fantom_init
 	mov		lr, pc
 	bx		r2
+#if 0
     ldr     r1, =debug_nxtMsgLength
     mov     r0, #0
     str     r0, [r1]                            /* Clear NxOS Received Message Length */
+#endif
 	ldmfd	sp!, {pc}
 #else
+_dbg__comm_readbuf_reset:
     ldr     r1, =debug_nxtMsgLength
     mov     r0, #0
     str     r0, [r1]                            /* Clear NXT Received Message Length */
 	bx		lr
-#endif
 
     .global dbg__copyNxtDebugMsg
 /* dbg__copyNxtDebugMsg
@@ -616,6 +618,7 @@ dbg__copyNxtDebugMsg:
  */
     _dbg_memcpy r1, r0, r2, r3                  /* r3: scratch register */
     bx      lr
+#endif
 
 /* _dbg_reset_msgTxBuf_AppendPtr
  *      Internal variable to reset pointers.
@@ -638,7 +641,7 @@ _dbg_reset_msgTxBuf_AppendPtr:
 _dbg__commHasMsg:
 	stmfd	sp!, {lr}
 #ifdef __NXOS__
-	ldr		r2, =nx_usb_data_read
+	ldr		r2, =nx_usb_fantom_data_read
 	mov		lr,pc
 	bx		r2					    /* Number of bytes read in R0 */
 	/* Note: The return value in R0 is the Comm Buffer Size, includes NXT Direct Command Header */
@@ -662,7 +665,8 @@ _dbg__commHasMsg:
     b       _exit_dbg__commHasMsg
 
 invalid_CommMsg:
-    mov   r0, #0
+    bl      _dbg__comm_readbuf_reset /* Next Comm telegram transaction */
+    mov     r0, #0
 _exit_dbg__commHasMsg:
     ldmfd   sp!, {pc}
 
