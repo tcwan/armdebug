@@ -662,8 +662,8 @@ dbg__arm_bkpt_handler:
 /*	b	_process_normal_breakpoint */
 
 _process_normal_breakpoint:
-	bl	_dbg__restore_breakpoints
-	bl	_dbg__restore_singlestep
+	bl	_dbg__restore_breakpoints	/* includes restoring single step */
+/*	bl	_dbg__restore_singlestep */
 	bl	_dbg__clear_singlestep
 	bl	_dbg__flush_icache
 	b	dbg__bkpt_waitCMD
