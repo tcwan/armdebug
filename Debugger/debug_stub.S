@@ -2908,7 +2908,7 @@ _nx_is_arm_bp:
 	teq		r2, r3							/* check that the two instructions are identical */
 	bne		_dbg__breakpoint_invalid_arm
 	ldr		r2, =BKPT32_INSTR				/* ARM BKPT instruction */
-	and		r2, r2, r0						/* Merge Breakpoint index */
+	orr		r2, r2, r0						/* Merge Breakpoint index */
 	str		r2, [r1]						/* Store it into memory location */
 _dbg__breakpoint_invalid_arm:
 	bx		lr
@@ -2918,7 +2918,7 @@ _nx_is_thumb_bp:
 	teq		r2, r3							/* check that the two instructions are identical */
 	bne		_dbg__breakpoint_invalid_thumb
 	ldr		r2, =BKPT16_INSTR				/* Thumb BKPT instruction */
-	and		r2, r2, r0						/* Merge Breakpoint index */
+	orr		r2, r2, r0						/* Merge Breakpoint index */
 	strh	r2, [r1]						/* Store it into memory location */
 _dbg__breakpoint_invalid_thumb:
 	bx		lr
