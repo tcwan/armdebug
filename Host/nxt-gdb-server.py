@@ -20,7 +20,7 @@ import socket
 import optparse
 import select
 #import usb
-import nxt.pyfantom
+import pyfantom
 import struct
 
 CTRLC = chr(3)
@@ -134,7 +134,7 @@ class NXTGDBServer:
         s.bind (('', self.port))
         s.listen (1)
         # Open connection to the NXT brick.
-        brick = nxt.locator.find_one_brick ()
+        brick = nxt.locator.find_one_brick (method=nxt.Method(usb=False, bluetooth=False, fantomusb=True, fantombt=False))
         brick.sock.debug = DEBUG
         print "Waiting for GDB connection on port %s..." % self.port
         while True:
