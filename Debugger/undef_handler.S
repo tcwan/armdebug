@@ -100,8 +100,8 @@ _is_arm:
 		ldr	r2, =dbg__arm_bkpt_handler		/* handle BKPT, BKPT index in r0 */
 _exit_undef_handler:
 		and	r0, r1, r0					/* Keep index value */
-		msr	cpsr_c, #(MODE_ABT)			/* Configure Abort Mode */
-		mov	pc, r2						/* Invoke Debugger State (Supervisor Mode) */
+		msr	cpsr_c, #(MODE_ABT | CPSR_FIQ | CPSR_IRQ)			/* Switch to Abort Mode, Disable Interrupts */
+		mov	pc, r2						/* Invoke Debugger */
 
     .global resume_execution
 
