@@ -621,7 +621,7 @@ _dbg__flush_icache:
  */
 dbg__thumb_bkpt_handler:
 /* On entry, r0 contains breakpoint index value */
-	mov	r4, #BKPT16_AUTO_BKPT
+	/* mov	r4, #BKPT16_AUTO_BKPT Redundant?! */
 	and	r4, r0, #BKPT16_AUTO_BKPT	/* keep AUTO flag value in r4 */
 	bic	r0, r0, #BKPT16_AUTO_BKPT	/* mask out AUTO flag */
 	_dbg_setcurrbkpt_index r0		/* keep current breakpoint index in memory */
@@ -644,7 +644,7 @@ dbg__thumb_bkpt_handler:
  */
 dbg__arm_bkpt_handler:
 /* On entry, r0 contains breakpoint index value */
-	mov	r4, #BKPT32_AUTO_BKPT
+	/* mov	r4, #BKPT32_AUTO_BKPT Redundant?! */
 	and	r4, r0, #BKPT32_AUTO_BKPT	/* keep AUTO flag value in r4 */
 	bic	r0, r0, #BKPT32_AUTO_BKPT	/* mask out AUTO flag */
 	_dbg_setcurrbkpt_index r0		/* keep current breakpoint index in memory */
