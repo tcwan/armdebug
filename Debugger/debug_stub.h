@@ -138,7 +138,7 @@ static inline void dbg_breakpoint_thumb(void) { asm volatile (".hword 0xBE7F" /*
  	.word	(BKPT32_INSTR | BKPT32_MANUAL_BKPT)
  	.endm
 
-/* dbg__bkpt_arm
+/* dbg__bkpt_thumb
  * 		GDB breakpoint() for Thumb mode
  */
  	.macro dbg__bkpt_thumb
