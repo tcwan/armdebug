@@ -15,8 +15,8 @@
 
 /*
  * This file contains platform specific code.
- * This include ABORT Run Loop operation, as well as
- * Debugger Interfacing code to the platform code.
+ * This include ABORT Mode Debugger Run Loop operation,
+ * as well as Debugger Interfacing code to the platform code.
  */
 
 /*
@@ -53,11 +53,10 @@
  * ^-------v                                                      v-------^
  *
  * The Platform will invoke dbg__bkpt_init() after hardware and system initialization,
- * before entering the Platform Run Loop. This switches processing over to the
- * Debugger Run Loop which will wait for the GDB command to Go/Step/Cont before
- * returning control to the Platform Run Loop.
+ * before entering the Platform Run Loop. This configures the Debugger, but does not
+ * invoke the Debugger Run Loop unless a Manual Breakpoint is found in the platform code.
  *
- * Subsequently, Debugger Run Loop will be triggered by Breakpoints, or
+ * Subsequently, the Debugger Run Loop will be triggered by Breakpoints, or
  * when the communications subsystem receives a GDB Command.
  *
  * The Debugger Run Loop is actually dbg__bkpt_waitCMD(), this file contains
@@ -79,13 +78,21 @@
 
 
 #ifdef __NXOS__
-/* NxOS Run Loop */
+/****************************************************************************
+ *
+ * NxOS Run Loop
+ *
+ ****************************************************************************/
 dbg__runloopTasks:
 /* Currently, there's nothing that needs to be done in the NxOS Run Loop */
     bx      lr
 
 #else
-/* NXT Firmware Run Loop */
+/****************************************************************************
+ *
+ * NXT Firmware Run Loop
+ *
+ ****************************************************************************/
     .extern cCommCtrl
 
 dbg__runloopTasks:
@@ -148,7 +155,7 @@ nxos__handleDebug:
 
 _nxos_switch2debug:
 		/* Retrieve ISR Return Address */
-        ldr     r3, =__irq_stack__
+        ldr     r3, =irq_stack_frame_address
         ldmdb   r3, {r4,r5}				/* R4: SPSR, R5: LR */
  		tst		r4, #CPSR_THUMB			/* Check for Thumb Mode */
 		mov		r1, r5					/* R5 has interrupted instruction address, setup Single Step Breakpoint for it */
