@@ -1190,7 +1190,7 @@ _dbg__cont_is_normal_breakpoint:
     mov		r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
     bl  	_dbg_following_instruction_addr /* following instruction address returned in r1 */
-    bl  	_dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
+    bl  	dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
     _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
     bl  	_dbg__activate_autobreakpoint   /* pass next instruction address in r1 */
 	b		_dbg__switch2undefmode_withAck
@@ -1256,8 +1256,8 @@ _dbg__step_is_manual_bkpt:
 
 _dbg__step_is_manual_bkpt_or_address_specified:
     bl  	_dbg_following_instruction_addr /* following instruction address returned in r1 */
-    bl  	_dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
-	bl		_dbg__activate_singlestep
+    bl  	dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
+	bl		dbg__activate_singlestep
     b       _dbg__switch2undefmode_withAck
 
 
@@ -2709,12 +2709,13 @@ _dbg__clear_breakpoints:
 	blo		3b
 	ldmfd	sp!, {pc}
 
-/* _dbg__install_singlestep
+	.global dbg__install_singlestep
+/* dbg__install_singlestep
  *		Install the Single Step Breakpoint
  *		On entry:
  *			R1: Instruction Address (31 bits, b0 = THUMB flag)
  */
-_dbg__install_singlestep:
+dbg__install_singlestep:
 	mov		r0, #0
 /*	b		_dbg__install_one_breakpoint */
 
@@ -2775,10 +2776,11 @@ _dbg__restore_breakpoints:
 	ldr		r5, =_dbg__restore_one_breakpoint
 	b		__dbg__iterate_breakpoint_array
 
-/* _dbg__activate_singlestep
+	.global dbg__activate_singlestep
+/* dbg__activate_singlestep
  *		Activate the single step breakpoint to memory
  */
-_dbg__activate_singlestep:
+dbg__activate_singlestep:
 	mov		r0, #0						/* single step breakpoint index */
 	_index2bkptindex_addr	r0, r1		/* Calculate Single Step Breakpoint Entry Address */
 	ldm		r1, {r1, r2}				/* r1: Breakpoint Address, r2: Breakpoint Instruction */
