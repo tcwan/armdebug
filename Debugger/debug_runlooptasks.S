@@ -115,6 +115,7 @@ dbg__runloopTasks:
 
 	.extern _dbg__install_singlestep
 	.extern _dbg__activate_singlestep
+	.extern irq_stack_frame_address
 	.global nxos__handleDebug
 /* nxos__handleDebug
  * 		Prepare to switch to Debug Mode
