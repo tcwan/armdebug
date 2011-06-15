@@ -113,8 +113,8 @@ dbg__runloopTasks:
 	.code 32
 	.align 4
 
-	.extern _dbg__install_singlestep
-	.extern _dbg__activate_singlestep
+	.extern dbg__install_singlestep
+	.extern dbg__activate_singlestep
 	.extern irq_stack_frame_address
 	.global nxos__handleDebug
 /* nxos__handleDebug
@@ -161,8 +161,8 @@ _nxos_switch2debug:
  		tst		r4, #CPSR_THUMB			/* Check for Thumb Mode */
 		mov		r1, r5					/* R5 has interrupted instruction address, setup Single Step Breakpoint for it */
  		orrne	r1, r1, #1				/* Configure for Thumb Single Step Breakpoint */
-	    bl  	_dbg__install_singlestep /* Setup Single Step, next instruction address returned in r1 */
-		bl		_dbg__activate_singlestep
+	    bl  	dbg__install_singlestep /* Setup Single Step, next instruction address returned in r1 */
+		bl		dbg__activate_singlestep
 		mov	    r0, #TRUE				/* We're going to switch to Debug Mode (via Single Step Breakpoint) */
 exit_nxos__handleDebug:
 		pop	  {r4, r5, lr}
