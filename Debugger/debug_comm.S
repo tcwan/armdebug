@@ -408,9 +408,11 @@ _dbg__sendCommMsg:
     mov     r4, r0                              /* Keep Comm Buffer length in R4 */
 #ifdef __NXOS__
     /* Check USB bus status, transmit message if possible */
-    bl      nx_usb_is_connected                 /* R0 = True if USB is ready */
-    cmp     r0, #TRUE
-    bne     _exit_dbg__sendCommMsg
+    bl      nx_usb_is_connected                 /* R0 = TRUE (#1) if USB is ready */
+    teq     r0, #0								/* FALSE == #0;
+    											   We can't check for True condition since values
+    											   used by C-Compiler & ARMDEBUG are different */
+    beq     _dbg__sendCommMsgFailed
 
     /* Actual transmission (blocking) */
     ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
