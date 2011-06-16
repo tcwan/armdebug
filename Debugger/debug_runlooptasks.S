@@ -119,7 +119,7 @@ dbg__runloopTasks:
 	.global nxos__handleDebug
 /* nxos__handleDebug
  * 		Prepare to switch to Debug Mode
- * int nxos__handleDebug(unsigned char *msg, comm_chan_t channel, long len);
+ * int nxos__handleDebug(comm_chan_t channel);
  *
  * This routine is called from NxOS Fantom library to setup
  * Single Step Breakpoint in preparation for Debugger invocation if we're in
@@ -136,37 +136,43 @@ dbg__runloopTasks:
  * If we're already in Debugger Mode, return False (0)
  */
 nxos__handleDebug:
-		push {r4, r5, lr}
-		/* When called, NxOS is in Supervisor mode (MODE_SVC), called from nx__irq_handler()
-		 * via fantom_filter_packet().
+		push {lr}
+		/* This routine is called from nx__irq_handler() via fantom_filter_packet().
+		 * The operating mode should already have been configured by the IRQ interrupt handler.
 		 *
-		 * The IRQ Stack contains the LR and SPSR from the topmost interrupted task
-		 * (NxOS supports nested IRQs)
+		 * The IRQ Stack Frame Pointer will contains the LR and SPSR from the topmost interrupted task
+		 * if it is non-zero (NxOS supports nested IRQs)
 		 */
-		/* R0-R2 has received message related parameters */
 
-        /* Switch to IRQ mode get SPSR to find out how we were called */
-        msr 	cpsr_c, #(MODE_IRQ | CPSR_FIQ | CPSR_IRQ)
- 		mrs		r3, spsr				/* Copy SPSR to r3 */
-        msr 	cpsr_c, #(MODE_SVC)		/* Return to SVC mode, restore interrupts */
- 		and 	r3, r3, #CPSR_MODE		/* Get previous mode */
+		ldr		r3, =debug_nxtCommChannel
+		str		r0, [r3]				/* Keep track of which communications link was used (USB/Bluetooth) */
+
+        /* Check our current operating mode */
+ 		mov		r0, #FALSE				/* Setup Default Return value (False) */
+		mrs		r3, cpsr				/* Copy CPSR to r3 */
+ 		and 	r3, r3, #CPSR_MODE		/* Get current mode */
  		teq		r3, #MODE_ABT			/* Are we in Abort (Debug) mode? */
- 		moveq	r0, #FALSE
  		beq		exit_nxos__handleDebug	/* Yes, return False */
 
-_nxos_switch2debug:
 		/* Retrieve ISR Return Address */
         ldr     r3, =irq_stack_frame_address
-        ldmdb   r3, {r4,r5}				/* R4: SPSR, R5: LR */
- 		tst		r4, #CPSR_THUMB			/* Check for Thumb Mode */
-		mov		r1, r5					/* R5 has interrupted instruction address, setup Single Step Breakpoint for it */
+        ldr		r3, [r3]				/* Get Interrupt Stack Pointer */
+        teq		r3, #0
+        beq		exit_nxos__handleDebug	/* NULL Interrupt Stack Frame Pointer, exit (status: False) */
+
+nxos_switch2debug:
+		/* Since the Interrupt Stack Frame Pointer points to the top of the stack frame,
+		 * we'll have to use Load Empty Ascending Stack (LDMEA == LDMDB) to access the variables
+		 */
+        ldmdb   r3, {r1,r2}				/* R1: LR, R2: SPSR */
+ 		tst		r2, #CPSR_THUMB			/* Check for Thumb Mode */
  		orrne	r1, r1, #1				/* Configure for Thumb Single Step Breakpoint */
 	    bl  	dbg__install_singlestep /* Setup Single Step, next instruction address returned in r1 */
 		bl		dbg__activate_singlestep
 		mov	    r0, #TRUE				/* We're going to switch to Debug Mode (via Single Step Breakpoint) */
+
 exit_nxos__handleDebug:
-		pop	  {r4, r5, lr}
-		mov	  r1, lr					/* Safe code: Thumb mode can't access lr */
+		pop	  {r1}
     	bx    r1						/* In case we have Interworking from different caller mode */
 
 #else

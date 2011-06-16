@@ -46,10 +46,11 @@ debug_msgTxBuf_AppendPtr:
 debug_segmentRxNum:				/* Current Rx Segment Number */
 	.word	0x0
 
-/* Incoming Message Length and Comm Channel is now common to both NxOS and NXT Firmware */
 debug_nxtMsgLength:            /* NXT Firmware Received Message Length */
     .word   0x0
 
+/* Comm Channel is now common to both NxOS and NXT Firmware */
+	.global debug_nxtCommChannel
 debug_nxtCommChannel:
     .word   0x0
 
