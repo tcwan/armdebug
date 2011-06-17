@@ -420,9 +420,11 @@ _dbg__sendCommMsg:
     bl      nx_usb_write
 
 1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
-    cmp     r0, #TRUE
+    teq     r0, #0								/* FALSE == #0;
+    											   We can't check for True condition since values
+    											   used by C-Compiler & ARMDEBUG are different */
     /* FIXME: implement timeout */
-    bne     1b                                  /* Busy Wait Loop */
+    beq     1b                                  /* Busy Wait Loop */
 #else
     ldr     r0, =debug_nxtCommChannel
     ldr     r0, [r0]                            /* Get Channel Enum */
