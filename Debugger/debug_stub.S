@@ -1168,7 +1168,7 @@ _dbg__cmd_Detach:
     teq     r1, #CMD_DETACH_PARAMLEN    	/* Check for correct length */
 	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
 
-	pop		sp!, {lr}						/* Cleanup stack, since we won't return to the Debugger Run Loop */
+	ldmfd	sp!, {lr}						/* Cleanup stack, since we won't return to the Debugger Run Loop */
     b       _dbg__cont_check_breakpoint_type          /* Continue from current PC */
 
 /* _dbg__cmd_Continue
