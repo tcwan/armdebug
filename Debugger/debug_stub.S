@@ -79,6 +79,8 @@
  *    MAA..AA,LLLL:bb..bb
  *                  Write LLLL bytes at address AA.AA      OK or ENN
  *
+ *    D             Detach (equivalent to continue         Ack Only
+ *                  at current address)
  *    c             Resume at current address              SNN   ( signal NN)
  *    cAA..AA       Continue at address AA..AA             SNN
  *
