@@ -229,7 +229,7 @@ debug_OkResponse:
 
 /* The CmdIndexTable and CmdJumpTable must be kept in sync */
 debug_cmdIndexTable:
-	.byte	'g','G','p','P','m','M','c','s','k','z','Z','?','q','Q','D',0
+	.byte	'g','G','p','P','m','M','D','c','s','k','z','Z','?','q','Q',0
 
 /* Command Handlers
  * On entry:
@@ -243,6 +243,7 @@ debug_cmdJumpTable:
 	.word	_dbg__cmd_SetOneReg				    /* 'P' */
 	.word	_dbg__cmd_ReadMem					/* 'm' */
 	.word	_dbg__cmd_WriteMem					/* 'M' */
+	.word	_dbg__cmd_Detach					/* 'D' */
 	.word	_dbg__cmd_Continue					/* 'c' */
 #ifdef __NXOS__
 	.word	_dbg__cmd_Step						/* 's' */
@@ -256,7 +257,6 @@ debug_cmdJumpTable:
 	.word	_dbg__cmd_Status					/* '?' */
 	.word	_dbg__cmd_Query						/* 'q' */
 	.word	_dbg__nop							/* 'Q' */
-	.word	_dbg__cmd_Detach					/* 'D' */
 	.word	0
 
 /* Rm Shifted Shift Type Jump Table
