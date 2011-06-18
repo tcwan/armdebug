@@ -75,7 +75,7 @@
 	.code 32
 	.align 4
     .global dbg__runloopTasks
-
+	.global	dbg__reboot
 
 #ifdef __NXOS__
 /****************************************************************************
@@ -101,6 +101,26 @@ dbg__runloopTasks:
     bl      cCommCtrl
     /* OSWatchdogWrite is a NULL function in the NXT Firmware?! */
     pop     {pc}
+#endif
+
+#ifdef __NXOS__
+	.extern 	nx_core_reset
+/****************************************************************************
+ *
+ * NxOS Reboot Routine
+ *
+ ****************************************************************************/
+ dbg__reboot:
+	b	    nx_core_reset		/* Reboot Brick, won't return */
+
+#else
+/****************************************************************************
+ *
+ * NXT Firmware Reboot Routine
+ *
+ ****************************************************************************/
+dbg__reboot:
+	bx		lr
 #endif
 
 

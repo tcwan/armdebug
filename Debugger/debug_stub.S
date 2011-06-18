@@ -242,8 +242,13 @@ debug_cmdJumpTable:
 	.word	_dbg__cmd_ReadMem					/* 'm' */
 	.word	_dbg__cmd_WriteMem					/* 'M' */
 	.word	_dbg__cmd_Continue					/* 'c' */
+#ifdef __NXOS__
+	.word	_dbg__cmd_Step						/* 's' */
+#else
+	/* NXT Firmware does not support Stepping */
 	.word	_dbg__nop							/* 's' */
-	.word	_dbg__nop							/* 'k' */
+#endif
+	.word	_dbg__cmd_Kill						/* 'k' */
 	.word	_dbg__cmd_RemoveBreakpoint			/* 'z' */
 	.word	_dbg__cmd_InsertBreakpoint			/* 'Z' */
 	.word	_dbg__cmd_Status					/* '?' */
@@ -1203,7 +1208,7 @@ _dbg__cont_is_manual_bkpt_or_address_specified:
  *      Step User Program Execution Command Handler
  *      Setup breakpoints before resuming execution of program.
  *
-  *      If Address is specified, update the next instruction address to specified address
+ *      If Address is specified, update the next instruction address to specified address
  *
  *      If this is a Normal Breakpoint, then we need to install a Step Breakpoint at next instruction address
  *          and resume from current (Breakpoint) exception address
@@ -1260,6 +1265,26 @@ _dbg__step_is_manual_bkpt_or_address_specified:
 	bl		dbg__activate_singlestep
     b       _dbg__switch2undefmode_withAck
 
+/* _dbg__cmd_Kill
+ *      Kill User Program Execution Command Handler
+ *      Kill Program, this is accomplished by rebooting the Brick
+ *
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *				<NULL> (No Parameters)
+ *      On exit:
+ *          r0-r7: destroyed
+ *          Note: This routine does not return to caller. Instead it calls
+ *				the relevant system routine to reboot the Brick
+ */
+_dbg__cmd_Kill:
+	stmfd	sp!, {lr}						/* In case unexpected parameters were received */
+    bl      __dbg__cmdParamLen
+    teq     r1, #CMD_KILL_PARAMLEN    		/* Check for correct length */
+	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
+
+	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
+	b		dbg__reboot
 
 /* _dbg__proc_brkpt_params
  *      Process Breakpoint Parameters
