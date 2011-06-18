@@ -227,7 +227,7 @@ debug_OkResponse:
 
 /* The CmdIndexTable and CmdJumpTable must be kept in sync */
 debug_cmdIndexTable:
-	.byte	'g','G','p','P','m','M','c','s','k','z','Z','?','q','Q',0
+	.byte	'g','G','p','P','m','M','c','s','k','z','Z','?','q','Q','D',0
 
 /* Command Handlers
  * On entry:
@@ -254,6 +254,7 @@ debug_cmdJumpTable:
 	.word	_dbg__cmd_Status					/* '?' */
 	.word	_dbg__cmd_Query						/* 'q' */
 	.word	_dbg__nop							/* 'Q' */
+	.word	_dbg__cmd_Detach					/* 'D' */
 	.word	0
 
 /* Rm Shifted Shift Type Jump Table
@@ -1147,6 +1148,27 @@ _dbg__cmd_WriteMem:
     bne     1b
     b       __dbg__procCmdOk
 
+/* _dbg__cmd_Detach
+ *      Detach User Program Execution Command Handler
+ *      Treat this as being equivalent to 'Continue' without any arguments
+ *
+ *      On entry:
+ *          r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
+ *				<NULL> (No Parameters)
+ *      On exit:
+ *          r0-r7: destroyed
+ *			Note: This routine does not return to caller. Instead it switches
+ *				  operating mode to UNDEF and returns to previously active program
+ */
+_dbg__cmd_Detach:
+	stmfd	sp!, {lr}						/* In case unexpected parameters were received */
+    bl      __dbg__cmdParamLen
+    teq     r1, #CMD_DETACH_PARAMLEN    	/* Check for correct length */
+	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
+
+	pop		sp!, {lr}						/* Cleanup stack, since we won't return to the Debugger Run Loop */
+    b       _dbg__cont_check_breakpoint_type          /* Continue from current PC */
+
 /* _dbg__cmd_Continue
  *      Continue User Program Execution Command Handler
  *      Setup breakpoints before resuming execution of program.
@@ -1284,7 +1306,7 @@ _dbg__cmd_Kill:
 	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
 
 	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
-	b		dbg__reboot
+	b		dbg__reboot						/* Goodbye.... */
 
 /* _dbg__proc_brkpt_params
  *      Process Breakpoint Parameters
