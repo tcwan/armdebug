@@ -159,11 +159,12 @@ dbg__reboot:
 	bx		r1
 #endif
 
+_dbg__reboot_wait:
 	ldr		r1, =dIOCtrlTransfer
 	mov		lr,pc
 	bx		r1
 
-	b		.							/* Wait for AVR... */
+	b		_dbg__reboot_wait						/* Wait for AVR... */
 #endif
 
 
