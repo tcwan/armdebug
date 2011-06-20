@@ -144,6 +144,21 @@
 #include "debug_internals.h"
 #include "debug_macros.h"
 
+	/* Hexutils function references */
+	.extern	hex2char
+	.extern	char2hex
+	.extern	byte2ascii
+	.extern	halfword2ascii_be
+    .extern halfword2ascii_le
+	.extern	word2ascii_be
+    .extern word2ascii_le
+    .extern ascii2hex_varlen_be
+	.extern	ascii2byte
+	.extern	ascii2halfword_be
+    .extern ascii2halfword_le
+	.extern	ascii2word_be
+    .extern ascii2word_le
+
 /* Macro definitions */
 
 /* _check_msgseparator
@@ -197,6 +212,12 @@ debug_InMsgBuf:
 	.space	MSGBUF_SIZE,0
 debug_OutMsgBuf:
 	.space	MSGBUF_SIZE,0
+
+	/* Make Debugger State accessible from other modules */
+	.global debug_state
+	.global debug_mode
+	.global debug_bkpt_type
+	.global debug_curr_breakpoint
 
 debug_state:
     .byte   0x0									/* dbg_state_t variable */

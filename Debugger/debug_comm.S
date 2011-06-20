@@ -22,6 +22,22 @@
 #include "debug_internals.h"
 #include "debug_comm.h"
 
+	/* Hexutils function references */
+	.extern	hex2char
+	.extern	char2hex
+	.extern	byte2ascii
+	.extern	halfword2ascii_be
+    .extern halfword2ascii_le
+	.extern	word2ascii_be
+    .extern word2ascii_le
+    .extern ascii2hex_varlen_be
+	.extern	ascii2byte
+	.extern	ascii2halfword_be
+    .extern ascii2halfword_le
+	.extern	ascii2word_be
+    .extern ascii2word_le
+
+
 .bss
 .align 4
 
