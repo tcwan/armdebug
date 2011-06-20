@@ -436,7 +436,6 @@ debug_armComplexCCTable:
 .text
 .align 	4
 	.extern __breakpoints_num__
-	.extern dbg__hasDebugMsg			/* Check for message from the communications link */
 	.extern dbg__getDebugMsg			/* Read a message from the communications link */
 	.extern	dbg__putDebugMsg			/* Write a message to the communications link */
 	.extern dbg__sendAckOrNak			/* Send Ack or Nak to indicate success/failure of message receipt */
@@ -605,9 +604,6 @@ _process_auto_breakpoint:
 /* _dbg__switch2undefmode
  *      Common internal routine to return execution to user program
  */
-_dbg__switch2undefmode_withAck:
-	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
-	bl      dbg__runloopTasks               /* Service run loop tasks */
 _dbg__switch2undefmode:
     bl  	_dbg__flush_icache
     msr     cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)         /* Configure Undef Mode */
@@ -699,6 +695,26 @@ _dbg__cmdError:
 	_dbg_outputMsgStatusErr
 	bl		dbg__putDebugMsg				/* Send error response to the GDB server */
 	b 		dbg__bkpt_waitCMD_cont
+
+
+/* __dbg__procOkOnly
+ *		Send OK to GDB due to Detach
+ *		On entry:
+ *			None
+ *		On exit:
+ *			r0-r3: destroyed
+ */
+__dbg__procOkOnly:
+	stmfd	sp!, {lr}
+	_dbg_outputMsgStatusOk					/* Acknowledge Detach command from GDB server */
+_cont_procOkOnly:
+	bl      dbg__putDebugMsg                /* Send OK response to the GDB server */
+	cmp		r0, #0
+	beq		_cont_procOkOnly_exit			/* Sending of OK succeeded */
+	bl      dbg__runloopTasks               /* Service run loop tasks */
+	b 		_cont_procOkOnly				/* Retry OK transmission */
+_cont_procOkOnly_exit:
+    ldmfd   sp!, {pc}
 
 
 /* __dbg__procAckOnly
@@ -1190,7 +1206,9 @@ _dbg__cmd_Detach:
 	bne		__dbg__procCmdParamError		/* Unexpected input, report error */
 
 	ldmfd	sp!, {lr}						/* Cleanup stack, since we won't return to the Debugger Run Loop */
-    b       _dbg__cont_check_breakpoint_type          /* Continue from current PC */
+	_dbg_setstate	DBG_INIT				/* Reset the Debug State */
+    bl		__dbg__procOkOnly				/* send OK to keep GDB server happy */
+	b       _dbg__cont_check_breakpoint_type /* Continue from current PC */
 
 /* _dbg__cmd_Continue
  *      Continue User Program Execution Command Handler
@@ -1213,14 +1231,17 @@ _dbg__cmd_Detach:
 _dbg__cmd_Continue:
     /* Don't put anything on the stack, we won't return to the Debugger Run Loop */
     bl      __dbg__cmdParamLen
-    cmp     r1, #CMD_CONTINUE_MINPARAMLEN  /* Check for correct parameter length */
-    beq     _dbg__cont_check_breakpoint_type          /* Continue from current PC */
+    cmp     r1, #CMD_CONTINUE_MINPARAMLEN	/* Check for correct parameter length */
+    bne	    _dbg__cont_fromAddr				/* Address is specified */
+   	bl      __dbg__procAckOnly				/* send Ack to keep GDB server happy */
+    b       _dbg__cont_check_breakpoint_type          /* Continue from current PC */
 
 _dbg__cont_fromAddr:
     bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
     /* Continue from Specified Address */
     mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
     _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+   	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
     b       _dbg__cont_is_manual_bkpt_or_address_specified
 
 _dbg__cont_check_breakpoint_type:
@@ -1243,11 +1264,11 @@ _dbg__cont_is_normal_breakpoint:
     bl  	dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
     _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
     bl  	_dbg__activate_autobreakpoint   /* pass next instruction address in r1 */
-	b		_dbg__switch2undefmode_withAck
+	b		_dbg__switch2undefmode
 
 _dbg__cont_is_manual_bkpt_or_address_specified:
     bl      _dbg__activate_breakpoints      /* Restore exisiting breakpoints */
-    b       _dbg__switch2undefmode_withAck
+    b       _dbg__switch2undefmode
 
 /* _dbg__cmd_Step
  *      Step User Program Execution Command Handler
@@ -1308,7 +1329,8 @@ _dbg__step_is_manual_bkpt_or_address_specified:
     bl  	_dbg_following_instruction_addr /* following instruction address returned in r1 */
     bl  	dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
 	bl		dbg__activate_singlestep
-    b       _dbg__switch2undefmode_withAck
+	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
+    b       _dbg__switch2undefmode
 
 /* _dbg__cmd_Kill
  *      Kill User Program Execution Command Handler

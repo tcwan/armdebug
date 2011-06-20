@@ -115,13 +115,55 @@ dbg__runloopTasks:
 	b	    nx_core_reset		/* Reboot Brick, won't return */
 
 #else
+	.extern dIOCtrlSetPower
+	.extern dIOCtrlSetPwm
+	.extern dIOCtrlTransfer
+	.equ	BOOT, 0xA55A
+	.equ	POWERDOWN, 0x5A00
 /****************************************************************************
  *
  * NXT Firmware Reboot Routine
  *
  ****************************************************************************/
 dbg__reboot:
-	bx		lr
+	/* Powerdown Sequence
+      	dIOCtrlSetPower((POWERDOWN>>8));
+		dIOCtrlTransfer();
+
+	   Reboot Sequence
+      	dIOCtrlSetPower((UBYTE)(BOOT>>8));
+      	dIOCtrlSetPwm((UBYTE)BOOT);
+  		dIOCtrlTransfer();
+	*/
+
+	/* We implement the powerdown sequence for now */
+
+#if 1
+	/* Powerdown sequence */
+	ldr		r0, =((POWERDOWN >> 8) & 0xFF)
+	ldr		r1, =dIOCtrlSetPower
+	mov		lr,pc
+	bx		r1
+#endif
+
+#if 0
+	/* Reboot sequence: this forces SAMBA mode??!! */
+	ldr		r0, =((BOOT >> 8) & 0xFF)
+	ldr		r1, =dIOCtrlSetPower
+	mov		lr,pc
+	bx		r1
+
+	ldr		r0, =(BOOT & 0xFF)
+	ldr		r1, =dIOCtrlSetPwm
+	mov		lr,pc
+	bx		r1
+#endif
+
+	ldr		r1, =dIOCtrlTransfer
+	mov		lr,pc
+	bx		r1
+
+	b		.							/* Wait for AVR... */
 #endif
 
 
