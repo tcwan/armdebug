@@ -71,6 +71,7 @@
 
 #include "debug_internals.h"
 #include "debug_macros.h"
+#include "debug.stub.h"
 
 	.code 32
 	.align 4
