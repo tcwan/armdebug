@@ -71,13 +71,13 @@ ENUM_END(comm_chan_t)
  * 				!0 if mode switch will happen
  * 		Used by NxOS only
  */
-FUNCDEF int nxos__handleDebug(comm_chan_t channel);
-#endif
-
-#ifndef __NXOS__
+/* Note: This platform specific routine is found in debug_runlooptasks.S */
+FUNCDEF int nxos__handleDebug(U8 *buffer, comm_chan_t channel, U32 length);
+#else
 /** Switch Mode to Debugger.
  * 		Used by NXT Firmware only
  */
+/* Note: This platform specific routine is found in debug_runlooptasks.S */
 FUNCDEF UWORD cCommHandleDebug(UBYTE *pInBuf, UBYTE CmdBit, UWORD MsgLength);
 #endif
 

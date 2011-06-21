@@ -69,6 +69,8 @@
  */
 #define __ASSEMBLY__
 
+#define REBOOT_POWERDOWN
+
 #include "debug_internals.h"
 #include "debug_macros.h"
 #include "debug_stub.h"
@@ -77,6 +79,7 @@
 	.align 4
     .global dbg__runloopTasks
 	.global	dbg__reboot
+ 	.global dbg__sendCommMsg
 
 #ifdef __NXOS__
 /****************************************************************************
@@ -138,15 +141,13 @@ dbg__reboot:
 
 	/* We implement the powerdown sequence for now */
 
-#if 1
+#ifdef REBOOT_POWERDOWN
 	/* Powerdown sequence */
 	ldr		r0, =((POWERDOWN >> 8) & 0xFF)
 	ldr		r1, =dIOCtrlSetPower
 	mov		lr,pc
 	bx		r1
-#endif
-
-#if 0
+#else
 	/* Reboot sequence: this forces SAMBA mode??!! */
 	ldr		r0, =((BOOT >> 8) & 0xFF)
 	ldr		r1, =dIOCtrlSetPower
@@ -169,6 +170,107 @@ _dbg__reboot_wait:
 
 
 #ifdef __NXOS__
+	.extern	nx_usb_is_connected
+	.extern	nx_usb_write
+	.extern	nx_usb_data_written
+/****************************************************************************
+ *
+ * NxOS Communications Driver Interface Routine
+ *
+ ****************************************************************************/
+/* dbg__sendCommMsg
+ *      Internal send routine (interfaces with drivers).
+ *      On entry:
+ *          R0: Total Message Buffer length
+ *      On exit:
+            R0: Tx Status (TRUE if data sent)
+ */
+dbg__sendCommMsg:
+    stmfd   sp!, {r4, lr}
+    mov     r4, r0                              /* Keep Comm Buffer length in R4 */
+    /* Check USB bus status, transmit message if possible */
+    bl      nx_usb_is_connected                 /* R0 = TRUE (#1) if USB is ready */
+    teq     r0, #0								/* FALSE == #0;
+    											   We can't check for True condition since values
+    											   used by C-Compiler & ARMDEBUG are different */
+    beq     dbg__sendCommMsgFailed
+
+    /* Actual transmission (blocking) */
+    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
+    mov     r1, r4                              /* Comm buffer length */
+    bl      nx_usb_write
+
+1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
+    teq     r0, #0								/* FALSE == #0;
+    											   We can't check for True condition since values
+    											   used by C-Compiler & ARMDEBUG are different */
+    /* FIXME: implement timeout */
+    beq     1b                                  /* Busy Wait Loop */
+dbg__sendCommMsgFailed:
+    mov     r0, #FALSE
+
+exit_dbg__sendCommMsg:
+    ldmfd   sp!, {r4, pc}
+
+
+#else
+	.extern	dBtSendMsg
+	.extern	dUsbIsConfigured
+	.extern	dUsbWrite
+/****************************************************************************
+ *
+ * NXT Firmware Communications Driver Interface Routine
+ *
+ ****************************************************************************/
+/* dbg__sendCommMsg
+ *      Internal send routine (interfaces with drivers).
+ *      On entry:
+ *          R0: Total Message Buffer length
+ *      On exit:
+            R0: Tx Status (TRUE if data sent)
+ */
+dbg__sendCommMsg:
+    stmfd   sp!, {r4, lr}
+    mov     r4, r0                              /* Keep Comm Buffer length in R4 */
+    ldr     r0, =debug_nxtCommChannel
+    ldr     r0, [r0]                            /* Get Channel Enum */
+    teq     r0, #BT_CMD_READY
+    beq     dbg__sendBTMsg
+    teq     r0, #USB_CMD_READY
+    beq     dbg__sendUSBMsg
+    b       dbg__sendCommMsgFailed                 /* Channel Enum Doesn't Match, shouldn't happen? */
+
+dbg__sendBTMsg:
+    /* NXT BT routines do not have any configuration checks */
+    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
+    mov     r1, r4                              /* BT Bytes to Send */
+    mov     r2, r4                              /* BT Message Size */
+    bl      dBtSendMsg                          /* Send it via Bluetooth (complete message) */
+    mov     r0, #TRUE                           /* Always flag Success */
+    b       exit_dbg__sendCommMsg
+
+dbg__sendUSBMsg:
+    /* Check USB bus status, transmit message if possible */
+    bl      dUsbIsConfigured                    /* R0: UByte status, TRUE / FALSE */
+    teq     r0, #nxt_UBYTE_TRUE
+    bne     dbg__sendCommMsgFailed
+
+    /* Actual transmission (blocking) */
+    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
+    mov     r1, r4                              /* Comm buffer length */
+    bl      dUsbWrite                           /* call NXT Firmware USB driver, return 0: done, !0: remaining chars */
+    teq     r0, #0                              /* Tx done if returned length is 0 */
+    moveq   r0, #TRUE                           /* Convert NXT firmware return value to our Status (TRUE/FALSE) */
+    beq     exit_dbg__sendCommMsg
+dbg__sendCommMsgFailed:
+    mov     r0, #FALSE
+
+exit_dbg__sendCommMsg:
+    ldmfd   sp!, {r4, pc}
+#endif
+
+
+#ifdef __NXOS__
 /****************************************************************************
  *
  * GDB Debugger Invocation Routine for NxOS
@@ -183,7 +285,7 @@ _dbg__reboot_wait:
 	.global nxos__handleDebug
 /* nxos__handleDebug
  * 		Prepare to switch to Debug Mode
- * int nxos__handleDebug(comm_chan_t channel);
+ * int nxos__handleDebug(U8 *buffer, comm_chan_t channel, U32 length);
  *
  * This routine is called from NxOS Fantom library to setup
  * Single Step Breakpoint in preparation for Debugger invocation if we're in
@@ -207,15 +309,11 @@ nxos__handleDebug:
 		 * The IRQ Stack Frame Pointer will contains the LR and SPSR from the topmost interrupted task
 		 * if it is non-zero (NxOS supports nested IRQs)
 		 */
-
-		ldr		r3, =debug_nxtCommChannel
-		str		r0, [r3]				/* Keep track of which communications link was used (USB/Bluetooth) */
-
-        /* Check our current operating mode */
+        bl    dbg__copyNxtDebugMsg  	/* Copy to Debugger Message Buffer, Remember Comm Channel */
  		mov		r0, #FALSE				/* Setup Default Return value (False) */
-		mrs		r3, cpsr				/* Copy CPSR to r3 */
- 		and 	r3, r3, #CPSR_MODE		/* Get current mode */
- 		teq		r3, #MODE_ABT			/* Are we in Abort (Debug) mode? */
+        _dbg_getmode r1             	/* Get Debug Mode */
+        cmp   r1, #(TRUE & BYTE0)		/* Confine it to Byte size */
+        /* If Debug Mode is TRUE, this means that we're already running the Debugger */
  		beq		exit_nxos__handleDebug	/* Yes, return False */
 
 		/* Retrieve ISR Return Address */
@@ -271,7 +369,7 @@ exit_nxos__handleDebug:
 cCommHandleDebug:
 /* Arg Registers are not preserved since this is invoked explicitly */
         push  {lr}                      /* store arg registers */
-        bl    dbg__copyNxtDebugMsg  	/* setup Debugger Message Buffers, validate input, CPSR returned in R0 */
+        bl    dbg__copyNxtDebugMsg  	/* Copy to Debugger Message Buffer, Remember Comm Channel */
         _dbg_getmode r0             	/* Get Debug Mode */
         cmp   r0, #(TRUE & BYTE0)		/* Confine it to Byte size */
 

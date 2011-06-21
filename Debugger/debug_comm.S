@@ -13,14 +13,13 @@
  *
  */
 
-
-/* #define __NXOS__		*/	/* Defined externally in SConstruct */
-
 #define __ASSEMBLY__
 #include "debug_macros.h"
 #include "debug_stub.h"
 #include "debug_internals.h"
 #include "debug_comm.h"
+
+	.extern dbg__sendCommMsg
 
 	/* Hexutils function references */
 	.extern	hex2char
@@ -62,10 +61,10 @@ debug_msgTxBuf_AppendPtr:
 debug_segmentRxNum:				/* Current Rx Segment Number */
 	.word	0x0
 
-debug_nxtMsgLength:            /* NXT Firmware Received Message Length */
+/* Comm Channel and NXT Received Message Length is now common to both NxOS and NXT Firmware */
+debug_nxtMsgLength:
     .word   0x0
 
-/* Comm Channel is now common to both NxOS and NXT Firmware */
 	.global debug_nxtCommChannel
 debug_nxtCommChannel:
     .word   0x0
@@ -160,30 +159,17 @@ dbg__comm_init:
     str     r0, [r1, #NXTCOMMCHANNEL_OFFSET]    /* Clear NXT Channel on INIT */
 	ldmfd	sp!, {pc}
 
-#ifdef __NXOS__
-_dbg__comm_readbuf_reset:
-	stmfd	sp!, {lr}
-	ldr		r0, =debug_InCommBuf
-	mov		r1, #USB_BUFSIZE
-	ldr		r2, =fantom_init
-	mov		lr, pc
-	bx		r2
-#if 0
-    ldr     r1, =debug_nxtMsgLength
-    mov     r0, #0
-    str     r0, [r1]                            /* Clear NxOS Received Message Length */
-#endif
-	ldmfd	sp!, {pc}
-#else
+
 _dbg__comm_readbuf_reset:
     ldr     r1, =debug_nxtMsgLength
     mov     r0, #0
-    str     r0, [r1]                            /* Clear NXT Received Message Length */
+    str     r0, [r1]                            /* Clear Received Comm Message Length */
 	bx		lr
 
     .global dbg__copyNxtDebugMsg
 /* dbg__copyNxtDebugMsg
- *      Copy NXT Firmware Debug Message to our own Buffers, indicate Msg Received status.
+ *      Copy NXT Debug Message to our own Buffers, indicate Msg Received status.
+ *		Note: This routine is now used by both NXT Firmware and NxOS
  *      On Entry:
  *          R0: NXT Input Buf Pointer
  *          R1: NXT Communications Channel Enum (CmdBit)
@@ -196,12 +182,8 @@ dbg__copyNxtDebugMsg:
     str     r1, [r3, #NXTCOMMCHANNEL_OFFSET]
     str     r2, [r3]
     ldr     r1, =debug_InCommBuf
-/* FIXME: We can probably save some cycles and buffer space by using the
- * NXT comms buffer specified in R0 directly without copying to internal buffers
- */
     _dbg_memcpy r1, r0, r2, r3                  /* r3: scratch register */
     bx      lr
-#endif
 
 /* _dbg_reset_msgTxBuf_AppendPtr
  *      Internal variable to reset pointers.
@@ -223,15 +205,8 @@ _dbg_reset_msgTxBuf_AppendPtr:
  */
 _dbg__commHasMsg:
 	stmfd	sp!, {lr}
-#ifdef __NXOS__
-	ldr		r2, =nx_usb_fantom_data_read
-	mov		lr,pc
-	bx		r2					    /* Number of bytes read in R0 */
-	/* Note: The return value in R0 is the Comm Buffer Size, includes NXT Direct Command Header */
-#else
     ldr     r0, =debug_nxtMsgLength
     ldr     r0, [r0]                /* R0 contains the Comm Buffer Size, including the NXT Direct Command Header */
-#endif
 
 	ldr		r2, =debug_InCommBuf
 	ldrb    r1, [r2, #NXT_MSG_TELEGRAMTYPE_OFFSET]
@@ -412,74 +387,6 @@ exit_dbg__getDebugMsg:
     mov     r1, r5                              /* Return GDB Message Buffer Pointer in R1 */
 	ldmfd	sp!, {r4,r5,pc}
 
-/* _dbg__sendCommMsg
- *      Internal send routine (interfaces with drivers).
- *      On entry:
- *          R0: Total Message Buffer length
- *      On exit:
-            R0: Tx Status (TRUE if data sent)
- */
-_dbg__sendCommMsg:
-    stmfd   sp!, {r4, lr}
-    mov     r4, r0                              /* Keep Comm Buffer length in R4 */
-#ifdef __NXOS__
-    /* Check USB bus status, transmit message if possible */
-    bl      nx_usb_is_connected                 /* R0 = TRUE (#1) if USB is ready */
-    teq     r0, #0								/* FALSE == #0;
-    											   We can't check for True condition since values
-    											   used by C-Compiler & ARMDEBUG are different */
-    beq     _dbg__sendCommMsgFailed
-
-    /* Actual transmission (blocking) */
-    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
-    mov     r1, r4                              /* Comm buffer length */
-    bl      nx_usb_write
-
-1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
-    teq     r0, #0								/* FALSE == #0;
-    											   We can't check for True condition since values
-    											   used by C-Compiler & ARMDEBUG are different */
-    /* FIXME: implement timeout */
-    beq     1b                                  /* Busy Wait Loop */
-#else
-    ldr     r0, =debug_nxtCommChannel
-    ldr     r0, [r0]                            /* Get Channel Enum */
-    teq     r0, #BT_CMD_READY
-    beq     _dbg__sendBTMsg
-    teq     r0, #USB_CMD_READY
-    beq     _dbg__sendUSBMsg
-    b       _dbg__sendCommMsgFailed                 /* Channel Enum Doesn't Match, shouldn't happen? */
-
-_dbg__sendBTMsg:
-    /* NXT BT routines do not have any configuration checks */
-    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
-    mov     r1, r4                              /* BT Bytes to Send */
-    mov     r2, r4                              /* BT Message Size */
-    bl      dBtSendMsg                          /* Send it via Bluetooth (complete message) */
-    mov     r0, #TRUE                           /* Always flag Success */
-    b       _exit_dbg__sendCommMsg
-
-_dbg__sendUSBMsg:
-    /* Check USB bus status, transmit message if possible */
-    bl      dUsbIsConfigured                    /* R0: UByte status, TRUE / FALSE */
-    teq     r0, #nxt_UBYTE_TRUE
-    bne     _dbg__sendCommMsgFailed
-
-    /* Actual transmission (blocking) */
-    ldr     r0, =debug_OutCommBuf                /* data pointer parameter */
-    mov     r1, r4                              /* Comm buffer length */
-    bl      dUsbWrite                           /* call NXT Firmware USB driver, return 0: done, !0: remaining chars */
-    teq     r0, #0                              /* Tx done if returned length is 0 */
-    moveq   r0, #TRUE                           /* Convert NXT firmware return value to our Status (TRUE/FALSE) */
-    beq     _exit_dbg__sendCommMsg
-#endif
-
-_dbg__sendCommMsgFailed:
-    mov     r0, #FALSE
-
-_exit_dbg__sendCommMsg:
-    ldmfd   sp!, {r4, pc}
-
 
 /* _copy_msg_to_commbuf
  *      Internal Comm buffer copy routine, handles segment fragmentation.
@@ -518,7 +425,7 @@ _copy_msg_to_commbuf:
     mov     r5, r2                              /* Updated Tx Append Pointer, keep in R5 for now */
 
     add     r0, r4, #NXT_GDBMSG_START           /* Total Comm Buffer Size for Tx (NXT_GDBMSG_START offset = header size) */
-    bl      _dbg__sendCommMsg                    /* Common interface routine to commnuncations drivers */
+    bl      dbg__sendCommMsg                    /* Common interface routine to commnuncations drivers */
     cmp     r0, #TRUE
     ldrne   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Tx failed, Retrieve Original Tx Append Pointer */
     streq   r5, [r6, #TXAPPENDPTR_OFFSET]       /* Tx succeeded, Update Tx Append Pointer to new position */
