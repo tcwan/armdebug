@@ -17,7 +17,6 @@
 #include "debug_macros.h"
 #include "debug_stub.h"
 #include "debug_internals.h"
-#include "debug_comm.h"
 
 	.extern dbg__sendCommMsg
 

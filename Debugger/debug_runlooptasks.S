@@ -70,6 +70,7 @@
 #define __ASSEMBLY__
 
 #define REBOOT_POWERDOWN
+#include "debug_runlooptasks.h"
 
 #include "debug_internals.h"
 #include "debug_macros.h"
@@ -97,8 +98,6 @@ dbg__runloopTasks:
  * NXT Firmware Run Loop
  *
  ****************************************************************************/
-    .extern cCommCtrl
-
 dbg__runloopTasks:
     push    {lr}
     /* FIXME: Add necessary cXXXCtrl calls here */
@@ -108,7 +107,6 @@ dbg__runloopTasks:
 #endif
 
 #ifdef __NXOS__
-	.extern 	nx_core_reset
 /****************************************************************************
  *
  * NxOS Reboot Routine
@@ -118,11 +116,6 @@ dbg__runloopTasks:
 	b	    nx_core_reset		/* Reboot Brick, won't return */
 
 #else
-	.extern dIOCtrlSetPower
-	.extern dIOCtrlSetPwm
-	.extern dIOCtrlTransfer
-	.equ	BOOT, 0xA55A
-	.equ	POWERDOWN, 0x5A00
 /****************************************************************************
  *
  * NXT Firmware Reboot Routine
@@ -171,9 +164,6 @@ _dbg__reboot_wait:
 
 #ifdef __NXOS__
 	.extern debug_OutCommBuf
-	.extern	nx_usb_is_connected
-	.extern	nx_usb_write
-	.extern	nx_usb_data_written
 /****************************************************************************
  *
  * NxOS Communications Driver Interface Routine
@@ -215,9 +205,6 @@ exit_dbg__sendCommMsg:
 
 
 #else
-	.extern	dBtSendMsg
-	.extern	dUsbIsConfigured
-	.extern	dUsbWrite
 /****************************************************************************
  *
  * NXT Firmware Communications Driver Interface Routine
