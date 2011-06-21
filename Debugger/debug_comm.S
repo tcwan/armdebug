@@ -71,7 +71,12 @@ debug_nxtMsgLength:
 debug_nxtCommChannel:
     .word   0x0
 
+    .global debug_nxtCommOverrun
+debug_nxtCommOverrun:
+    .word	0x0
+
     .equ    NXTCOMMCHANNEL_OFFSET, (debug_nxtCommChannel - debug_nxtMsgLength)
+    .equ    NXTCOMMOVERRUN_OFFSET, (debug_nxtCommOverrun - debug_nxtMsgLength)
 
 .data
 .align 4
@@ -181,10 +186,20 @@ _dbg__comm_readbuf_reset:
  */
 dbg__copyNxtDebugMsg:
     ldr     r3, =debug_nxtMsgLength
-    str     r1, [r3, #NXTCOMMCHANNEL_OFFSET]
+    str     r1, [r3, #NXTCOMMCHANNEL_OFFSET]	/* save Communications Channel first */
+    ldr		r1, [r3]							/* Check if there's an unread message in the buffer */
+    cmp		r1, #0
+    beq		cont_dbg__copyNxtDebugMsg			/* No unread message, so continue */
+exit_dbg__NxtDebugMsgOverrun:
+	ldr		r1, [r3, #NXTCOMMOVERRUN_OFFSET]
+	add		r1, r1, #1
+	str		r1, [r3, #NXTCOMMOVERRUN_OFFSET]	/* update message overrun stats */
+    b		exit_dbg__copyNxtDebugMsg
+cont_dbg__copyNxtDebugMsg:
     str     r2, [r3]
     ldr     r1, =debug_InCommBuf
     _dbg_memcpy r1, r0, r2, r3                  /* r3: scratch register */
+exit_dbg__copyNxtDebugMsg:
     bx      lr
 
 /* _dbg_reset_msgTxBuf_AppendPtr
