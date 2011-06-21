@@ -40,6 +40,8 @@
 .bss
 .align 4
 
+	.global debug_InCommBuf
+	.global debug_OutCommBuf
 debug_InCommBuf:
 	.space	USB_BUFSIZE,0
 debug_OutCommBuf:

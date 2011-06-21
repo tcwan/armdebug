@@ -170,6 +170,7 @@ _dbg__reboot_wait:
 
 
 #ifdef __NXOS__
+	.extern debug_OutCommBuf
 	.extern	nx_usb_is_connected
 	.extern	nx_usb_write
 	.extern	nx_usb_data_written
