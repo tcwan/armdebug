@@ -113,7 +113,11 @@ dbg__runloopTasks:
  *
  ****************************************************************************/
  dbg__reboot:
+#ifdef REBOOT_POWERDOWN
+	b	    nx_core_halt		/* Shutdown Brick, won't return */
+#else
 	b	    nx_core_reset		/* Reboot Brick, won't return */
+#endif
 
 #else
 /****************************************************************************
