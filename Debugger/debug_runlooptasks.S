@@ -172,6 +172,7 @@ _dbg__reboot_wait:
 
 #ifdef __NXOS__
 	.extern debug_OutCommBuf
+	.extern nx_systick_wait_ms
 /****************************************************************************
  *
  * NxOS Communications Driver Interface Routine
@@ -182,7 +183,8 @@ _dbg__reboot_wait:
  *      On entry:
  *          R0: Total Message Buffer length
  *      On exit:
-            R0: Tx Status (TRUE if data sent)
+ *           R0: Tx Status (TRUE if data sent)
+ *			 R1-R3: Destroyed
  */
 dbg__sendCommMsg:
     stmfd   sp!, {r4, lr}
@@ -199,12 +201,17 @@ dbg__sendCommMsg:
     mov     r1, r4                              /* Comm buffer length */
     bl      nx_usb_write
 
-1:  bl      nx_usb_data_written                 /* R0 = True if data has been sent */
+1: 	mov		r0, #1								/* 1 ms delay */
+	bl		nx_systick_wait_ms
+	bl      nx_usb_data_written                 /* R0 = True if data has been sent */
     teq     r0, #0								/* FALSE == #0;
     											   We can't check for True condition since values
     											   used by C-Compiler & ARMDEBUG are different */
     /* FIXME: implement timeout */
     beq     1b                                  /* Busy Wait Loop */
+
+    mov     r0, #TRUE
+    b		exit_dbg__sendCommMsg
 dbg__sendCommMsgFailed:
     mov     r0, #FALSE
 
