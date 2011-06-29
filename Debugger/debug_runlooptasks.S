@@ -88,9 +88,13 @@
  * NxOS Run Loop
  *
  ****************************************************************************/
+ 	.extern nx_systick_wait_ms
 dbg__runloopTasks:
 /* Currently, there's nothing that needs to be done in the NxOS Run Loop */
-    bx      lr
+	push	{lr}
+	mov		r0, #1				/* 1 ms delay */
+	bl		nx_systick_wait_ms
+    pop		{pc}
 
 #else
 /****************************************************************************
