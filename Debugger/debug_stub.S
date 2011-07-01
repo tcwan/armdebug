@@ -2095,45 +2095,49 @@ _dbg_check_arm_condcode:
  *		will_execute = (N != V)
  *
  * If (ANDOR bit) set
- *		z_cond = (Z XOR Z set)
+ *		z_match = ~(Z XOR Z set)
  *		If (AND bit set)
- *			will_execute = will_execute && z_cond
+ *			will_execute = will_execute && z_match
  *		else
- *			will_execute = will_execute || z_cond
+ *			will_execute = will_execute || z_match
  */
 _dbg_cond_complex_check:
-/* TODO: Need to verify logic below */
 	sub		r3, r3, #COMPLEX_CONDCODE_START			/* Convert complex condition code in R3 to new index (0-3) */
 	ldr		r2, =debug_armComplexCCTable
-	ldrb	r1, [r2, r3]							/* Get complex condition code bitmap */
+	ldrb	r1, [r2, r3]							/* Get complex condition code bitmap in R1 */
 
-	/* Use r2 to store N, r3 to store V */
-	tst		r5, #COMPLEX_CONDCODE_NFLAG
-	moveq	r2, #FALSE
-	movne	r2, #TRUE								/* r2 = N flag */
-	tst		r5, #COMPLEX_CONDCODE_VFLAG
-	moveq	r3, #FALSE
-	movne	r3, #TRUE								/* r3 = V flag */
-	eor		r2, r2, r3								/* r2 = (N xor V): 0 if equal, 0xFF if not equal */
-	tst		r1, #COMPLEX_CONDCODE_NEQV_MASK
-	mvnne	r6, r1									/* If (N == V) bit set, will_execute (r6) = TRUE if (N == V) [r2 == 0] -> invert r2 */
-	moveq	r6, r1									/* else (N == V) bit clr, will_execute (r6) = TRUE if (N != V) [r2 == 0xFF] */
+	/* Use R3 to store N+V Mask, R2 to store results */
+	mov		r3, #(COMPLEX_CONDCODE_NFLAG | COMPLEX_CONDCODE_VFLAG)	/* Mask N+V from CPSR */
+	ands	r2, r3, r5								/* Is (N == V == 0)? */
+	teqne	r2, r3									/* No, Is (N == V == 1)? */
+	bne		_cond_nnev								/* No, so (N != V) */
 
+	/* EQ: Either (N == V == 0) or (N == V == 1) */
+_cond_neqv:
+	tst		r1, #COMPLEX_CONDCODE_NEQV_MASK			/* Is (N == V) mask set? */
+	moveq	r0, #FALSE								/* No, so will_execute = FALSE (for now) */
+	b		_cond_check_andor
+
+	/* Else, N != V */
+_cond_nnev:
+	tst		r1, #COMPLEX_CONDCODE_NEQV_MASK			/* Is (N == V) mask set? */
+	movne	r0, #FALSE								/* Yes, so will_execute = FALSE (for now) */
+
+_cond_check_andor:
 	tst		r1, #COMPLEX_CONDCODE_ANDOR_MASK
 	beq		_dbg_check_arm_condcode_exit			/* No additional checks needed, exit */
 
-	/* Use r2 to store Z, r3 to store Z set */
+	/* Use R2 to store Z Flag, R3 to store Z set Mask */
 	and		r2, r5, #COMPLEX_CONDCODE_ZFLAG			/* r2 = Z flag */
 	and		r3, r1, #COMPLEX_CONDCODE_ZSET_MASK		/* r3 = Z set */
-	eors	r2, r2, r3								/* r2 = (Z xor Z set): 0 if matched, non-zero if not matched */
-	moveq	r2, #TRUE
-	movne	r2, #FALSE								/* r2 (z_cond): TRUE if matched, FALSE if not matched */
+	eors	r2, r2, r3								/* r2 = (Z xor Z set): 0 if matched, non-zero if failed match */
+	moveq	r3, #TRUE								/* Zero, so z flag matched */
+	movne	r3, #FALSE								/* Non-zero, so z flag failed match */
 
-	tst		r1, #COMPLEX_CONDCODE_AND_MASK
-	andne	r6, r6, r2								/* If AND bit set, will_execute = will_execute && z_cond */
-	orreq	r6, r6, r2								/* else, will_execute = will_execute || z_cond */
-	b		_dbg_check_arm_condcode_exit
-
+	tst		r1, #COMPLEX_CONDCODE_AND_MASK			/* Is AND mask set? */
+	andne	r0, r0, r3								/* Yes, so AND with will_execute */
+	orreq	r0, r0, r3								/* No, so OR with will_execute */
+	b		_dbg_check_arm_condcode_exit			/* Return will_execute (R0) */
 
 /*
  * Simple Checks:
