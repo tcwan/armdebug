@@ -1991,22 +1991,20 @@ _eval_arm_instruction:
     beq     _exit_eval_arm_instruction	/* and Return to caller */
 
 _will_execute_arm_instr:
-    mov     r0, r4                      /* Copy instruction opcode to R0 as Code Handler parameter */
-    mov     r1, #0                      /* initialize ARM Decode Entry Table index register */
+    mov     r0, #0                      /* initialize ARM Decode Entry Table index register */
 1:
-    _dbg_armDecodeEntry r2, r3, r4, r1  /* instrreg (R2), instrmask (R3), codehandler (R4), indexreg (R1) */
-    teq     r2, #0                      /* Check for Null Entry (End of Table marker) */
+    _dbg_armDecodeEntry r1, r2, r3, r0  /* instrreg (R1), instrmask (R2), codehandler (R3), indexreg (R0) */
+    teq     r1, #0                      /* Check for Null Entry (End of Table marker) */
     moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
     beq     _exit_eval_arm_instruction
-    and     r7, r0, r3                  /* Use R7 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
-    teq     r7, r2
-    addne   r1, r1, #1                  /* No match, so keep looking */
+    and     r7, r4, r2                  /* Use R7 to check masked instruction opcode (from R4) to see if it matches template (in R1) */
+    teq     r7, r1
+    addne   r0, r0, #1                  /* No match, so keep looking */
     bne     1b
 
 _call_arm_code_handler:
-    mov     r1, r6                      /* Copy Default Following Instruction Address to R1 as Code Handler Parameter */
     mov     lr, pc
-    bx      r4                          /* Call Code Handler with R0: Instruction Opcode, R1: Default Following Instruction Address */
+    bx      r3                          /* Call Code Handler with R4: Instruction Opcode, R5[3:0]: CPSR, R6: Default Following Instruction Address */
 _exit_eval_arm_instruction:
     /* Returned Following Address Instruction in R0 (B0 set to indicate Thumb mode)  */
     ldmfd   sp!, {pc}
@@ -2031,24 +2029,22 @@ _eval_thumb_instruction:
     beq     _exit_eval_thumb_instruction	/* and Return to caller */
 
 _will_execute_thumb_instr:
-    mov     r0, r4                      /* Copy instruction opcode to R0 as Code Handler parameter */
 #endif
-    mov     r1, #0                      /* initialize Thumb Decode Entry Table index register */
+    mov     r0, #0                      /* initialize Thumb Decode Entry Table index register */
 1:
-    _dbg_thumbDecodeEntry r2, r3, r4, r1  /* instrreg (R2), instrmask (R3), codehandler (R4), indexreg (R1) */
-    teq     r2, #0                      /* Check for Null Entry (End of Table marker) */
+    _dbg_thumbDecodeEntry r1, r2, r3, r10  /* instrreg (R1), instrmask (R2), codehandler (R3), indexreg (R0) */
+    teq     r1, #0                      /* Check for Null Entry (End of Table marker) */
     moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
     beq     _exit_eval_thumb_instruction
 
-    and     r7, r0, r3                  /* Use R5 to check masked instruction opcode (from R0) to see if it matches template (in R2) */
-    teq     r7, r2
-    addne   r1, r1, #1                  /* No match, so keep looking */
+    and     r7, r4, r2                  /* Use R5 to check masked instruction opcode (from R4) to see if it matches template (in R1) */
+    teq     r7, r1
+    addne   r0, r0, #1                  /* No match, so keep looking */
     bne     1b
 
 _call_thumb_code_handler:
-    mov     r1, r6                      /* Copy Default Following Instruction Address to R1 as Code Handler Parameter */
     mov     lr, pc
-    bx      r4                          /* Call Code Handler with R0: Instruction Opcode, R1: Default Following Instruction Address */
+    bx      r3                          /* Call Code Handler with R4: Instruction Opcode, R5[3:0]: CPSR, R6: Default Following Instruction Address */
 _exit_eval_thumb_instruction:
     /* Returned Following Address Instruction in R0 */
     ldmfd   sp!, {pc}
@@ -2165,6 +2161,8 @@ _dbg_check_bits_clear:
 _dbg_check_arm_condcode_exit:
 	bx		lr										/* Return to caller */
 
+@@@@ TODO: Code Audit Needed
+
 /* _arm_rmshifted_val
  *      Calculate value of Shifted Rm (operand)
  *      On entry:
@@ -2240,9 +2238,9 @@ _reg_rrx:
 /* _arm_data_instr_handler
  *      ARM Data Processing Instruction with Rd == R15
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+4)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address
  *          R1-R7: Destroyed
@@ -2376,9 +2374,9 @@ _opcode_mvn:
 /* _arm_bx_blx_handler
  *      BX or BLX Rm Handler. Note v4t does not have BLX instr
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+4)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1, R2: destroyed
@@ -2397,9 +2395,9 @@ _arm_bx_blx_handler:
 /* _arm_ldr_pc_handler
  *      LDR with Rd = PC
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+4)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address
  *          R1, R2, R3, R4, R5: destroyed
@@ -2438,9 +2436,9 @@ _exit_arm_ldr_pc_handler:
 /* _arm_ldm_pc_handler
  *      LDM {pc}
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+4)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address
  *          R1, R2, R3: destroyed
@@ -2478,9 +2476,9 @@ _arm_check_updown_offset:
 /* _arm_b_bl_blx_handler
  *      B, BL or BLX <offset>. Note v4t does not have BLX instr
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+4)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address
  *          R1, R2, R3: destroyed
@@ -2516,9 +2514,9 @@ _exit_arm_b_bl_blx_handler:
 /* _arm_coproc_swi_handler
  *      SVC (SWI) or Coprocessor instruction
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+4)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address
  *          R1, R2: destroyed
@@ -2541,9 +2539,9 @@ _exit_arm_coproc_swi_handler:
 /* _thumb_bx_blx_handler
  *      BX or BLX Handler. Note: b7 (H1) is not matched in the mask (should be 0); armv4t does not support BLX.
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+2)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1: destroyed
@@ -2560,9 +2558,9 @@ _thumb_bx_blx_handler:
 /* _thumb_poppc_handler
  *     PUSH/POP, specifically POP {Rlist,PC}
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+2)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1: destroyed
@@ -2592,9 +2590,9 @@ _thumb_get_regcount:
 /* _thumb_bcond_swi_handler
  *      B<cond> or SWI (SVC)
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+2)
- * 			R5[3:0]: CPSR condition codes
+ *          R4: Opcode of instruction to be executed
+ *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1-R6: destroyed
@@ -2632,9 +2630,9 @@ _exit_thumb_bcond_swi_handler:
 /* _thumb_b_handler
  *      B
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+2)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1: destroyed
@@ -2653,9 +2651,9 @@ _thumb_b_handler:
 /* _thumb_long_bl_blx_handler
  *      Long BL or BLX (4 bytes) Note: b11 (H) indicates 1st or 2nd instr; armv4t does not support BLX.
  *      On entry:
- *          R0: instruction to be executed
- *          R1: Default Following Instruction Address (PC+2)
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
+ *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1, R2, R3: destroyed
