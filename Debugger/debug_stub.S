@@ -408,7 +408,7 @@ debug_armCondCodeTable:
  * Condition Code stored in the following order:
  *	 b7  b6  b5  b4   b3     b2   b1    b0
  *	  -   -   - ANDOR  -  Z set  AND  N==V		(bit set = 1)
- *	  -   -   - ANDOR  -  Z clr   OR  N!=V		(bit clr = 0)
+ *	  -   -   -   -    -  Z clr   OR  N!=V		(bit clr = 0)
  *
  *		GE: N == V
  *		LT: N != V
@@ -430,7 +430,7 @@ debug_armCondCodeTable:
 
 debug_armComplexCCTable:
 			/* GE,   LT,   GT,   LE */
-	.byte	 0x01, 0x00, 0x15, 0x12
+	.byte	 0x01, 0x00, 0x13, 0x14
 
 .code 32
 .text
@@ -1925,34 +1925,34 @@ _dbg_following_instruction_addr:
  */
     mov     r6, r0                                      /* Keep instruction address in R6 */
     _getdbgregister DBGSTACK_USERCPSR_INDEX, r1         /* Retrieve User CPSR into R1 */
-    and     r4, r1, #CPSR_THUMB                         /* store Thumb Mode status in R4 */
+    and     r0, r1, #CPSR_THUMB                         /* store Thumb Mode status in R0 */
     mov     r5, r1, lsr #28                             /* store CPSR condition flags in R5[3:0] */
 
 _dbg_get_aborted_instr:
-1:  teq     r4, #0                                      /* Check if it is ARM or Thumb instruction */
-    ldrneh  r0, [r6]                                    /* Load Thumb instruction opcode using Addr in R6 into R0 */
+1:  teq     r0, #0                                      /* Check if it is ARM or Thumb instruction */
+    ldrneh  r4, [r6]                                    /* Load Thumb instruction opcode using Addr in R6 into R4 */
     ldrne   r2, =(BKPT16_INSTR | BKPT16_MANUAL_BKPT)    /* check for Thumb Manual Breakpoint Instruction */
-    ldreq   r0, [r6]                                    /* Load ARM instruction opcode using Addr in R6 into R0 */
+    ldreq   r4, [r6]                                    /* Load ARM instruction opcode using Addr in R6 into R4 */
     ldreq   r2, =(BKPT32_INSTR | BKPT32_MANUAL_BKPT)    /* check for ARM Manual Breakpoint Instruction */
-    teq     r0, r2                                      /* Is instruction opcode (R0) == Manual Breakpoint opcode (R2)? */
+    teq     r4, r2                                      /* Is instruction opcode (R4) == Manual Breakpoint opcode (R2)? */
     bne     2f                                          /* Not Manual breakpoint */
-    teq     r4, #0                                      /* Check if it is ARM or Thumb Manual Breakpoint */
+    teq     r0, #0                                      /* Check if it is ARM or Thumb Manual Breakpoint */
     addne   r6, r6, #2                                  /* Is Manual Breakpoint, Skip to next Thumb instruction */
     addeq   r6, r6, #4                                  /* Is Manual Breakpoint, Skip to next ARM instruction */
     b       1b                                          /* To protect against a sequence of Manual Breakpoint Instructions */
 
-/* Here, R0 contains the instruction opcode which will be (re)executed when program resumes.
+/* Here, R4 contains the instruction opcode which will be (re)executed when program resumes.
  * We need to dissect it to see if it is a branch instruction.
  * For ARM instructions, we also need to evaluate the current (breakpointed) instruction to see if it'll execute.
- * If not, then the following instruction is at the address following the address of the opcode in R0 (Default Following Instruction Address).
+ * If not, then the following instruction is at the address following the address of the opcode in R4 (Default Following Instruction Address in R6).
  */
 2:
-    teq     r4, #0                                      /* Check if it is ARM or Thumb instruction */
+    teq     r0, #0                                      /* Check if it is ARM or Thumb instruction */
     beq     _following_instr_is_arm
 _following_instr_is_thumb:
-    add     r6, r6, #2                                  /* Store following Thumb instruction address to R1 */
+    add     r6, r6, #2                                  /* Store default following Thumb instruction address to R6 */
     orr     r6, r6, #BKPT_STATE_THUMB_FLAG              /* Set b0 to indicate Thumb instruction */
-    /* R0: Candidate Instruction Opcode
+    /* R4: Candidate Instruction Opcode
      * R5[3:0]: CPSR condition codes
      * R6: Default Following Instruction Address (PC+2)
      */
@@ -1961,8 +1961,8 @@ _following_instr_is_thumb:
     b       _exit_dbg_following_instruction_addr
 
 _following_instr_is_arm:
-    add     r6, r6, #4                                  /* Store following ARM instruction address to R1 */
-    /* R0: Candidate Instruction Opcode
+    add     r6, r6, #4                                  /* Store default following ARM instruction address to R6 */
+    /* R4: Candidate Instruction Opcode
      * R5[3:0]: CPSR condition codes
      * R6: Default Following Instruction Address (PC+4)
      */
@@ -1976,7 +1976,7 @@ _exit_dbg_following_instruction_addr:
 /* _eval_arm_instruction
  *      Evaluate ARM instruction to determine following instruction address
  *      On entry:
- *          R0: instruction to be executed
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
  *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
@@ -1985,7 +1985,6 @@ _exit_dbg_following_instruction_addr:
  */
 _eval_arm_instruction:
     stmfd   sp!, {lr}
-    mov     r4, r0                      /* Keep Instruction Opcode in R4 */
     bl      _dbg_check_arm_condcode
     teq     r0, #FALSE
     moveq   r0, r6                      /* False (don't execute), so use Default Following Instruction Address */
@@ -2015,7 +2014,7 @@ _exit_eval_arm_instruction:
 /* _eval_thumb_instruction
  *      Evaluate Thumb instruction to determine following instruction address
  *      On entry:
- *          R0: instruction to be executed
+ *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
  *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
@@ -2025,7 +2024,6 @@ _exit_eval_arm_instruction:
 _eval_thumb_instruction:
     stmfd   sp!, {lr}
 #if 0
-    mov     r4, r0                      /* Keep Instruction Opcode in R4 */
 	/* Only B<cond> instructions are conditionally executed, deal with it in that Code Handler */
     bl      _dbg_check_thumb_condcode
     teq     r0, #FALSE
@@ -2065,7 +2063,7 @@ _exit_eval_thumb_instruction:
 /* _dbg_check_arm_condcode
  *		Check ARM conditional execution code
  *		On entry:
- *			R0: instruction to be executed
+ *			R4: Opcode of instruction to be executed
  *			R5[3:0]: CPSR condition codes
  *		On exit:
  *			R0: will_execute (boolean)
@@ -2073,11 +2071,11 @@ _exit_eval_thumb_instruction:
  */
 
 _dbg_check_arm_condcode:
-	stmfd	sp!, {r6,lr}							/* Use R6 as temporary will_execute variable */
-	mov		r6, #TRUE
-	mov		r0, r0, lsr #28							/* convert condition code to index (0-F) */
+	stmfd	sp!, {lr}							/* Use R6 as temporary will_execute variable */
+	mov		r0, #TRUE
+	mov		r3, r4, lsr #28							/* convert condition code to index (0-F) */
 	ldr		r2, =debug_armCondCodeTable
-	ldrb	r1, [r2, r0]							/* Get condition code mask */
+	ldrb	r1, [r2, r3]							/* Get condition code mask */
 /*
  * The following check is unnecessary as it is covered by the set/clear checking algorithm
  	teq		r1, #0
@@ -2097,16 +2095,17 @@ _dbg_check_arm_condcode:
  *		will_execute = (N != V)
  *
  * If (ANDOR bit) set
- *		z_cond = ((Z XOR Z set) == 0)
+ *		z_cond = (Z XOR Z set)
  *		If (AND bit set)
  *			will_execute = will_execute && z_cond
  *		else
  *			will_execute = will_execute || z_cond
  */
 _dbg_cond_complex_check:
-	sub		r1, r0, #COMPLEX_CONDCODE_START			/* Convert complex condition code to new index (0-3) */
+/* TODO: Need to verify logic below */
+	sub		r3, r3, #COMPLEX_CONDCODE_START			/* Convert complex condition code in R3 to new index (0-3) */
 	ldr		r2, =debug_armComplexCCTable
-	ldrb	r1, [r2, r1]							/* Get complex condition code bitmap */
+	ldrb	r1, [r2, r3]							/* Get complex condition code bitmap */
 
 	/* Use r2 to store N, r3 to store V */
 	tst		r5, #COMPLEX_CONDCODE_NFLAG
@@ -2143,30 +2142,25 @@ _dbg_cond_complex_check:
  * If (SetBitMask is Non-Zero)
  *		will_execute = ((cond_code & SetBitMask) == SetBitMask)
  * If will_execute && (ClearBitMask is Non-Zero)
- *		will_execute = will_execute && ((cond_code | ~ClearBitMask) == ~ClearBitMask)
+ *		will_execute = will_execute && ((cond_code & ClearBitMask) == 0)
  */
 
 _dbg_check_bits_set:
-	movs	r0, r1, lsr #4							/* R0: bits set */
-	beq		_dbg_check_bits_clear
-	and		r2, r5, r0								/* Check bits set IF bitmask non-zero */
-	teq		r2, r0									/* ((cond_code & SetBitMask) == SetBitMask)? */
-	movne	r6, #FALSE								/* No, so will_execute = FALSE */
-	bne		_dbg_check_arm_condcode_exit
+	movs	r2, r1, lsr #4							/* R2: bits set */
+	beq		_dbg_check_bits_clear					/* No bits set mask enabled, skip check */
+	and		r3, r5, r2								/* Check bits set IF bitmask non-zero */
+	teq		r2, r3									/* ((cond_code & SetBitMask) == SetBitMask)? */
+	movne	r0, #FALSE								/* No, so will_execute = FALSE */
+	bne		_dbg_check_arm_condcode_exit			/* Check failed (need to be TRUE to check bits clear), return */
 
 _dbg_check_bits_clear:
 	ands	r1, r1, #NIBBLE0						/* R1: bits clear */
 	beq		_dbg_check_arm_condcode_exit
-	mvn		r1, r1									/* Invert Bitmask */
-	orr		r2, r5, r1								/* Check bits clear IF bitmask non-zero */
-	teq		r2, r1									/* ((cond_code | ~ClearBitMask) == ~ClearBitMask)? */
-	movne	r6, #FALSE								/* No, so will_execute = FALSE */
-	bne		_dbg_check_arm_condcode_exit
-
+	ands	r3, r5, r1								/* Check bits clear IF bitmask non-zero */
+	movne	r0, #FALSE								/* (cond_code & ClearBitMask) != 0, so will_execute = FALSE */
 
 _dbg_check_arm_condcode_exit:
-	mov		r0, r6									/* Update return value */
-	ldmfd	sp!, {r6, pc}
+	ldmfd	sp!, {pc}								/* R0: will_execute (boolean) */
 
 
 /* _arm_rmshifted_val
