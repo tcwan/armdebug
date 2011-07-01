@@ -2101,10 +2101,8 @@ _dbg_cond_complex_check:
 	ldr		r2, =debug_armComplexCCTable
 	ldrb	r1, [r2, r3]							/* Get complex condition code bitmap in R1 */
 
-	/* Use R3 to store N+V Mask, R2 to store results */
-	mov		r3, #(COMPLEX_CONDCODE_NFLAG | COMPLEX_CONDCODE_VFLAG)	/* Mask N+V from CPSR */
-	ands	r2, r3, r5								/* Is (N == V == 0)? */
-	teqne	r2, r3									/* No, Is (N == V == 1)? */
+	ands	r2, r5, #(COMPLEX_CONDCODE_NFLAG | COMPLEX_CONDCODE_VFLAG)	/* Is (N == V == 0)? */
+	teqne	r2, #(COMPLEX_CONDCODE_NFLAG | COMPLEX_CONDCODE_VFLAG)		/* No, Is (N == V == 1)? */
 	bne		_cond_nnev								/* No, so (N != V) */
 
 	/* EQ: Either (N == V == 0) or (N == V == 1) */
