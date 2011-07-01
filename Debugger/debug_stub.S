@@ -1256,10 +1256,8 @@ _dbg__cont_is_normal_breakpoint:
    This breaks normal breakpoints which need to determine the next instruction to execute
    (for placing the autobreakpoint) prior to returning.
 */
-    mov		r2, #DBGSTACK_USERPC_INDEX      /* Retrieve Aborted Instruction PC from the Debug Stack */
-    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R0 */
-    mov		r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
-    _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+    _getdbgregister DBGSTACK_USERPC_INDEX, r0	/* Retrieve Aborted Instruction PC from the Debug Stack into R0 */
+    _setdbgregister DBGSTACK_NEXTINSTR_INDEX, r0, r1	/* Set Next Instruction Pointer for Resume using contents of R0, and scratch register R1 */
     bl  	_dbg_following_instruction_addr /* following instruction address returned in r1 */
     bl  	dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
     _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
@@ -1314,22 +1312,19 @@ _dbg__step_is_normal_breakpoint:
    This breaks normal breakpoints which need to determine the next instruction to execute
    (for placing the autobreakpoint) prior to returning.
 */
-    mov     r2, #DBGSTACK_USERPC_INDEX      /* Retrieve Aborted Instruction PC from the Debug Stack */
-    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R0 */
-    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
-    _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+    _getdbgregister DBGSTACK_USERPC_INDEX, r0			/* Retrieve Aborted Instruction PC from the Debug Stack into R0 */
+    _setdbgregister DBGSTACK_NEXTINSTR_INDEX, r0, r1	/* Set Next Instruction Pointer for Resume usinh contents in R0, and scratch register R1 */
     b       _dbg__step_is_manual_bkpt_or_address_specified
 
 _dbg__step_is_manual_bkpt:
-    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
-    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents into R1 */
+    _getdbgregister DBGSTACK_NEXTINSTR_INDEX, r0         /* Retrieve Next Instruction Pointer for Resume into R1 */
     /* b       _dbg__step_is_manual_bkpt_or_address_specified */
 
 _dbg__step_is_manual_bkpt_or_address_specified:
-    bl  	_dbg_following_instruction_addr /* following instruction address returned in r1 */
-    bl  	dbg__install_singlestep        /* Setup Single Step, next instruction address returned in r1 */
+    bl  	_dbg_following_instruction_addr 	/* following instruction address returned in r1 */
+    bl  	dbg__install_singlestep        		/* Setup Single Step, next instruction address returned in r1 */
 	bl		dbg__activate_singlestep
-	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
+	bl		__dbg__procAckOnly					/* send Ack to keep GDB server happy */
     b       _dbg__switch2undefmode
 
 /* _dbg__cmd_Kill
@@ -1929,8 +1924,7 @@ _dbg_following_instruction_addr:
  * i.e., the Debugger does not leave stray Single Step / Auto / Normal breakpoints in memory
  */
     mov     r6, r0                                      /* Keep instruction address in R6 */
-    mov     r2, #DBGSTACK_USERCPSR_INDEX                /* Retrieve User CPSR */
-    _getdbgregisterfromindex r2, r1                     /* Retrieve Register contents into R1 */
+    _getdbgregister DBGSTACK_USERCPSR_INDEX, r1         /* Retrieve User CPSR into R1 */
     and     r4, r1, #CPSR_THUMB                         /* store Thumb Mode status in R4 */
     mov     r5, r1, lsr #28                             /* store CPSR condition flags in R5[3:0] */
 
@@ -2219,7 +2213,7 @@ _arm_calc_shifted_rm_val:
  *      R1: Shift/Rotate Amount
  * On exit:
  *      R0: RmShifted result
- *      R1, R2: destroyed
+ *      R1: destroyed
  *
  */
 _reg_lsl:
@@ -2239,12 +2233,11 @@ _reg_ror:
     bx      lr
 
 _reg_rrx:
-    moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
-    _getdbgregisterfromindex r2, r1         /* Retrieve CPSR contents from Index (R2) into R1 */
-    ands    r1, r1, #CPSR_CFLAG            /* Keep C Flag */
-    movne   r1, #0x80000000                 /* Set B31 if C Flag set */
-    lsr     r0, r0, #1                      /* Rm >> 1 */
-    orr     r0, r0, r1                      /* Put C flag into B31 */
+    _getdbgregister DBGSTACK_USERCPSR_INDEX, r1	/* Retrieve CPSR contents into R1 */
+    ands    r1, r1, #CPSR_CFLAG            		/* Keep C Flag */
+    movne   r1, #0x80000000                 	/* Set B31 if C Flag set */
+    lsr     r0, r0, #1                      	/* Rm >> 1 */
+    orr     r0, r0, r1                      	/* Put C flag into B31 */
     bx      lr
 
 
@@ -2341,36 +2334,21 @@ _opcode_add:
 
 _opcode_adc:
     /* Op1 + Op2 + C */
-#if 0
-    moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
-    _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
-    ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
-#endif
-    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value */
+    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value: Test C Flag */
     add     r0, r0, r1
     addne   r0, r0, #1                      /* Add C if set */
     bx      lr
 
 _opcode_sbc:
     /* Op1 - Op2 + C - 1 */
-#if 0
-    moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
-    _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
-    ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
-#endif
-    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value */
+    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value: Test C Flag */
     sub     r0, r0, r1
     subeq   r0, r0, #1                      /* If C clear, subtract 1, else (C - 1) = 0 */
     bx      lr
 
 _opcode_rsc:
     /* Op2 - Op1 + C - 1 */
-#if 0
-    moveq   r2, #DBGSTACK_USERCPSR_INDEX    /* convert register enum to Debug Stack index */
-    _getdbgregisterfromindex r2, r3         /* Retrieve CPSR contents from Index (R2) into R3 */
-    ands    r3, r3, #CPSR_CFLAG             /* Keep C Flag, NE if C set */
-#endif
-    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value */
+    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value: Test C Flag */
     rsb     r0, r0, r1
     subeq   r0, r0, #1                      /* If C clear, subtract 1, else (C - 1) = 0 */
     bx  lr
@@ -2597,8 +2575,7 @@ _thumb_poppc_handler:
     stmfd   sp!, {lr}
 
 _thumb_get_SP_val:
-	mov		r2, #DBGSTACK_USERSP_INDEX		/* Set Register Index (R2) to SP Index */
-    _getdbgregisterfromindex r2, r1         /* Retrieve SP contents from Index (R2) into R1 */
+    _getdbgregister DBGSTACK_USERSP_INDEX, r1	/* Retrieve SP contents into R1 */
 
 _thumb_get_regcount:
     mov     r2, #0                          /* Initialize reg_count (R2) to 0 */
