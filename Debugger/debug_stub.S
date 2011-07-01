@@ -1985,10 +1985,10 @@ _exit_dbg_following_instruction_addr:
  */
 _eval_arm_instruction:
     stmfd   sp!, {lr}
-    bl      _dbg_check_arm_condcode
+    bl      _dbg_check_arm_condcode		/* Returns R0: will_execute (boolean) */
     teq     r0, #FALSE
-    moveq   r0, r6                      /* False (don't execute), so use Default Following Instruction Address */
-    bne     _exit_eval_arm_instruction
+    moveq   r0, r6                      /* If False (don't execute), so use Default Following Instruction Address */
+    beq     _exit_eval_arm_instruction	/* and Return to caller */
 
 _will_execute_arm_instr:
     mov     r0, r4                      /* Copy instruction opcode to R0 as Code Handler parameter */
@@ -2025,10 +2025,10 @@ _eval_thumb_instruction:
     stmfd   sp!, {lr}
 #if 0
 	/* Only B<cond> instructions are conditionally executed, deal with it in that Code Handler */
-    bl      _dbg_check_thumb_condcode
+    bl      _dbg_check_thumb_condcode	/* Returns R0: will_execute (boolean) */
     teq     r0, #FALSE
-    moveq   r0, r6                      /* False (don't execute), so use Default Following Instruction Address */
-    bne     _exit_eval_thumb_instruction
+    moveq   r0, r6                      /* If False (don't execute), so use Default Following Instruction Address */
+    beq     _exit_eval_thumb_instruction	/* and Return to caller */
 
 _will_execute_thumb_instr:
     mov     r0, r4                      /* Copy instruction opcode to R0 as Code Handler parameter */
@@ -2071,7 +2071,6 @@ _exit_eval_thumb_instruction:
  */
 
 _dbg_check_arm_condcode:
-	stmfd	sp!, {lr}							/* Use R6 as temporary will_execute variable */
 	mov		r0, #TRUE
 	mov		r3, r4, lsr #28							/* convert condition code to index (0-F) */
 	ldr		r2, =debug_armCondCodeTable
@@ -2164,8 +2163,7 @@ _dbg_check_bits_clear:
 	movne	r0, #FALSE								/* (cond_code & ClearBitMask) != 0, so will_execute = FALSE */
 
 _dbg_check_arm_condcode_exit:
-	ldmfd	sp!, {pc}								/* R0: will_execute (boolean) */
-
+	bx		lr										/* Return to caller */
 
 /* _arm_rmshifted_val
  *      Calculate value of Shifted Rm (operand)

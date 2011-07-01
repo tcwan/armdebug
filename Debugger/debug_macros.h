@@ -67,7 +67,7 @@
  */
         .macro  _dbg_armDecodeEntry   instrreg, instrmask, codehandler, indexreg
 
-        ldr      \instrmask, =debug_thumbDecodeTable                    /* Temporary register */
+        ldr      \instrmask, =debug_armDecodeTable                    /* Temporary register */
         add      \instrmask, \instrmask, \indexreg, lsl #3
         add      \instrmask, \instrmask, \indexreg, lsl #2              /* 12  byte entries */
         ldm      \instrmask, {\instrreg, \instrmask, \codehandler}
