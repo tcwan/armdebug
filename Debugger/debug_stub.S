@@ -2021,18 +2021,10 @@ _exit_eval_arm_instruction:
  */
 _eval_thumb_instruction:
     stmfd   sp!, {lr}
-#if 0
 	/* Only B<cond> instructions are conditionally executed, deal with it in that Code Handler */
-    bl      _dbg_check_thumb_condcode	/* Returns R0: will_execute (boolean) */
-    teq     r0, #FALSE
-    moveq   r0, r6                      /* If False (don't execute), so use Default Following Instruction Address */
-    beq     _exit_eval_thumb_instruction	/* and Return to caller */
-
-_will_execute_thumb_instr:
-#endif
     mov     r0, #0                      /* initialize Thumb Decode Entry Table index register */
 1:
-    _dbg_thumbDecodeEntry r1, r2, r3, r10  /* instrreg (R1), instrmask (R2), codehandler (R3), indexreg (R0) */
+    _dbg_thumbDecodeEntry r1, r2, r3, r0  /* instrreg (R1), instrmask (R2), codehandler (R3), indexreg (R0) */
     teq     r1, #0                      /* Check for Null Entry (End of Table marker) */
     moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
     beq     _exit_eval_thumb_instruction
@@ -2159,8 +2151,6 @@ _dbg_check_bits_clear:
 _dbg_check_arm_condcode_exit:
 	bx		lr										/* Return to caller */
 
-@@@@ TODO: Code Audit Needed
-
 /* _arm_rmshifted_val
  *      Calculate value of Shifted Rm (operand)
  *      On entry:
@@ -2233,6 +2223,9 @@ _reg_rrx:
     bx      lr
 
 
+#define	ARM_DATA_INSTR_MASK	0x0FBF0000
+#define ARM_DATA_INSTR_MSRMRS 0x010F0000
+#define ARM_DATA_INSTR_NORMAL 0x01E00000
 /* _arm_data_instr_handler
  *      ARM Data Processing Instruction with Rd == R15
  *      On entry:
@@ -2245,50 +2238,46 @@ _reg_rrx:
  */
 _arm_data_instr_handler:
     stmfd   sp!, {lr}
-    mov     r6, r1                          /* save Following Instruction Address in R6 */
-    ldr     r1, =0x0FBF0000
-    and     r4, r0, r1                      /* Keep instruction Opcode in R4 */
-    ldr     r1, =0x010F0000
-    cmp     r4, r1                          /* Check for MSR / MRS instruction */
+    ldr     r1, =ARM_DATA_INSTR_MASK
+    and     r3, r4, r1                      /* Keep base instruction Opcode in R3 */
+    ldr     r1, =ARM_DATA_INSTR_MSRMRS
+    teq     r3, r1                          /* Check for MSR / MRS instruction */
 
 _arm_is_msr_mrs_instr:
     moveq   r0, r6                          /* Copy default next instruciton address to R0 */
     beq     _exit_arm_data_instr_handler    /* Return default next instruction address */
 
     /* Not MSR / MRS, so process normally */
-_arm_normal_data_instr:
-    and     r4, r0, #0x01E00000             /* Mask Instruction Opcode into R4[24:21] */
-    lsr     r4, r4, #21                     /* Shift Data Processing Opcode into R4[3:0] */
-    and     r7, r0, #0x000F0000             /* Store Rn (Operand 1) Register Enum into R7[19:16] */
-    lsr     r7, r7, #16                     /* Shift into R7[3:0] */
-
 _arm_check_operand2_type:
-    tst     r0, #0x02000000                 /* Check for Immediate (1) or Register (0) Operand 2 */
+    tst     r4, #0x02000000                 /* Check for Immediate (1) or Register (0) Operand 2 */
     beq     _arm_op2_is_reg
 
 _arm_op2_is_imm:
-    and     r1, r0, #BYTE0                  /* 8 bit unsigned constant in R1 */
-    and     r2, r0, #NIBBLE2                /* (rotate count / 2) in R2[11:8] */
+    and     r1, r4, #BYTE0                  /* 8 bit unsigned constant in R1 */
+    and     r2, r4, #NIBBLE2                /* (rotate count / 2) in R2[11:8] */
     lsr     r2, r2, #7                      /* actual rotate count in R2[4:0] */
     ror     r1, r1, r2                      /* Rotated constant in R1 */
     b       _arm_get_operand1_val
 
 _arm_op2_is_reg:
     ldr     r1, =(NIBBLE2|BYTE0)
-    and     r0, r0, r1                      /* 12 bit register operand in R1 */
+    and     r0, r4, r1                      /* 12 bit register operand in R1 */
     bl      _arm_rmshifted_val              /* R0 contains the Rm shifted val */
-    mov     r1, r0                          /* move to R1 for later processing */
+    mov     r1, r0                          /* R1: Operand2 val */
 
 _arm_get_operand1_val:
-    _regenum2index  r7, r1                  /* Convert Enum into Index in R1 */
-    _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R4 */
-    teq     r7, #REG_PC                     /* Check if it is PC relative */
-    addeq   r0, r0, #8                      /* adjust for PC relative (+8) */
+    and     r3, r4, #0x000F0000             /* Store Rn (Operand1) Register Enum into R3[19:16] */
+    lsr     r3, r3, #16                     /* Shift into R3[3:0] */
+    _regenum2index  r3, r2                  /* Convert Enum into Index in R2 */
+    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents from Index (R2) into R0 */
+    teq     r3, #REG_PC                     /* Check if it is PC relative */
+    addeq   r0, r0, #8                      /* R0: Register Rn (Operand1) val; adjust for PC relative (+8) */
 
 _arm_calc_data_instr_val:
-    mov     r2, r6                          /* Retrieve Following Instruction Address in R6 to R2 */
-    /* Calculate data instruction value from R0: Rn Register (Op1) val, R1: Operand 2 val, R2: Default Next Instr Addr */
-    _dbg_jumpTableHandler   debug_dataInstrJumpTable, r6, r4    /* Next Instruction Address in R0 */
+    and     r3, r4, #ARM_DATA_INSTR_NORMAL  /* Mask Instruction Opcode into R3[24:21] */
+    lsr     r3, r3, #21                     /* Shift Data Processing Opcode into R3[3:0] */
+    /* Calculate data instruction value from R0: Register Rn (Operand1) val, R1: Operand2 val, R5[3:0]: CPSR, R6: Default Next Instr Addr */
+    _dbg_jumpTableHandler   debug_dataInstrJumpTable, r2, r3    /* Next Instruction Address in R0 */
 _exit_arm_data_instr_handler:
     ldmfd   sp!, {pc}
 
@@ -2297,8 +2286,8 @@ _exit_arm_data_instr_handler:
  * On entry:
  *      R0: Register Rn (Operand 1) value
  *      R1: Operand 2 value
- *      R2: Default Next Instruction Address (PC+4)
  *      R5[3:0]: CPSR condition codes
+ *      R6: Default Next Instruction Address (PC+4)
  * On exit:
  *      R0: Calculated result
  *      R1, R2, R3: Destroyed
@@ -2349,7 +2338,7 @@ _opcode_tst:
 _opcode_teq:
 _opcode_cmp:
 _opcode_cmn:
-    mov r0, r2          /* Next Instruction Address is not modified */
+    mov r0, r6          /* Next Instruction Address is not modified */
     bx  lr
 
 _opcode_orr:
@@ -2368,6 +2357,7 @@ _opcode_mvn:
     mvn r0, r1          /* Operand 1 is ignored */
     bx  lr
 
+@@@ TODO: Code Audit Needed
 
 /* _arm_bx_blx_handler
  *      BX or BLX Rm Handler. Note v4t does not have BLX instr
