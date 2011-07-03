@@ -2266,12 +2266,15 @@ _arm_op2_is_reg:
     mov     r1, r0                          /* R1: Operand2 val */
 
 _arm_get_operand1_val:
-    and     r3, r4, #0x000F0000             /* Store Rn (Operand1) Register Enum into R3[19:16] */
+	bl		_dbg_data_instr_retrieve_op1val	/* R0: Register Rn (Operand1) val */
+#if 0
+    and     r3, r4, #NIBBLE4             	/* Store Rn (Operand1) Register Enum into R3[19:16] */
     lsr     r3, r3, #16                     /* Shift into R3[3:0] */
     _regenum2index  r3, r2                  /* Convert Enum into Index in R2 */
     _getdbgregisterfromindex r2, r0         /* Retrieve Register contents from Index (R2) into R0 */
     teq     r3, #REG_PC                     /* Check if it is PC relative */
     addeq   r0, r0, #8                      /* R0: Register Rn (Operand1) val; adjust for PC relative (+8) */
+#endif
 
 _arm_calc_data_instr_val:
     and     r3, r4, #ARM_DATA_INSTR_NORMAL  /* Mask Instruction Opcode into R3[24:21] */
@@ -2281,6 +2284,25 @@ _arm_calc_data_instr_val:
 _exit_arm_data_instr_handler:
     ldmfd   sp!, {pc}
 
+/* _dbg_data_instr_retrieve_op1val
+ * Retrieve Data Instruction Operand 1 value
+ * On entry:
+ *      R4: Opcode of instruction to be executed
+ *      R5[3:0]: CPSR condition codes
+ *      R6: Default Next Instruction Address (PC+4)
+ * On exit:
+ *      R0: Register Rn (Operand 1) value
+ *      R2, R3: Destroyed
+ *
+ */
+_dbg_data_instr_retrieve_op1val:
+    and     r3, r4, #NIBBLE4             	/* Store Rn (Operand1) Register Enum into R3[19:16] */
+    lsr     r3, r3, #16                     /* Shift into R3[3:0] */
+    _regenum2index  r3, r2                  /* Convert Enum into Index in R2 */
+    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents from Index (R2) into R0 */
+    teq     r3, #REG_PC                     /* Check if it is PC relative */
+    addeq   r0, r0, #8                      /* R0: Register Rn (Operand1) val; adjust for PC relative (+8) */
+	bx		lr
 
 /* Data Processing Instruction Jump Table Routines
  * On entry:
@@ -2357,8 +2379,6 @@ _opcode_mvn:
     mvn r0, r1          /* Operand 1 is ignored */
     bx  lr
 
-@@@ TODO: Code Audit Needed
-
 /* _arm_bx_blx_handler
  *      BX or BLX Rm Handler. Note v4t does not have BLX instr
  *      On entry:
@@ -2367,11 +2387,11 @@ _opcode_mvn:
  *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1, R2: destroyed
+ *          R1: destroyed
  */
 _arm_bx_blx_handler:
     stmfd   sp!, {lr}
-    and     r0, r0, #NIBBLE0                /* Register Rn Enum in R0 */
+    and     r0, r4, #NIBBLE0                /* Register Rn Enum in R0 */
     _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
     _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R0 */
 	/* Here, the register value would have B0 set to indicate switch to Thumb mode  */
@@ -2379,6 +2399,8 @@ _arm_bx_blx_handler:
     bic     r0, #0x01                       /* Clear R0[0] since it is used to indicates Thumb mode */
 #endif
     ldmfd   sp!, {pc}
+
+@@@ TODO: Code Audit Needed
 
 /* _arm_ldr_pc_handler
  *      LDR with Rd = PC
@@ -2393,33 +2415,65 @@ _arm_bx_blx_handler:
 
 _arm_ldr_pc_handler:
     stmfd   sp!, {lr}
-    mov     r5, r0                          /* Keep a copy of the instruction in R5 */
-    and     r0, r0, #NIBBLE4                /* Register Rn Enum in R0[19:16] */
-    lsr     r0, r0, #16                     /* Move Rn Enum to R0[3:0] */
-    _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
-    _getdbgregisterfromindex r1, r4         /* Retrieve Register contents from Index (R1) into R4 */
-    teq     r0, #REG_PC                     /* Check if it is PC relative */
-    addeq   r4, r4, #8                      /* adjust for PC relative (+8) */
-    tst     r5, #0x01000000                 /* Pre (1) or Post (0) Indexed */
-    beq     _exit_arm_ldr_pc_handler        /* If Post-Indexed, just return value of Rn */
+
+	mov		r1, #0							/* R1: Post-Indexed Offset (cleared) */
+    tst     r4, #0x01000000                 /* Pre (1) or Post (0) Indexed */
+	beq		_get_rn_val						/* If Post-Indexed, just return value of Rn */
+
     /* Pre-Indexed */
     ldr     r0, =(NIBBLE2|BYTE0)
-    and     r0, r5, r0                      /* 12 bit Immediate value or Shifted Reg operand */
-    tst     r5, #0x02000000                 /* Immediate (0) or Register (1) */
+    and     r0, r4, r0                      /* R0: 12 bit Immediate value or Shifted Reg operand */
+    tst     r4, #0x02000000                 /* Immediate (0) or Register (1) */
     beq     _calc_ldr_pc_offset             /* Immediate value is already in R0 */
 
 _get_shiftedreg_val:
+    bl      _arm_rmshifted_val              /* Convert Rm shifted operand in R0 into value in R0 */
+
+_calc_ldr_pc_offset:
+	mov		r1, r0							/* Keep Offset in R1 */
+_get_rn_val:
+	bl		_dbg_data_instr_retrieve_op1val	/* R0: Register Rn (Operand1) val */
+_calc_op1val_with_offset:
+    tst     r4, #0x00800000                 /* Add (1) or Subtract (0) */
+    addne   r0, r0, r1                      /* If Add, R0 = Rn + Offset */
+    subeq   r0, r0, r1                      /* If Sub, R0 = Rn - Offset */
+
+_exit_arm_ldr_pc_handler:
+    ldmfd   sp!, {pc}
+
+#if 0
+/* Obsolete code */
+	bl		_dbg_data_instr_retrieve_op1val	/* R0: Register Rn (Operand1) val */
+#if 0
+    and     r3, r4, #NIBBLE4                /* Register Rn Enum in R3[19:16] */
+    lsr     r3, r3, #16                     /* Move Rn Enum to R3[3:0] */
+    _regenum2index  r3, r2                  /* Convert Enum into Index in R2 */
+    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents from Index (R1) into R0 */
+    teq     r3, #REG_PC                     /* Check if it is PC relative */
+    addeq   r0, r0, #8                      /* adjust for PC relative (+8) */
+#endif
+    tst     r4, #0x01000000                 /* Pre (1) or Post (0) Indexed */
+    beq     _exit_arm_ldr_pc_handler        /* If Post-Indexed, just return value of Rn */
+    /* Pre-Indexed */
+    ldr     r2, =(NIBBLE2|BYTE0)
+    and     r2, r4, r2                      /* R2: 12 bit Immediate value or Shifted Reg operand */
+    tst     r4, #0x02000000                 /* Immediate (0) or Register (1) */
+    beq     _calc_ldr_pc_offset             /* Immediate value is already in R2 */
+
+_get_shiftedreg_val:
+@@@ Fixme: R2 destroyed by _arm_rmshifted_val
+
+	mov		r2, r0							/* Keep Rn in R2 for now */
     bl      _arm_rmshifted_val              /* Convert Rm shifted operand into value in R0 */
 
 _calc_ldr_pc_offset:
-    tst     r5, #0x00800000                 /* Add (1) or Subtract (0) */
-    addne   r4, r4, r0                      /* If Add, R2 = Rn + value */
-    subeq   r4, r4, r0                      /* If Sub, R2 = Rn - value */
+    tst     r4, #0x00800000                 /* Add (1) or Subtract (0) */
+    addne   r0, r0, r2                      /* If Add, R0 = Rn + value */
+    subeq   r0, r0, r2                      /* If Sub, R0 = Rn - value */
 
 _exit_arm_ldr_pc_handler:
-    mov     r0, r4                          /* Return next instruction address in R0 */
     ldmfd   sp!, {pc}
-
+#endif
 
 /* _arm_ldm_pc_handler
  *      LDM {pc}
@@ -2435,7 +2489,7 @@ _exit_arm_ldr_pc_handler:
  */
 _arm_ldm_pc_handler:
     stmfd   sp!, {lr}
-    and     r3, r0, #0x000F0000             /* Store Rn (Operand 1) Register Enum into R3[19:16] */
+    and     r3, r0, #NIBBLE4             	/* Store Rn (Operand 1) Register Enum into R3[19:16] */
     lsr     r3, r3, #16                     /* Shift into R3[3:0] */
 
 _arm_get_Rn_val:
