@@ -361,7 +361,7 @@ debug_armDecodeTable:
 
 debug_thumbDecodeTable:
 	.hword	0x4700, 0xff07
-	.word	_thumb_bx_blx_handler				/* BX or BLX. Note: b7 (H1) is not matched in the mask */
+	.word	_thumb_bx_blx_handler				/* BX or BLX. Note: Link (L:b7) is not checked in the mask */
 	.hword	0xbd00, 0xff00
 	.word	_thumb_poppc_handler				/* PUSH/POP, specifically POP {Rlist,PC} */
 	.hword	0xd000, 0xf000
@@ -2246,7 +2246,7 @@ _arm_is_msr_mrs_instr:
 
     /* Not MSR / MRS, so process normally */
 _arm_check_operand2_type:
-    tst     r4, #0x02000000                 /* Check for Immediate (1) or Register (0) Operand 2 */
+    tst     r4, #ARM_DATA_INSTR_IMMREG      /* Check for Immediate (1) or Register (0) Operand 2 */
     beq     _arm_op2_is_reg
 
 _arm_op2_is_imm:
@@ -2404,13 +2404,13 @@ _arm_ldr_pc_handler:
     stmfd   sp!, {lr}
 
 	mov		r1, #0							/* R1: Post-Indexed Offset (cleared) */
-    tst     r4, #0x01000000                 /* Pre (1) or Post (0) Indexed */
+    tst     r4, #ARM_LDR_INSTR_PREPOST      /* Pre (1) or Post (0) Indexed */
 	beq		_get_rn_val						/* If Post-Indexed, just use Rn directly */
 
     /* Pre-Indexed */
     ldr     r0, =(NIBBLE2|BYTE0)
     and     r0, r4, r0                      /* R0: 12 bit Immediate value or Shifted Reg operand */
-    tst     r4, #0x02000000                 /* Immediate (0) or Register (1) */
+    tst     r4, #ARM_LDR_INSTR_REGIMM       /* Register (1) or Immediate (0) */
     beq     _calc_ldr_pc_offset             /* Immediate value is already in R0 */
 
 _get_shiftedreg_val:
@@ -2421,7 +2421,7 @@ _calc_ldr_pc_offset:
 _get_rn_val:
 	bl		_dbg_data_instr_retrieve_op1val	/* R0: Register Rn (Operand1) val */
 _calc_op1val_with_offset:
-    tst     r4, #0x00800000                 /* Add (1) or Subtract (0) */
+    tst     r4, #ARM_LDR_INSTR_UPDOWN       /* Add (1) or Subtract (0) */
     addne   r0, r0, r1                      /* If Add, R0 = Rn + Offset */
     subeq   r0, r0, r1                      /* If Sub, R0 = Rn - Offset */
 
@@ -2461,17 +2461,17 @@ _arm_get_regcount:
 	 */
 
 _arm_check_updown_offset:
-    tst     r4, #0x00800000                 /* Check Up (1) or Down (0) */
+    tst     r4, #ARM_LDM_INSTR_UPDOWN       /* Check Up (1) or Down (0) */
     beq		_arm_check_prepost_decr
 
 _arm_check_prepost_incr:
-    tst     r4, #0x01000000                 /* Check Pre (1) or Post (0) */
+    tst     r4, #ARM_LDM_INSTR_PREPOST      /* Check Pre (1) or Post (0) */
     subeq	r2, r2, #1						/* Post-Incr: Decrement reg_count in R2 */
     add		r0, r0, r2, lsl #2              /* Increment Offset: Rn (R0) += reg_count (R2) x 4 */
 	b		_get_ldm_pc_val_from_mem
 
 _arm_check_prepost_decr:
-    tst     r4, #0x01000000                 /* Check Pre (1) or Post (0) */
+    tst     r4, #ARM_LDM_INSTR_PREPOST      /* Check Pre (1) or Post (0) */
 	/* Post-Decr: Rn unchanged */
     subne   r0, r0, #4                      /* Pre-Decr: Rn (R0) -= 4 */
 
@@ -2503,12 +2503,12 @@ _arm_b_bl_blx_get_offset:
 
 #ifndef __ARM6OR7__
 	/* armv5t or later, has BLX support */
-	and		r1, r4, #ARM_B_L_X_INSTR_OPCODE_MASK	/* Mask out Condition Code and Opcode */
-	teq		r1, #ARM_BLX_INSTR_OPCODE_VAL		/* Look for BLX */
+	and		r1, r4, #ARM_BLX_INSTR_MASK		/* Mask out Condition Code and Opcode */
+	teq		r1, #ARM_BLX_INSTR_BLX			/* Look for BLX */
 	bne		_exit_arm_b_bl_blx_handler		/* No, it is a B/BL instruction */
-	tst		r4, #0x01000000					/* H bit for Thumb Halfword Address */
+	tst		r4, #ARM_BLX_INSTR_HBIT			/* H bit for Thumb Halfword Address */
 	orrne	r0, r0, #0x02					/* Set Halfword Address R0[1] */
-    orr   	r0, r0, #0x01           		/* Set R0[0] since it is used to indicates Thumb mode */
+    orr   	r0, r0, #0x01           		/* Set R0[0] since BLX instr used to switch to Thumb mode */
 #endif
 
 _exit_arm_b_bl_blx_handler:
@@ -2533,11 +2533,8 @@ _arm_coproc_swi_handler:
 _exit_arm_coproc_swi_handler:
 	bx	    lr
 
-@@@ TODO: Code Audit Needed
-
-
 /* _thumb_bx_blx_handler
- *      BX or BLX Handler. Note: b7 (H1) is not matched in the mask (should be 0); armv4t does not support BLX.
+ *      BX or BLX Handler. Note: Link (L:b7) is not checked in the mask; armv4t does not support BLX.
  *      On entry:
  *          R4: Opcode of instruction to be executed
  *          R5[3:0]: CPSR condition codes
@@ -2548,7 +2545,7 @@ _exit_arm_coproc_swi_handler:
  */
 _thumb_bx_blx_handler:
     stmfd   sp!, {lr}
-    and     r0, r0, #0x78                	/* Register Rn Enum in R0[6:3] (Hi-Reg indicated by B6) */
+    and     r0, r4, #THUMB_BLX_INSTR_REG_RNMASK	/* Register Rn Enum in R0[6:3] (Hi-Reg indicated by B6) */
     mov		r0, r0, lsr #3					/* Shift Rn Enum to R0[3:0] */
     _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
     _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R0 */
@@ -2563,7 +2560,7 @@ _thumb_bx_blx_handler:
  *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1: destroyed
+ *          R1-R3: destroyed
  */
 _thumb_poppc_handler:
     stmfd   sp!, {lr}
@@ -2573,7 +2570,7 @@ _thumb_get_SP_val:
 
 _thumb_get_regcount:
     mov     r2, #0                          /* Initialize reg_count (R2) to 0 */
-    mov     r3, r0, lsl #24					/* Keep BYTE0 containing vector bits in R3[31:24] */
+    mov     r3, r4, lsl #24					/* Keep BYTE0 containing vector bits in R3[31:24] */
 	/* This shortens the checking to a max of 8 iterations */
 1:  movs    r3, r3, lsl #1                  /* count number of '1' bits */
     addcs   r2, r2, #1                      /* increment reg_count (R2) if C Flag set */
@@ -2586,7 +2583,6 @@ _thumb_get_regcount:
 #endif
     ldmfd   sp!, {pc}
 
-
 /* _thumb_bcond_swi_handler
  *      B<cond> or SWI (SVC)
  *      On entry:
@@ -2595,24 +2591,25 @@ _thumb_get_regcount:
  *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1-R6: destroyed
+ *          R1-R3: destroyed
  */
 _thumb_bcond_swi_handler:
-	mov		r4, r0					        /* Keep instruction in R4 */
-    and     r2, r0, #0x0F00					/* Keep Condition Code R2[11:8] */
-    teq     r2, #0x0F00 	                /* SVC (SWI) instruction */
+    stmfd   sp!, {lr}
+    and     r2, r4, #THUMB_BCOND_SWI_INSTR_CONDMASK		/* Keep Condition Code R2[11:8] */
+    teq     r2, #THUMB_BCOND_SWI_INSTR_SWI              /* SVC (SWI) instruction */
 _thumb_swi_instr:
     ldreq   r0, =SVC_VECTOR                 /* Return SVC Vector Address */
     beq     _exit_thumb_bcond_swi_handler	/* Switch to ARM mode for SVC */
 _thum_bcond_unused_instr:
-    teq		r2, #0x0E00
+    teq		r2, #THUMB_BCOND_SWI_COND_UNUSED
     moveq   r0, r6                          /* False (don't execute), so use Default Following Instruction Address */
     beq     _exit_thumb_bcond_instr
 
 _thumb_bcond_instr:
-	mov     r6, r1                          /* Store Default Following Instruction Address in R6 */
-	lsl		r0, r2, #(32-12)		        /* Shift condition code in R2[11:8] to R0[31:28] to match ARM cond-code format */
+	stmfd	sp!, {r4}						/* Preserve Opcode in R4 */
+	lsl		r4, r2, #(32-12)		        /* Shift condition code in R2[11:8] to R0[31:28] to match ARM cond-code format */
 	bl		_dbg_check_arm_condcode	        /* Use ARM condition code checking routine to test (R4, R6 unchanged) */
+	ldmfd	sp!, {r4}						/* Restore Opcode in R4 */
     teq     r0, #FALSE
     moveq   r0, r6                          /* False (don't execute), so use Default Following Instruction Address */
     beq     _exit_thumb_bcond_instr
@@ -2625,7 +2622,7 @@ _thumb_calc_bcond_offset:
 _exit_thumb_bcond_instr:
     orr     r0, r0, #0x01                   /* Set R0[0] since it is used to indicates Thumb mode */
 _exit_thumb_bcond_swi_handler:
-	bx	lr
+    ldmfd   sp!, {pc}
 
 /* _thumb_b_handler
  *      B
@@ -2640,13 +2637,12 @@ _exit_thumb_bcond_swi_handler:
  */
 _thumb_b_handler:
     stmfd   sp!, {lr}
-    lsl		r0, r0, #(32-11)		/* Shift 11-bit offset in R0[10:0] to R0[31:21] */
+    lsl		r0, r4, #(32-11)		/* Shift 11-bit offset in R4[10:0] to R0[31:21] */
     asr		r0, r0, #(32-12)		/* Convert into 12-bit signed offset in R0[11:0] */
-    add		r0, r1, r0				/* PC+2 + signed offset */
+    add		r0, r6, r0				/* PC+2 + signed offset */
     add		r0, r0, #2				/* PC+4 + signed offset */
     orr     r0, r0, #0x01           /* Set R0[0] since it is used to indicates Thumb mode */
     ldmfd   sp!, {pc}
-
 
 /* _thumb_long_bl_blx_handler
  *      Long BL or BLX (4 bytes) Note: b11 (H) indicates 1st or 2nd instr; armv4t does not support BLX.
@@ -2657,6 +2653,7 @@ _thumb_b_handler:
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
  *          R1, R2, R3: destroyed
+ *			R6: Subseqent Instruction Address (PC+4) if first instruction is valid, else unchanged (PC+2)
  *		Note: The BL instruction (0xFxxx) should be in pairs (Dual 16-bit instructions).
  *		The first instruction should have (H=0) to indicate the upper 11 bits of the encoded offset
  *		The second instruction should have (H=1) to indicate the lower 11 bits of the encoded offset
@@ -2668,38 +2665,42 @@ _thumb_b_handler:
  */
 _thumb_long_bl_blx_handler:
     stmfd   sp!, {lr}
-	tst		r0, #0x0800					/* Check H bit */
+_thumb_check_1st_bl_blx_instruction:
+	tst		r4, #THUMB_BLX_INSTR_IMM_HBIT	/* Check H bit */
 	bne		_return_default_thumb_following_instr	/* H=1 as first instruction shouldn't happen */
+_thumb_check_2nd_bl_blx_instruction:
+    ldrh	r3, [r6]						/* Get second instruction in pair at PC+2 into R3 */
+	add		r6, r6, #2						/* Skip to Subsequent Instruction (PC+4) */
+	tst		r3, #THUMB_BLX_INSTR_IMM_HBIT	/* Check H bit */
+	beq		_return_default_thumb_following_instr	/* H=0 as second instruction shouldn't happen */
 
-_thumb_is_1st_bl_blx_instruction:
-    lsl		r0, r0, #(32-11)			/* Shift 11-bit offset in R0[10:0] to R0[31:21] */
+_thumb_concat_branch_offset:
+    lsl		r0, r4, #(32-11)			/* Shift first instruction 11-bit offset in R4[10:0] to R0[31:21] */
     asr		r0, r0, #(32-23)			/* Convert into 12-bit signed offset in R0[22:12] */
-    ldrh	r3, [r1]					/* Get second instruction in pair into R3 */
-	tst		r3, #0x0800					/* Check H bit */
-	beq		_exit_thumb_long_bl_blx_handler	/* H=0 as second instruction shouldn't happen */
-
-    lsl		r2, r3, #(32-11)			/* Shift 11-bit offset in R3[10:0] to R2[31:21] */
+    lsl		r2, r3, #(32-11)			/* Shift second instruction 11-bit offset in R3[10:0] to R2[31:21] */
     lsr		r2, r2, #(32-12)			/* Convert into 12-bit unsigned offset in R2[11:0] */
 	orr		r0, r0, r2					/* Combine offsets */
-    add		r0, r1, r0					/* PC+2 + signed offset */
-    add		r0, r0, #2					/* PC+4 + signed offset */
+    add		r0, r6, r0					/* PC+4 + signed offset */
 
-_thumb_is_2nd_bl_blx_instruction:
-    and		r3, r3, #0x0F000			/* Keep instruction opcode in R3 */
-
-    cmp		r3, #0x0F000				/* Look for BL */
-    orreq   r0, r0, #0x01           	/* Match, set R0[0] since it is used to indicates Thumb mode */
-	beq		_exit_thumb_long_bl_blx_handler
+_thumb_check_bl_blx_pair:
+    and		r3, r3, #THUMB_BLX_INSTR_IMM_MASK	/* Keep second instruction opcode in R3 */
+	teq		r3, #THUMB_BLX_INSTR_IMM_BL			/* Look for BL */
+	beq		_flag_thumb_instr_addr				/* Return BL target address in R0 */
 
 #ifndef __ARM6OR7__
 	/* v5t or higher architecture */
-	cmp		r3, #0x0E000				/* Look for BLX */
-	biceq	r0, r0, #0x03				/* Match, Force ARM address */
+	teq		r3, #THUMB_BLX_INSTR_IMM_BLX		/* Look for BLX */
+	biceq	r0, r0, #0x03						/* Match, Force ARM address */
     beq		_exit_thumb_long_bl_blx_handler
 #endif
 
 _return_default_thumb_following_instr:
-	mov	r0, r1							/* Return default Following Instruction Address */
+	/* FIXME: This assumes that once the 4-byte sequence check fails, it will return PC+4,
+	 * regardless of whether the second instruction is a valid BL/BLX instruction or not.
+	 */
+	mov		r0, r6								/* Return default Following/Subsequent Instruction Address  */
+_flag_thumb_instr_addr:
+    orr		r0, r0, #0x01           			/* Set R0[0] since it is used to indicates Thumb mode */
 
 _exit_thumb_long_bl_blx_handler:
     ldmfd   sp!, {pc}
