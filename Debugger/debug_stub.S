@@ -2223,9 +2223,6 @@ _reg_rrx:
     bx      lr
 
 
-#define	ARM_DATA_INSTR_MASK	0x0FBF0000
-#define ARM_DATA_INSTR_MSRMRS 0x010F0000
-#define ARM_DATA_INSTR_NORMAL 0x01E00000
 /* _arm_data_instr_handler
  *      ARM Data Processing Instruction with Rd == R15
  *      On entry:
@@ -2329,21 +2326,21 @@ _opcode_add:
 
 _opcode_adc:
     /* Op1 + Op2 + C */
-    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value: Test C Flag */
+    tst     r5, #(CPSR_CFLAG>> 28)          /* R5[3:0] is shifted CPSR value: Test C Flag */
     add     r0, r0, r1
     addne   r0, r0, #1                      /* Add C if set */
     bx      lr
 
 _opcode_sbc:
     /* Op1 - Op2 + C - 1 */
-    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value: Test C Flag */
+    tst     r5, #(CPSR_CFLAG>> 28)          /* R5[3:0] is shifted CPSR value: Test C Flag */
     sub     r0, r0, r1
     subeq   r0, r0, #1                      /* If C clear, subtract 1, else (C - 1) = 0 */
     bx      lr
 
 _opcode_rsc:
     /* Op2 - Op1 + C - 1 */
-    tst     r5, #0x02                       /* R5[3:0] is shifted CPSR value: Test C Flag */
+    tst     r5, #(CPSR_CFLAG>> 28)          /* R5[3:0] is shifted CPSR value: Test C Flag */
     rsb     r0, r0, r1
     subeq   r0, r0, #1                      /* If C clear, subtract 1, else (C - 1) = 0 */
     bx  lr
@@ -2442,7 +2439,8 @@ _get_ldr_pc_val_from_mem:
  *          R0: following instruction address
  *          R2, R3: destroyed
  *
- *      FIXME: The algorithm from eCos arm_stub.c does not deal with the Pre/Post-Indexed addressing (P) bit.
+ *      Note: The algorithm from eCos arm_stub.c does not deal with the Pre/Post-Indexed addressing (P) bit.
+ *			The algorithm here loads different content using LDM based on the value of the P bit.
  */
 _arm_ldm_pc_handler:
     stmfd   sp!, {lr}
@@ -2482,9 +2480,6 @@ _get_ldm_pc_val_from_mem:
     ldmfd   sp!, {pc}
 
 
-#define ARM_B_L_X_INSTR_OPCODE_MASK 0xFE000000
-#define ARM_BLX_INSTR_OPCODE_VAL  0xFA000000
-
 /* _arm_b_bl_blx_handler
  *      B, BL or BLX <offset>. Note v4t does not have BLX instr
  *      On entry:
@@ -2518,9 +2513,6 @@ _arm_b_bl_blx_get_offset:
 
 _exit_arm_b_bl_blx_handler:
     ldmfd   sp!, {pc}
-
-#define ARM_SWI_INSTR_MASK	0x0F000000
-#define ARM_SWI_INSTR_VAL	0x0F000000
 
 /* _arm_coproc_swi_handler
  *      SVC (SWI) or Coprocessor instruction
