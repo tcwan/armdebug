@@ -2267,14 +2267,6 @@ _arm_op2_is_reg:
 
 _arm_get_operand1_val:
 	bl		_dbg_data_instr_retrieve_op1val	/* R0: Register Rn (Operand1) val */
-#if 0
-    and     r3, r4, #NIBBLE4             	/* Store Rn (Operand1) Register Enum into R3[19:16] */
-    lsr     r3, r3, #16                     /* Shift into R3[3:0] */
-    _regenum2index  r3, r2                  /* Convert Enum into Index in R2 */
-    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents from Index (R2) into R0 */
-    teq     r3, #REG_PC                     /* Check if it is PC relative */
-    addeq   r0, r0, #8                      /* R0: Register Rn (Operand1) val; adjust for PC relative (+8) */
-#endif
 
 _arm_calc_data_instr_val:
     and     r3, r4, #ARM_DATA_INSTR_NORMAL  /* Mask Instruction Opcode into R3[24:21] */
@@ -2464,10 +2456,28 @@ _arm_get_regcount:
     addcs   r2, r2, #1                      /* increment reg_count (R2) if C Flag set */
     bne     1b                              /* continue until vector is empty */
 
+	/* Pre-Incr:  Rn += reg_count x 4
+	 * Post-Incr: Rn += (reg_count - 1) x 4
+	 * Pre-Decr:  Rn -= 4
+	 * Post-Decr: Rn
+	 */
+
 _arm_check_updown_offset:
     tst     r4, #0x00800000                 /* Check Up (1) or Down (0) */
-    addne   r0, r0, r2, lsl #2              /* Ascending: Rn (R0) += reg_count (R2) x 4 */
-    subeq   r0, r0, #4                      /* Descending: Rn (R0) -= 4 */
+    beq		_arm_check_prepost_decr
+
+_arm_check_prepost_incr:
+    tst     r4, #0x01000000                 /* Check Pre (1) or Post (0) */
+    subeq	r2, r2, #1						/* Post-Incr: Decrement reg_count in R2 */
+    add		r0, r0, r2, lsl #2              /* Increment Offset: Rn (R0) += reg_count (R2) x 4 */
+	b		_get_ldm_pc_val_from_mem
+
+_arm_check_prepost_decr:
+    tst     r4, #0x01000000                 /* Check Pre (1) or Post (0) */
+	/* Post-Decr: Rn unchanged */
+    subne   r0, r0, #4                      /* Pre-Decr: Rn (R0) -= 4 */
+
+_get_ldm_pc_val_from_mem:
     ldr     r0, [r0]                        /* Retrieve stack content for new PC value */
     ldmfd   sp!, {pc}
 
