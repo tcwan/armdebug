@@ -2400,8 +2400,6 @@ _arm_bx_blx_handler:
 #endif
     ldmfd   sp!, {pc}
 
-@@@ TODO: Code Audit Needed
-
 /* _arm_ldr_pc_handler
  *      LDR with Rd = PC
  *      On entry:
@@ -2418,7 +2416,7 @@ _arm_ldr_pc_handler:
 
 	mov		r1, #0							/* R1: Post-Indexed Offset (cleared) */
     tst     r4, #0x01000000                 /* Pre (1) or Post (0) Indexed */
-	beq		_get_rn_val						/* If Post-Indexed, just return value of Rn */
+	beq		_get_rn_val						/* If Post-Indexed, just use Rn directly */
 
     /* Pre-Indexed */
     ldr     r0, =(NIBBLE2|BYTE0)
@@ -2438,42 +2436,9 @@ _calc_op1val_with_offset:
     addne   r0, r0, r1                      /* If Add, R0 = Rn + Offset */
     subeq   r0, r0, r1                      /* If Sub, R0 = Rn - Offset */
 
-_exit_arm_ldr_pc_handler:
+_get_ldr_pc_val_from_mem:
+	ldr		r0, [r0]						/* Retrieve value from Memory at address given in R0 */
     ldmfd   sp!, {pc}
-
-#if 0
-/* Obsolete code */
-	bl		_dbg_data_instr_retrieve_op1val	/* R0: Register Rn (Operand1) val */
-#if 0
-    and     r3, r4, #NIBBLE4                /* Register Rn Enum in R3[19:16] */
-    lsr     r3, r3, #16                     /* Move Rn Enum to R3[3:0] */
-    _regenum2index  r3, r2                  /* Convert Enum into Index in R2 */
-    _getdbgregisterfromindex r2, r0         /* Retrieve Register contents from Index (R1) into R0 */
-    teq     r3, #REG_PC                     /* Check if it is PC relative */
-    addeq   r0, r0, #8                      /* adjust for PC relative (+8) */
-#endif
-    tst     r4, #0x01000000                 /* Pre (1) or Post (0) Indexed */
-    beq     _exit_arm_ldr_pc_handler        /* If Post-Indexed, just return value of Rn */
-    /* Pre-Indexed */
-    ldr     r2, =(NIBBLE2|BYTE0)
-    and     r2, r4, r2                      /* R2: 12 bit Immediate value or Shifted Reg operand */
-    tst     r4, #0x02000000                 /* Immediate (0) or Register (1) */
-    beq     _calc_ldr_pc_offset             /* Immediate value is already in R2 */
-
-_get_shiftedreg_val:
-@@@ Fixme: R2 destroyed by _arm_rmshifted_val
-
-	mov		r2, r0							/* Keep Rn in R2 for now */
-    bl      _arm_rmshifted_val              /* Convert Rm shifted operand into value in R0 */
-
-_calc_ldr_pc_offset:
-    tst     r4, #0x00800000                 /* Add (1) or Subtract (0) */
-    addne   r0, r0, r2                      /* If Add, R0 = Rn + value */
-    subeq   r0, r0, r2                      /* If Sub, R0 = Rn - value */
-
-_exit_arm_ldr_pc_handler:
-    ldmfd   sp!, {pc}
-#endif
 
 /* _arm_ldm_pc_handler
  *      LDM {pc}
@@ -2483,37 +2448,32 @@ _exit_arm_ldr_pc_handler:
  *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address
- *          R1, R2, R3: destroyed
+ *          R2, R3: destroyed
  *
  *      FIXME: The algorithm from eCos arm_stub.c does not deal with the Pre/Post-Indexed addressing (P) bit.
  */
 _arm_ldm_pc_handler:
     stmfd   sp!, {lr}
-    and     r3, r0, #NIBBLE4             	/* Store Rn (Operand 1) Register Enum into R3[19:16] */
-    lsr     r3, r3, #16                     /* Shift into R3[3:0] */
-
-_arm_get_Rn_val:
-    _regenum2index  r3, r2                  /* Convert Enum into Index in R2 */
-    _getdbgregisterfromindex r2, r1         /* Retrieve Register contents from Index (R2) into R1 */
-    teq     r3, #REG_PC                     /* Check if it is PC relative */
-    addeq   r1, r1, #8                      /* adjust Rn (R1) for PC relative (+8) */
+	bl		_dbg_data_instr_retrieve_op1val	/* R0: Register Rn (Operand1) val */
 
 _arm_get_regcount:
     mov     r2, #0                          /* Initialize reg_count (R2) to 0 */
-    mov     r3, r0, lsl #16					/* Keep HLFWORD0 containing vector bits in R3[31:16] */
+    mov     r3, r4, lsl #16					/* Keep HLFWORD0 containing vector bits in R3[31:16] */
 	/* This shortens the checking to a max of 16 iterations, since the PC bit should be set */
 1:  movs    r3, r3, lsl #1                  /* count number of '1' bits */
     addcs   r2, r2, #1                      /* increment reg_count (R2) if C Flag set */
     bne     1b                              /* continue until vector is empty */
 
 _arm_check_updown_offset:
-    tst     r0, #0x00800000                 /* Check Up (1) or Down (0) */
-    addne   r1, r1, r2, lsl #2              /* Ascending: Rn (R1) += reg_count (R2) x 4 */
-    subeq   r1, r1, #4                      /* Descending: Rn (R1) -= 4 */
-    ldr     r0, [r1]                        /* Retrieve stack content for new PC value */
+    tst     r4, #0x00800000                 /* Check Up (1) or Down (0) */
+    addne   r0, r0, r2, lsl #2              /* Ascending: Rn (R0) += reg_count (R2) x 4 */
+    subeq   r0, r0, #4                      /* Descending: Rn (R0) -= 4 */
+    ldr     r0, [r0]                        /* Retrieve stack content for new PC value */
     ldmfd   sp!, {pc}
 
 
+#define ARM_B_L_X_INSTR_OPCODE_MASK 0xFE000000
+#define ARM_BLX_INSTR_OPCODE_VAL  0xFA000000
 
 /* _arm_b_bl_blx_handler
  *      B, BL or BLX <offset>. Note v4t does not have BLX instr
@@ -2523,35 +2483,34 @@ _arm_check_updown_offset:
  *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address
- *          R1, R2, R3: destroyed
+ *          R1: destroyed
  */
 
 _arm_b_bl_blx_handler:
     stmfd   sp!, {lr}
-#ifndef __ARM6OR7__
-	/* armv5t or later, has BLX support */
-	mov		r3, r0							/* Copy instruction to R3 */
-#endif
 
 _arm_b_bl_blx_get_offset:
-    and     r0, r0, #(BYTE2|BYTE1|BYTE0)    /* Encoded Branch offset in R0[23:0] */
+    and     r0, r4, #(BYTE2|BYTE1|BYTE0)    /* Encoded Branch offset in R4[23:0] */
     lsl		r0, r0, #(32-24)				/* Shift to R0[31:8] */
     asr		r0, r0, #(32-25)				/* Actual Signed offset = Encode Offset x 2 in R0[25:0] */
-	add		r1, r1, #4						/* R1: (PC+4) + 4 */
+	add		r1, r6, #4						/* R1: (PC+4) + 4 */
     add     r0, r0, r1                      /* Calculate Branch Target Address R0: (PC+8) + signed offset */
 
 #ifndef __ARM6OR7__
 	/* armv5t or later, has BLX support */
-	and		r2, r3, #0xFE000000				/* Mask out Condition Code and Opcode */
-	teq		r2, #0xFA000000					/* Look for BLX */
+	and		r1, r4, #ARM_B_L_X_INSTR_OPCODE_MASK	/* Mask out Condition Code and Opcode */
+	teq		r1, #ARM_BLX_INSTR_OPCODE_VAL		/* Look for BLX */
 	bne		_exit_arm_b_bl_blx_handler		/* No, it is a B/BL instruction */
-	tst		r3, #0x01000000					/* H bit for Thumb Halfword Address */
+	tst		r4, #0x01000000					/* H bit for Thumb Halfword Address */
 	orrne	r0, r0, #0x02					/* Set Halfword Address R0[1] */
     orr   	r0, r0, #0x01           		/* Set R0[0] since it is used to indicates Thumb mode */
 #endif
 
 _exit_arm_b_bl_blx_handler:
     ldmfd   sp!, {pc}
+
+#define ARM_SWI_INSTR_MASK	0x0F000000
+#define ARM_SWI_INSTR_VAL	0x0F000000
 
 /* _arm_coproc_swi_handler
  *      SVC (SWI) or Coprocessor instruction
@@ -2561,21 +2520,18 @@ _exit_arm_b_bl_blx_handler:
  *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address
- *          R1, R2: destroyed
  */
 
 _arm_coproc_swi_handler:
-    and     r2, r0, #0x0F000000
-    teq     r2, #0x0F000000                 /* SVC (SWI) instruction */
+    and     r0, r4, #ARM_SWI_INSTR_MASK
+    teq     r0, #ARM_SWI_INSTR_VAL          /* SVC (SWI) instruction */
 
-_arm_swi_instr:
-    ldreq   r0, =SVC_VECTOR                 /* Return SVC Vector Address */
-    beq     _exit_arm_coproc_swi_handler
-
-_arm_coproc_instr:
-    mov     r0, r1                          /* Use default Following Instruction Address */
+    ldreq   r0, =SVC_VECTOR                 /* SWI: Return SVC Vector Address */
+    movne   r0, r6                          /* CoProc: Use default Following Instruction Address */
 _exit_arm_coproc_swi_handler:
 	bx	    lr
+
+@@@ TODO: Code Audit Needed
 
 
 /* _thumb_bx_blx_handler
