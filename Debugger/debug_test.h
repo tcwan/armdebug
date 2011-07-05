@@ -27,6 +27,9 @@
 FUNCDEF void dbg__test_arm_bkpt(void);
 FUNCDEF void dbg__test_thumb_bkpt(void);
 
+FUNCDEF void dbg__test_arm_instrstep(void);
+FUNCDEF void dbg__test_thumb_instrstep(void);
+
  /*@}*/
 
 #endif
