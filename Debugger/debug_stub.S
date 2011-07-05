@@ -1324,7 +1324,10 @@ _dbg__step_is_manual_bkpt_or_address_specified:
     bl  	_dbg_following_instruction_addr 	/* following instruction address returned in r1 */
     bl  	dbg__install_singlestep        		/* Setup Single Step, next instruction address returned in r1 */
 	bl		dbg__activate_singlestep
+#if 0
+	/* Disable ACK transmit, let the next Breakpoint generate the Signal Response */
 	bl		__dbg__procAckOnly					/* send Ack to keep GDB server happy */
+#endif
     b       _dbg__switch2undefmode
 
 /* _dbg__cmd_Kill
