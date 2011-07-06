@@ -595,37 +595,40 @@ debug_thumbDecodeTable:
  *		PL: N clr
  *		VS: V set
  *		VC: V clr
- *		HI: C set AND Z clr
- *		LS: C clr AND Z set
  */
 
 
 debug_armCondCodeTable:
 			/* EQ,   NE, HS/CS, LO/CC,   MI,   PL,   VS,   VC,   HI,   LS,   GE,   LT,   GT,   LE,   AL,   NV */
-	.byte	 0x40, 0x04,  0x20,  0x02, 0x80, 0x08, 0x10, 0x01, 0x24, 0x42, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00
+	.byte	 0x40, 0x04,  0x20,  0x02, 0x80, 0x08, 0x10, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00
 
 /* ARM Complex Condition Code Mapping Table
  * Converts Instruction encoding to SPSR Flags.
  * b31 b30 b29 b28
  *  N   Z   C   V
  * Indexed according to Instruction Encoding order (pg 30, Table 6, ATMEL ARM7TDMI Data Sheet)
- * for GE, LT, GT and LE instructions only
+ * for HI, LS, GE, LT, GT and LE instructions only
  * Condition Code stored in the following order:
- *	 b7  b6  b5  b4   b3     b2   b1    b0
- *	  -   -   - ANDOR  -  Z set  AND  N==V		(bit set = 1)
- *	  -   -   -   -    -  Z clr   OR  N!=V		(bit clr = 0)
+ *	 b7   b6   b5    b4   b3    b2     b1    b0
+ *	AND  CHKZ CHKC CHKNV   -  Z set  C set  N==V		(bit set = 1)
+ *   OR    -    -     -    -  Z clr  C clr  N!=V		(bit clr = 0)
  *
+ *		HI: C set AND Z clr
+ *		LS: C clr  OR Z set
  *		GE: N == V
  *		LT: N != V
  *		GT: Z clr AND (N == V)
  *		LE: Z set OR (N != V)
  */
 
-#define COMPLEX_CONDCODE_START	   0x0A
-#define COMPLEX_CONDCODE_NEQV_MASK 0x01
-#define COMPLEX_CONDCODE_AND_MASK  0x02
-#define COMPLEX_CONDCODE_ZSET_MASK 0x04
-#define COMPLEX_CONDCODE_ANDOR_MASK 0x10
+#define COMPLEX_CONDCODE_START	    0x08
+#define COMPLEX_CONDCODE_NEQV_MASK  0x01
+#define COMPLEX_CONDCODE_CSET_MASK  0x02
+#define COMPLEX_CONDCODE_ZSET_MASK  0x04
+#define COMPLEX_CONDCODE_CHKNV_MASK 0x10
+#define COMPLEX_CONDCODE_CHKC_MASK  0x20
+#define COMPLEX_CONDCODE_CHKZ_MASK  0x40
+#define COMPLEX_CONDCODE_ANDOR_MASK 0x80
 
 #define COMPLEX_CONDCODE_NFLAG		0x08
 #define COMPLEX_CONDCODE_ZFLAG		0x04
@@ -634,8 +637,8 @@ debug_armCondCodeTable:
 
 
 debug_armComplexCCTable:
-			/* GE,   LT,   GT,   LE */
-	.byte	 0x01, 0x00, 0x13, 0x14
+			/* HI,   LS,   GE,   LT,   GT,   LE */
+	.byte	 0xE2, 0x64, 0x11, 0x10, 0xD1, 0x54
 
 .code 32
 .text
@@ -803,94 +806,122 @@ _exit_eval_thumb_instruction:
  */
 
 _dbg_check_arm_condcode:
-	mov		r0, #TRUE
-	mov		r3, r4, lsr #28							/* convert condition code to index (0-F) */
+	mov		r0, #TRUE								/* Default will_execute value */
+	mov		r3, r4, lsr #28							/* convert opcode's condition code to index (0-F) */
 	ldr		r2, =debug_armCondCodeTable
 	ldrb	r1, [r2, r3]							/* Get condition code mask */
 /*
- * The following check is unnecessary as it is covered by the set/clear checking algorithm
+ * The following check is unnecessary as it is covered by the _dbg_cond_simple_checks checking algorithm
  	teq		r1, #0
 	beq		_dbg_check_arm_condcode_exit
 */
 	teq		r1, #0xFF
-	bne		_dbg_check_bits_set
+	bne		_dbg_cond_simple_checks
 
 
 /*
  * Complex Checks:
+ *		We assume that CHKNV and CHKC are mutually exclusive.
+ *		In addition, it is possible for CHKNV, CHKC and CHKZ to
+ *		be cleared, in which case it'll return True (default)
+ *
  *
  * will_execute = TRUE [default condition]
- * If (N == V) bit set
- *		will_execute = (N == V)
- * else
- *		will_execute = (N != V)
+ * If (CHKNV) set
+ *		// Only N/V, and Z flags are involved
+ *		NEQV_Flag = (N == V)
+ *		will_execute = (NEQV_Flag == NEQV_Mask)
  *
- * If (ANDOR bit) set
- *		z_match = ~(Z XOR Z set)
+ * If (CHKC) set
+ *		// Only C and Z flags are involved
+ *		will_execute = (C_Flag == CSet_Mask)
+ *
+ * If (CHKZ) set
+ *		z_match = (Z_Flag == ZSet_Mask)
  *		If (AND bit set)
  *			will_execute = will_execute && z_match
  *		else
  *			will_execute = will_execute || z_match
+ *
  */
-_dbg_cond_complex_check:
+_dbg_cond_complex_checks:
 	sub		r3, r3, #COMPLEX_CONDCODE_START			/* Convert complex condition code in R3 to new index (0-3) */
 	ldr		r2, =debug_armComplexCCTable
 	ldrb	r1, [r2, r3]							/* Get complex condition code bitmap in R1 */
 
+_cond_check_nv:
+	tst		r1, #COMPLEX_CONDCODE_CHKNV_MASK
+	beq		_cond_check_c							/* CHECKNV not set, so skip */
 	ands	r2, r5, #(COMPLEX_CONDCODE_NFLAG | COMPLEX_CONDCODE_VFLAG)	/* Is (N == V == 0)? */
 	teqne	r2, #(COMPLEX_CONDCODE_NFLAG | COMPLEX_CONDCODE_VFLAG)		/* No, Is (N == V == 1)? */
+
+	moveq	r2, #COMPLEX_CONDCODE_NEQV_MASK			/* EQ: Either (N == V == 0) or (N == V == 1), set R2: COMPLEX_CONDCODE_NEQV_MASK */
+	movne	r2, #0									/* NE: N != V, clear R2 */
+	and		r3, r1, #COMPLEX_CONDCODE_NEQV_MASK		/* R3: Extract NEQV Mask Value */
+	teq		r2, r3									/* Does N/V Condition match NEQV Mask value? */
+	movne	r0, #FALSE								/* No, so will_execute = FALSE (for now) */
+	b		_cond_check_z
+
+#if 0
 	bne		_cond_nnev								/* No, so (N != V) */
 
 	/* EQ: Either (N == V == 0) or (N == V == 1) */
 _cond_neqv:
 	tst		r1, #COMPLEX_CONDCODE_NEQV_MASK			/* Is (N == V) mask set? */
 	moveq	r0, #FALSE								/* No, so will_execute = FALSE (for now) */
-	b		_cond_check_andor
+	b		_cond_check_z
 
 	/* Else, N != V */
 _cond_nnev:
 	tst		r1, #COMPLEX_CONDCODE_NEQV_MASK			/* Is (N == V) mask set? */
 	movne	r0, #FALSE								/* Yes, so will_execute = FALSE (for now) */
+	b		_cond_check_z
+#endif
 
-_cond_check_andor:
-	tst		r1, #COMPLEX_CONDCODE_ANDOR_MASK
+_cond_check_c:
+	tst		r1, #COMPLEX_CONDCODE_CHKC_MASK
+	beq		_cond_check_z							/* CHECKC not set, so skip */
+
+	/* Use R2 to store C Flag, R3 to store CSet Mask */
+	and		r2, r5, #COMPLEX_CONDCODE_CFLAG			/* r2 = C flag */
+	and		r3, r1, #COMPLEX_CONDCODE_CSET_MASK		/* r3 = CSet mask */
+	teq		r2, r3									/* Does C flag == CSet mask */
+	movne	r0, #FALSE								/* No, so C flag failed match */
+
+_cond_check_z:
+	tst		r1, #COMPLEX_CONDCODE_CHKZ_MASK
 	beq		_dbg_check_arm_condcode_exit			/* No additional checks needed, exit */
 
-	/* Use R2 to store Z Flag, R3 to store Z set Mask */
+	/* Use R2 to store Z Flag, R3 to store ZSet Mask */
 	and		r2, r5, #COMPLEX_CONDCODE_ZFLAG			/* r2 = Z flag */
-	and		r3, r1, #COMPLEX_CONDCODE_ZSET_MASK		/* r3 = Z set */
-	eors	r2, r2, r3								/* r2 = (Z xor Z set): 0 if matched, non-zero if failed match */
+	and		r3, r1, #COMPLEX_CONDCODE_ZSET_MASK		/* r3 = ZSet mask */
+	teq		r2, r3									/* Does Z flag == ZSet mask */
 	moveq	r3, #TRUE								/* Zero, so z flag matched */
 	movne	r3, #FALSE								/* Non-zero, so z flag failed match */
 
-	tst		r1, #COMPLEX_CONDCODE_AND_MASK			/* Is AND mask set? */
+_cond_andor:
+	tst		r1, #COMPLEX_CONDCODE_ANDOR_MASK		/* Is ANDOR mask set? */
 	andne	r0, r0, r3								/* Yes, so AND with will_execute */
 	orreq	r0, r0, r3								/* No, so OR with will_execute */
 	b		_dbg_check_arm_condcode_exit			/* Return will_execute (R0) */
 
 /*
  * Simple Checks:
+ *		We take advantage of the fact that only 1 bit would be set
+ *		in the bitmask, by generating the corresponding actual
+ *		CondSet[7:4], CondClr[3:0] value for comparison.
  *
  * will_execute = TRUE [default condition, equivalent to 0x00 (AL) ]
- * If (SetBitMask is Non-Zero)
- *		will_execute = ((cond_code & SetBitMask) == SetBitMask)
- * If will_execute && (ClearBitMask is Non-Zero)
- *		will_execute = will_execute && ((cond_code & ClearBitMask) == 0)
+ * Generate CondSetClr[7:0] from CPSR[3:0]
+ * will_execute = ((CondSetClr & BitMask) == BitMask)
+ *
  */
-
-_dbg_check_bits_set:
-	movs	r2, r1, lsr #4							/* R2: bits set */
-	beq		_dbg_check_bits_clear					/* No bits set mask enabled, skip check */
-	and		r3, r5, r2								/* Check bits set IF bitmask non-zero */
-	teq		r2, r3									/* ((cond_code & SetBitMask) == SetBitMask)? */
-	movne	r0, #FALSE								/* No, so will_execute = FALSE */
-	bne		_dbg_check_arm_condcode_exit			/* Check failed (need to be TRUE to check bits clear), return */
-
-_dbg_check_bits_clear:
-	ands	r1, r1, #NIBBLE0						/* R1: bits clear */
-	beq		_dbg_check_arm_condcode_exit
-	ands	r3, r5, r1								/* Check bits clear IF bitmask non-zero */
-	movne	r0, #FALSE								/* (cond_code & ClearBitMask) != 0, so will_execute = FALSE */
+_dbg_cond_simple_checks:
+	xor		r2, r5, #NIBBLE0						/* R2: CondClr[3:0] = Invert CPSR[3:0] */
+	orr		r2, r2, r5 lsl #4						/* R2: CondSet[7:4] | CondClr[3:0] */
+	and		r2, r2, r1								/* R2: CondSetClr[7:0] & Bitmask */
+	teq		r2, r1									/* ((cond_code & SetBitMask) == SetBitMask)? */
+	movne	r0, #FALSE								/* Not equal, check failed */
 
 _dbg_check_arm_condcode_exit:
 	bx		lr										/* Return to caller */
