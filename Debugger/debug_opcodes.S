@@ -917,8 +917,8 @@ _cond_andor:
  *
  */
 _dbg_cond_simple_checks:
-	xor		r2, r5, #NIBBLE0						/* R2: CondClr[3:0] = Invert CPSR[3:0] */
-	orr		r2, r2, r5 lsl #4						/* R2: CondSet[7:4] | CondClr[3:0] */
+	eor		r2, r5, #NIBBLE0						/* R2: CondClr[3:0] = Invert CPSR[3:0] */
+	orr		r2, r2, r5, lsl #4						/* R2: CondSet[7:4] | CondClr[3:0] */
 	and		r2, r2, r1								/* R2: CondSetClr[7:0] & Bitmask */
 	teq		r2, r1									/* ((cond_code & SetBitMask) == SetBitMask)? */
 	movne	r0, #FALSE								/* Not equal, check failed */
