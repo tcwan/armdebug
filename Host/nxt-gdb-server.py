@@ -80,6 +80,13 @@ class NXTGDBServer:
             assert len (msg) <= self.pack_size, "Ctrl-C Command Packet too long!"
             segs.append (self.pack (msg, 0))
             end = self.in_buf.find (CTRLC)
+
+        end = self.in_buf.find ('-')
+        if end >= 0:
+            msg, self.in_buf = self.in_buf[0:end+1], self.in_buf[end+1:]
+            assert len (msg) <= self.pack_size, "NAK Packet too long!"
+            segs.append (self.pack (msg, 0))
+            end = self.in_buf.find ('-')
         
         end = self.in_buf.find ('#')
         # Is # found and enough place for the checkum?
@@ -87,8 +94,8 @@ class NXTGDBServer:
             msg, self.in_buf = self.in_buf[0:end + 3], self.in_buf[end + 3:]
             i = 0
             gdbprefix = msg[i]
-            while gdbprefix in ['+', '-']:
-                # Ignore any '+' or '-' 
+            while gdbprefix in ['+']:
+                # Ignore any '+'
                 i += 1
                 gdbprefix = msg[i]
                 if DEBUG2:
