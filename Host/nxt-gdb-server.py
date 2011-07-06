@@ -24,6 +24,8 @@ import pyfantom
 import struct
 
 CTRLC = chr(3)
+NAKCHAR = '-'
+ACKCHAR = '+'
 STATUS_QUERY = "$?#3F"
 DEFAULT_PORT = 2828
 SELECT_TIMEOUT = 0.1
@@ -70,9 +72,25 @@ class NXTGDBServer:
         return body, segment_no
 
     def segment (self, data):
-        """Split datas in GDB commands and make segments with each command."""
+        """Split messages in GDB commands and make segments with each command."""
         segs = [ ]
         self.in_buf += data
+
+        # Find ACK '+' 
+        end = self.in_buf.find (ACKCHAR)
+        while end == 0:
+            self.in_buf = self.in_buf[end+1:]   # Strip out any leading ACKCHAR
+            if DEBUG2:
+                print "stripped ACK, remain: ", self.in_buf
+            end = self.in_buf.find (ACKCHAR)
+
+        # Find NAK '-' 
+        end = self.in_buf.find (NAKCHAR)
+        if end == 0:
+            msg, self.in_buf = self.in_buf[0:end+1], self.in_buf[end+1:]
+            segs.append (self.pack (msg, 0))
+            end = self.in_buf.find (NAKCHAR)
+
         # Find Ctrl-C (assumed to be by itself and not following a normal command)
         end = self.in_buf.find (CTRLC)
         if end >= 0:
@@ -80,13 +98,6 @@ class NXTGDBServer:
             assert len (msg) <= self.pack_size, "Ctrl-C Command Packet too long!"
             segs.append (self.pack (msg, 0))
             end = self.in_buf.find (CTRLC)
-
-        end = self.in_buf.find ('-')
-        if end >= 0:
-            msg, self.in_buf = self.in_buf[0:end+1], self.in_buf[end+1:]
-            assert len (msg) <= self.pack_size, "NAK Packet too long!"
-            segs.append (self.pack (msg, 0))
-            end = self.in_buf.find ('-')
         
         end = self.in_buf.find ('#')
         # Is # found and enough place for the checkum?
@@ -94,7 +105,7 @@ class NXTGDBServer:
             msg, self.in_buf = self.in_buf[0:end + 3], self.in_buf[end + 3:]
             i = 0
             gdbprefix = msg[i]
-            while gdbprefix in ['+']:
+            while gdbprefix in [ACKCHAR]:
                 # Ignore any '+'
                 i += 1
                 gdbprefix = msg[i]
