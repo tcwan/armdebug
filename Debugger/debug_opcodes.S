@@ -683,9 +683,9 @@ _dbg_get_aborted_instr:
  * If not, then the following instruction is at the address following the address of the opcode in R4 (Default Following Instruction Address in R6).
  */
 2:
-    teq     r0, #0                                      /* Check if it is ARM or Thumb instruction */
-    beq     _following_instr_is_arm
-_following_instr_is_thumb:
+    teq     r0, #0                                      /* Check if current instruction is ARM or Thumb instruction */
+    beq     _following_instr_addr_for_arm
+_following_instr_addr_for_thumb:
     add     r6, r6, #2                                  /* Store default following Thumb instruction address to R6 */
     orr     r6, r6, #BKPT_STATE_THUMB_FLAG              /* Set b0 to indicate Thumb instruction */
     /* R4: Candidate Instruction Opcode
@@ -696,7 +696,7 @@ _following_instr_is_thumb:
     /* We must set this the Thumb bit only within the instruction handler since BX would switch modes */
     b       _exit_dbg_following_instruction_addr
 
-_following_instr_is_arm:
+_following_instr_addr_for_arm:
     add     r6, r6, #4                                  /* Store default following ARM instruction address to R6 */
     /* R4: Candidate Instruction Opcode
      * R5[3:0]: CPSR condition codes
@@ -1233,7 +1233,7 @@ _arm_b_bl_blx_handler:
 _arm_b_bl_blx_get_offset:
     and     r0, r4, #(BYTE2|BYTE1|BYTE0)    /* Encoded Branch offset in R4[23:0] */
     lsl		r0, r0, #(32-24)				/* Shift to R0[31:8] */
-    asr		r0, r0, #(32-25)				/* Actual Signed offset = Encode Offset x 2 in R0[25:0] */
+    asr		r0, r0, #(32-26)				/* Actual Signed offset = Encode Offset x 4 in R0[25:0] */
 	add		r1, r6, #4						/* R1: (PC+4) + 4 */
     add     r0, r0, r1                      /* Calculate Branch Target Address R0: (PC+8) + signed offset */
 

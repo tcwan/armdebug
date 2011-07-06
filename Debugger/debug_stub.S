@@ -1090,8 +1090,7 @@ _dbg__cmd_Continue:
 _dbg__cont_fromAddr:
     bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
     /* Continue from Specified Address */
-    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
-    _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+    _setdbgregister DBGSTACK_NEXTINSTR_INDEX, r0, r1	/* Set Next Instruction Pointer for Resume using contents of R0, and scratch register R1 */
    	bl		__dbg__procAckOnly				/* send Ack to keep GDB server happy */
     b       _dbg__cont_is_manual_bkpt_or_address_specified
 
@@ -1102,6 +1101,7 @@ _dbg__cont_check_breakpoint_type:
     teq r0, #DBG_MANUAL_BKPT_THUMB
     beq _dbg__cont_is_manual_bkpt_or_address_specified
 
+@ FIXME: Need to validate the following code
 _dbg__cont_is_normal_breakpoint:
     _getdbgregister DBGSTACK_USERPC_INDEX, r0	/* Retrieve Aborted Instruction PC from the Debug Stack into R0 */
     _setdbgregister DBGSTACK_NEXTINSTR_INDEX, r0, r1	/* Set Next Instruction Pointer for Resume using contents of R0, and scratch register R1 */
@@ -1143,8 +1143,7 @@ _dbg__cmd_Step:
 _dbg__step_fromAddr:
     bl      ascii2hex_varlen_be             /* convert ASCII address to Hex (in R0), R1 has address of next buffer char */
     /* Step from Specified Address */
-    mov     r2, #DBGSTACK_NEXTINSTR_INDEX   /* The Next Instruction Pointer for Resume is in index 0 of the Debug Stack */
-    _setdbgregisterfromindex r2, r0, r1     /* Set Register contents in R0, using index in R2, and scratch register R1 */
+    _setdbgregister DBGSTACK_NEXTINSTR_INDEX, r0, r1	/* Set Next Instruction Pointer for Resume using contents of R0, and scratch register R1 */
     b       _dbg__step_is_manual_bkpt_or_address_specified
 
 _dbg__step_check_breakpoint_type:
