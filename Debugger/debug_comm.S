@@ -398,7 +398,11 @@ _hasMsg2Copy:
     beq     exit_dbg__getDebugMsg               /* Valid length, return */
 
 exit_dbg__getMsgError:
+	bl		dbg__putDebugMsg					/* Retransmit message */
+	mov		r0, #0								/* Flag no message received */
+#if 0
     mov     r0, #MSGBUF_MSGERROR
+#endif
 exit_dbg__getDebugMsg:
     mov     r1, r5                              /* Return GDB Message Buffer Pointer in R1 */
 	ldmfd	sp!, {r4,r5,pc}
