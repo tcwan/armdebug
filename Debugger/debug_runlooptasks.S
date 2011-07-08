@@ -88,7 +88,6 @@
  * NxOS Run Loop
  *
  ****************************************************************************/
- 	.extern nx_systick_wait_ms
 dbg__runloopTasks:
 /* Currently, there's nothing that needs to be done in the NxOS Run Loop */
 	push	{lr}
@@ -169,6 +168,35 @@ _dbg__reboot_wait:
 	b		_dbg__reboot_wait						/* Wait for AVR... */
 #endif
 
+#ifdef __NXOS__
+/****************************************************************************
+ *
+ * NxOS Abort Info LCD Display Routine
+ *
+ ****************************************************************************/
+/*		On entry:
+ *			r0: abort type
+ *		On exit:
+ *			r0-r3: destroyed
+ */
+dbg__display_abort_info:
+	push	{lr}
+    _getdbgregister DBGSTACK_USERPC_INDEX, r1           /* Retrieve User PC into R2 */
+    _getdbgregister DBGSTACK_USERCPSR_INDEX, r2         /* Retrieve User CPSR into R2 */
+	bl		nx__abort_info		/* void nx__abort_info(U32 data, U32 pc, U32 cpsr); */
+    pop		{pc}
+
+#else
+/****************************************************************************
+ *
+ * NXT Firmware Abort Info LCD Display Routine
+ *
+ ****************************************************************************/
+dbg__display_abort_info:
+/* FIXME: Inteface with NXT Firmware LCD Display routines */
+    push    {lr}
+    pop     {pc}
+#endif
 
 #ifdef __NXOS__
 	.extern debug_OutCommBuf

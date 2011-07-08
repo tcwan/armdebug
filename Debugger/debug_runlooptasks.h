@@ -26,8 +26,10 @@
  */
 
 #ifdef __NXOS__
+  .extern		nx__abort_info
+  .extern		nx_systick_wait_ms
 
-  .extern	nx_usb_is_connected
+  .extern		nx_usb_is_connected
   .extern       nx_usb_can_write
   .extern       nx_usb_write
   .extern       nx_usb_data_written
@@ -45,10 +47,10 @@
   .extern		dUsbRead
   .extern		dUsbIsConfigured
   .extern		dBtSendMsg
-  .equ			nxt_UBYTE_TRUE, 1
-  .equ			nxt_UBYTE_FALSE, 0
-  .equ			USB_CMD_READY, 0x01			/* From c_comm.iom */
-  .equ			BT_CMD_READY, 0x02			/* From c_comm.iom */
+  .equ			nxt_UBYTE_TRUE,		1
+  .equ			nxt_UBYTE_FALSE,	0
+  .equ			USB_CMD_READY,		0x01			/* From c_comm.iom */
+  .equ			BT_CMD_READY,		0x02			/* From c_comm.iom */
 
   .extern		dIOCtrlSetPower
   .extern		dIOCtrlSetPwm
