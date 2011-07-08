@@ -377,17 +377,26 @@
         .endm
 
 /* _dbg_set_bkpt_type
+ *      Set Breakpoint Type using value in reg
+ *      On exit:
+ *        reg: destroyed
+ *        r1: destroyed
+ */
+		.macro _dbg_set_bkpt_type     reg
+		ldr      r1, =debug_bkpt_type
+		strb     \reg, [r1]
+		.endm
+
+/* _dbg_set_bkpt_type_val
  *      Set Breakpoint Type to given value
  *      On exit:
  *        r0, r1: destroyed
  */
-        .macro _dbg_set_bkpt_type     bkpt_type
+        .macro _dbg_set_bkpt_type_val   bkpt_type
         mov      r0, #\bkpt_type
         ldr      r1, =debug_bkpt_type
         strb     r0, [r1]
         .endm
-
-
 
 /* _dbg_getcurrbkpt_index
  *	Get current breakpoint index
