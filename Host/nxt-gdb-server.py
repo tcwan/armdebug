@@ -180,7 +180,10 @@ class NXTGDBServer:
                         #   print "CTRL-C Received!"
                         #   data = STATUS_QUERY
                         if DEBUG:
-                            print "[GDB->NXT] %s" % data
+                            if data[0] == CTRLC:
+                                print "[GDB->NXT] <CTRL-C>"
+                            else:
+                                print "[GDB->NXT] %s" % data
                         segments = self.segment (data)
                         data = ''
                         for seg in segments:
