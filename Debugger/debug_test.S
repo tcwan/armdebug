@@ -55,8 +55,8 @@ test_arm_1:
 test_arm_2:
 	sub		r0, r0, #1
 	cmp		r0, #8
-	bls		test_arm_1
-	bhi		test_arm_3
+	ble		test_arm_1
+	bgt		test_arm_3
 	beq		test_arm_2
 	ldr		pc, =test_arm_1
 
@@ -69,7 +69,7 @@ test_arm_3:
 	bx		r2
 
 exit_dbg__test_arm_instrstep:
-	bl		dbg__test_arm_instr_sub2
+	bl		dbg__test_thumb_instr_sub1
 	ldmfd	sp!, {pc}
 
 dbg__test_arm_instr_sub1:
@@ -109,8 +109,53 @@ _thumb_entry:
  *
  */
 	.global dbg__test_thumb_instrstep
+.thumb_func
 dbg__test_thumb_instrstep:
-	bx	lr
+	push	{lr}
+	bl		dbg__test_thumb_instr_sub1
+	bl		dbg__test_thumb_instr_sub2
+
+test_thumb_1:
+	sub		r0, #1
+	bne		test_thumb_2
+	/* else R0 == 0 */
+	b		exit_dbg__test_thumb_instrstep
+
+test_thumb_2:
+	sub		r0, #1
+	cmp		r0, #8
+	bls		test_thumb_1
+	bhi		test_thumb_3
+	beq		test_thumb_2
+	b		test_thumb_1
+
+test_thumb_3:
+	/* case for r0 == 9 */
+	sub		r0, #1
+	cmp		r0, #5
+	beq		load_test_thumb_1
+	ldr		r2, =test_thumb_3
+	b		exit_test_thumb_3
+load_test_thumb_1:
+	ldr		r2, =test_thumb_1
+exit_test_thumb_3:
+	bx		r2
+
+exit_dbg__test_thumb_instrstep:
+	bl		dbg__test_arm_instr_sub1
+	pop		{r1}
+	bx		r1
+
+.thumb_func
+dbg__test_thumb_instr_sub1:
+	mov		r0, #0x0F
+	bx		lr
+
+.thumb_func
+dbg__test_thumb_instr_sub2:
+	push	{lr}
+	mov		r0, #FALSE
+	pop		{pc}
 
 
 .end
