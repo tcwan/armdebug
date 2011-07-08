@@ -292,6 +292,8 @@ ENUM_VAL(DBG_MANUAL_BKPT_ARM)           /**< Manual ARM Breakpoint. */
 ENUM_VAL(DBG_NORMAL_BKPT_ARM)           /**< Normal ARM Breakpoint (Single Step, Normal). */
 ENUM_VAL(DBG_MANUAL_BKPT_THUMB)         /**< Manual Thumb Breakpoint. */
 ENUM_VAL(DBG_NORMAL_BKPT_THUMB)         /**< Normal Thumb Breakpoint (Single Step, Normal). */
+ENUM_VAL(DBG_ABORT_PREFETCH)            /**< Prefetch Abort. */
+ENUM_VAL(DBG_ABORT_DATA)                /**< Data Abort. */
 ENUM_END(bkpt_type_t)
 
 /** Debugger Message Error Enums
@@ -337,5 +339,17 @@ ENUM_VAL(REG_CPSR)            /**< Previous Mode CPSR */
 
 ENUM_END(register_enum_t)
 
+/** Abort Type Enums
+ *
+ * Abort Type used for interfacing with LCD Display routine.
+ * The enums must be consecutive, starting from 0
+ * Note: The values must align with those defined in NxOS's _abort.h
+ */
+ENUM_BEGIN
+ENUM_VALASSIGN(ABORT_PREFETCH,0)        /**< Prefetch Abort. */
+ENUM_VAL(ABORT_DATA)                    /**< Data Abort. */
+ENUM_VAL(ABORT_SPURIOUS)                /**< Spurious IRQ. */
+ENUM_VAL(ABORT_ILLEGAL)                 /**< Illegal Instruction. */
+ENUM_END(abort_type_t)
 
 #endif /* __DEBUG_INTERNALS_H__ */
