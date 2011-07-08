@@ -29,20 +29,18 @@ undef_handler:
  * On triggering, lr (R14) contains the previous mode's pc (R15).
  * Based on example in Hohl, "ARM Assembly Language: Fundamentals and Techniques"
  * Chapter 11, Example 11.1.
- * Note: The handler is not AAPCS compliant (8 byte-alignment and stack, etc.)
  */
- /* We assume that the UNDEF stack holds only one stack frame and we will overwrite it.
+ /* We assume that the DEBUG stack holds only one stack frame and we will overwrite it.
   * On entry, LR_undef points to one instruction past the UNDEF instruction.
   *
   * For the purpose of Debugging, the stack frame should present the PC (R15) as the address
   * of the instruction that triggered the Breakpoint. Hence we need to adjust R15
   * to point to the address of the UNDEF instruction. This is what the JTAG debugger
-  * does. (In the ARM hardware, the PC would point to UNDEF+2 instruction address
-  * since it has a three stage pipeline).
+  * does.
   *
   * We will also store UNDEF LR (next instruction pointer) and UNDEF SPSR to the stack.
   *
-  * For the handler, once the user registers have been stored in the debug stack, the
+  * For the handler, once the user registers have been stored in the DEBUG stack, the
   * registers will be used as follows:
   *
   *		R0: UNDEF LR, then UNDEF instruction address, finally UNDEF instruction word / BKPT index
@@ -71,37 +69,39 @@ undef_handler:
 _store_prev_mode_banked_regs:
 		/* FIXME: We don't handle FIQ properly! */
 
- 		orr	r2, #(CPSR_FIQ | CPSR_IRQ)	/* Disable Interrupts */
- 		msr	cpsr_c, r2					/* Switch to previous mode */
- 		stmfd	r3!, {sp, lr}			/* Store Previous Mode's LR (R14), SP (R13) via R3 */
-		msr	cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)	/* Revert to Undef Mode */
+ 		orr		r2, #(CPSR_FIQ | CPSR_IRQ)	/* Disable Interrupts */
+ 		msr		cpsr_c, r2					/* Switch to previous mode */
+ 		stmfd	r3!, {sp, lr}				/* Store Previous Mode's LR (R14), SP (R13) via R3 */
+		msr		cpsr_c, #(MODE_UND | CPSR_FIQ | CPSR_IRQ)	/* Revert to Undef Mode */
 
 _skip_banked_registers:
- 		tst	r1, #CPSR_THUMB				/* Check for Thumb Mode */
-		beq	_is_arm						/* Clear, so it's ARM mode */
+ 		tst		r1, #CPSR_THUMB				/* Check for Thumb Mode */
+		beq		_is_arm						/* Clear, so it's ARM mode */
 _is_thumb:
-		ldrh r0, [r0]					/* load UNDEF instruction into r0 */
-		ldr	r1, =BKPT16_ENUM_MASK		/* Thumb BKPT enum mask */
-		bic	r2, r0, r1					/* leave only opcode */
-		ldr	r1, =BKPT16_INSTR			/* check for Thumb Breakpoint Instruction */
-		teq	r2, r1
-		bne	default_undef_handler
-		ldr	r1, =BKPT16_ENUM_MASK		/* get Thumb BKPT Enum Mask */
-		ldr	r2, =dbg__thumb_bkpt_handler	/* handle BKPT, BKPT index in r0 */
-		b	_exit_undef_handler
+		ldrh 	r0, [r0]					/* load UNDEF instruction into r0 */
+		ldr		r1, =BKPT16_ENUM_MASK		/* Thumb BKPT enum mask */
+		bic		r2, r0, r1					/* leave only opcode */
+		ldr		r1, =BKPT16_INSTR			/* check for Thumb Breakpoint Instruction */
+		teq		r2, r1
+		bne		default_undef_handler
+		ldr		r1, =BKPT16_ENUM_MASK		/* get Thumb BKPT Enum Mask */
+		ldr		r2, =dbg__thumb_bkpt_handler	/* handle BKPT, BKPT index in r0 */
+		b		_exit_undef_handler
 _is_arm:
-		ldr	r0, [r0]					/* load UNDEF instruction into r0 */
-		ldr	r1, =BKPT32_ENUM_MASK		/* ARM BKPT enum mask */
-		bic	r2, r0, r1					/* leave only opcode */
-		ldr	r1, =BKPT32_INSTR			/* check for ARM Breakpoint Instruction */
-		teq	r2, r1
-		bne	default_undef_handler
-		ldr	r1, =BKPT32_ENUM_MASK		/* get ARM BKPT Enum Mask */
-		ldr	r2, =dbg__arm_bkpt_handler		/* handle BKPT, BKPT index in r0 */
+		ldr		r0, [r0]					/* load UNDEF instruction into r0 */
+		ldr		r1, =BKPT32_ENUM_MASK		/* ARM BKPT enum mask */
+		bic		r2, r0, r1					/* leave only opcode */
+		ldr		r1, =BKPT32_INSTR			/* check for ARM Breakpoint Instruction */
+		teq		r2, r1
+		bne		default_undef_handler
+		ldr		r1, =BKPT32_ENUM_MASK		/* get ARM BKPT Enum Mask */
+		ldr		r2, =dbg__arm_bkpt_handler	/* handle BKPT, BKPT index in r0 */
 _exit_undef_handler:
-		and	r0, r1, r0					/* Keep index value */
-		msr	cpsr_c, #(MODE_ABT | CPSR_FIQ | CPSR_IRQ)			/* Switch to Abort Mode, Disable Interrupts */
-		mov	pc, r2						/* Invoke Debugger */
+		and		r0, r1, r0					/* Keep index value */
+		msr		cpsr_c, #(MODE_ABT | CPSR_FIQ | CPSR_IRQ)		/* Switch to Abort Mode, Disable Interrupts */
+        ldr 	sp, =__abort_stack__		/* Reinitialize stack pointer each time a Breakpoint happens */
+        bic 	sp, sp, #7
+		mov		pc, r2						/* Invoke Debugger */
 
     .global resume_execution
 
