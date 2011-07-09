@@ -390,6 +390,17 @@ _dbg__flush_icache:
 	/* nop */
 	bx	lr
 
+/* dbg__abort_exception_handler
+ *		Handle Abort Exceptions
+ *		On entry:
+ *			r0: Abort Type Enum
+ *		On exit:
+ *			routine does not 'exit' in the normal sense
+ */
+	.global	dbg__abort_exception_handler
+dbg__abort_exception_handler:
+	_dbg_set_bkpt_type r0			/* Set Breakpoint Type given value in R0 */
+	b	dbg__bkpt_waitCMD
 
 /* dbg__thumb_bkpt_handler
  *		GDB handle_exception() routine (Thumb Mode)

@@ -51,7 +51,7 @@
 .align 0
 
 	.extern dbg__display_abort_info
-	.extern dbg__bkpt_waitCMD
+	.extern dbg__abort_exception_handler
 	.extern default_prefetch_abort_handler
 	.extern default_data_abort_handler
 
@@ -62,14 +62,16 @@ prefetch_abort_handler:
   		ldr		sp, =__debugger_stack__
  		stmfd 	sp, {r0-r15}^			/* Save workspace, previous mode's pc via 'S' flag, R13-R15: placeholders */
 		mov		r2, #PREFETCH_OFFSET
-		mov		r4, #ABORT_PREFETCH
+		mov		r4, #DISP_ABORT_PREFETCH /* Display Abort Info Type */
+		mov		r5, #DBG_ABORT_PREFETCH	/* Debugger Abort Type */
 		b		_common_abort_handler
 
 data_abort_handler:
   		ldr		sp, =__debugger_stack__
  		stmfd 	sp, {r0-r15}^			/* Save workspace, previous mode's pc via 'S' flag, R13-R15: placeholders */
 		mov		r2, #DATA_OFFSET
-		mov		r4, #ABORT_DATA
+		mov		r4, #DISP_ABORT_DATA	/* Display Abort Info Type */
+		mov		r5, #DBG_ABORT_DATA		/* Debugger Abort Type */
 
 _common_abort_handler:
 		sub		r0, lr, r2				/* R0: Adjust PC to ABORTed instruction address */
@@ -99,8 +101,9 @@ _store_prev_mode_banked_regs:
 _exit_abort_handler:
         ldr 	sp, =__abort_stack__		/* Reinitialize stack pointer each time an Abort happens */
         bic 	sp, sp, #7
-        mov		r0, r4						/* Copy Abort Type Enum to R0 */
+        mov		r0, r4						/* Copy Display Abort Type Enum to R0 */
 		bl		dbg__display_abort_info		/* Display Abort Type to LCD */
-        b		dbg__bkpt_waitCMD			/* Invoke Debugger */
+		mov		r0, r5						/* Copy Debugger Abort Type Enum to R0 */
+        b		dbg__abort_exception_handler	/* Invoke Debugger */
 
 

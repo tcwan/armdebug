@@ -346,10 +346,10 @@ ENUM_END(register_enum_t)
  * Note: The values must align with those defined in NxOS's _abort.h
  */
 ENUM_BEGIN
-ENUM_VALASSIGN(ABORT_PREFETCH,0)        /**< Prefetch Abort. */
-ENUM_VAL(ABORT_DATA)                    /**< Data Abort. */
-ENUM_VAL(ABORT_SPURIOUS)                /**< Spurious IRQ. */
-ENUM_VAL(ABORT_ILLEGAL)                 /**< Illegal Instruction. */
+ENUM_VALASSIGN(DISP_ABORT_PREFETCH,0)       /**< Prefetch Abort. */
+ENUM_VAL(DISP_ABORT_DATA)                   /**< Data Abort. */
+ENUM_VAL(DISP_ABORT_SPURIOUS)               /**< Spurious IRQ. */
+ENUM_VAL(DISP_ABORT_ILLEGAL)                /**< Illegal Instruction. */
 ENUM_END(abort_type_t)
 
 #endif /* __DEBUG_INTERNALS_H__ */
