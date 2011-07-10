@@ -80,6 +80,7 @@
 	.align 4
     .global dbg__runloopTasks
 	.global	dbg__reboot
+	.global dbg__display_abort_info
  	.global dbg__sendCommMsg
 
 #ifdef __NXOS__
