@@ -55,7 +55,7 @@ test_arm_1:
 test_arm_2:
 	sub		r0, r0, #1
 	cmp		r0, #8
-	ble		test_arm_1
+	ldrle	pc, =test_arm_1
 	bgt		test_arm_3
 	beq		test_arm_2
 	ldr		pc, =test_arm_1
