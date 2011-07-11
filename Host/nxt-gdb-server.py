@@ -156,9 +156,6 @@ class NXTGDBServer:
         s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind (('', self.port))
         s.listen (1)
-        ## Open connection to the NXT brick.
-        #brick = nxt.locator.find_one_brick ()
-        #brick.sock.debug = DEBUG
         print "Waiting for GDB connection on port %s..." % self.port
         while True:
             # Wait for a connection.
