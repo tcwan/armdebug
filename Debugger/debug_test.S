@@ -121,7 +121,7 @@ test_thumb_1:
 
 test_thumb_2:
 	sub		r0, #1
-	cmp		r0, #8
+	cmp		r0, #5
 	bls		test_thumb_1
 	bhi		test_thumb_3
 	beq		test_thumb_2
