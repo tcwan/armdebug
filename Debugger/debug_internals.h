@@ -304,8 +304,8 @@ ENUM_END(bkpt_type_t)
 /* FIXME: Need to validate against the ecos-generic-stub.c Error enums */
 ENUM_BEGIN
 ENUM_VALASSIGN(MSG_SIG_DEFAULT, 0)    /**< Normal Signal Response. */
-ENUM_VALASSIGN(MSG_SIG_PREFETCH, 0)   /**< Prefetch Abort Signal Response. */
-ENUM_VALASSIGN(MSG_SIG_DATA, 0)       /**< Data Abort Signal Response. */
+ENUM_VAL(MSG_SIG_PREFETCH)            /**< Prefetch Abort Signal Response. */
+ENUM_VAL(MSG_SIG_DATA)                /**< Data Abort Signal Response. */
 ENUM_END(dbg_msg_signo)
 
 /** Debugger Message Error Enums
