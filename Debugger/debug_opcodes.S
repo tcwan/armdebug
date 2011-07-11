@@ -777,6 +777,7 @@ _eval_thumb_instruction:
     _dbg_thumbDecodeEntry r1, r2, r3, r0  /* instrreg (R1), instrmask (R2), codehandler (R3), indexreg (R0) */
     teq     r1, #0                      /* Check for Null Entry (End of Table marker) */
     moveq   r0, r6                      /* End of Table, no match found, so use Default Following Instruction Address */
+    orreq  	r0, r0, #BKPT_STATE_THUMB_FLAG  /* Set R0[0] to flag Thumb mode */
     beq     _exit_eval_thumb_instruction
 
     and     r7, r4, r2                  /* Use R5 to check masked instruction opcode (from R4) to see if it matches template (in R1) */
@@ -1283,7 +1284,7 @@ _arm_b_bl_blx_get_offset:
 	bne		_exit_arm_b_bl_blx_handler		/* No, it is a B/BL instruction */
 	tst		r4, #ARM_BLX_INSTR_HBIT			/* H bit for Thumb Halfword Address */
 	orrne	r0, r0, #0x02					/* Set Halfword Address R0[1] */
-    orr   	r0, r0, #0x01           		/* Set R0[0] since BLX instr used to switch to Thumb mode */
+    orr   	r0, r0, #BKPT_STATE_THUMB_FLAG  /* Set R0[0] since BLX instr used to switch to Thumb mode */
 #endif
 
 _exit_arm_b_bl_blx_handler:
