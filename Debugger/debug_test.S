@@ -60,7 +60,6 @@ test_arm_2:
 	ldr		pc, =test_arm_1
 
 test_arm_3:
-	/* case for r0 == 9 */
 	sub		r0, r0, #1
 	teq		r0, #8
 	beq		test_arm_1
@@ -129,10 +128,9 @@ test_thumb_2:
 	b		test_thumb_1
 
 test_thumb_3:
-	/* case for r0 == 9 */
 	sub		r0, #1
-	cmp		r0, #5
-	beq		load_test_thumb_1
+	cmp		r0, #B
+	blo		load_test_thumb_1
 	ldr		r2, =test_thumb_3+1		/* Need to set Thumb bit */
 	b		exit_test_thumb_3
 load_test_thumb_1:
