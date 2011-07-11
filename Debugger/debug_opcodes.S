@@ -1345,12 +1345,13 @@ _thumb_get_SP_val:
     _getdbgregister DBGSTACK_USERSP_INDEX, r1	/* Retrieve SP contents into R1 */
 
 _thumb_get_regcount:
-    mov     r2, #0                          /* Initialize reg_count (R2) to 0 */
     mov     r3, r4, lsl #24					/* Keep BYTE0 containing vector bits in R3[31:24] */
-	/* This shortens the checking to a max of 8 iterations */
+	/* POP is equivalent to LDMFD. Load PC is encoded in b8,
+	 * the 8-bit vector is for Lo registers.
+	 * This shortens the checking to a max of 8 iterations
+	 */
 1:  movs    r3, r3, lsl #1                  /* count number of '1' bits */
-    addcs   r2, r2, #1                      /* increment reg_count (R2) if C Flag set */
-	add		r1, r1, #4						/* Walk the stack to locate the PUSHed LR (POP PC) value */
+	addcs	r1, r1, #4						/* Walk the stack to locate the PUSHed LR (POP PC) value */
     bne     1b                              /* continue until vector is empty */
 	ldr		r0, [r1]						/* Retrieve new PC value */
 #if 0
