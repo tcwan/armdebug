@@ -133,10 +133,10 @@ test_thumb_3:
 	sub		r0, #1
 	cmp		r0, #5
 	beq		load_test_thumb_1
-	ldr		r2, =test_thumb_3
+	ldr		r2, =test_thumb_3+1		/* Need to set Thumb bit */
 	b		exit_test_thumb_3
 load_test_thumb_1:
-	ldr		r2, =test_thumb_1
+	ldr		r2, =test_thumb_1+1		/* Need to set Thumb bit */
 exit_test_thumb_3:
 	bx		r2
 
