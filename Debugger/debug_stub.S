@@ -1412,7 +1412,7 @@ _dbg__install_one_breakpoint:
 /* Check for Thumb bit */
 	tst		r1, #BKPT_STATE_THUMB_FLAG	/* 1: Thumb instruction */
 /* Assume that the address entry is valid, otherwise we should sanitize it (mask out b1) */
-	bic		r2, r1, #BKPT_STATE_THUMB_FLAG	/* R2: Instruction Address; clear Thumb Flag for accessing to Memory */
+	bic		r2, r1, #BKPT_STATE_THUMB_FLAG	/* R2: Instruction Address; clear Thumb Flag for accessing Memory */
 	ldreq	r2, [r2]					/* if 0: load ARM instruction from address location */
 	ldrneh	r2, [r2]					/* else load Thumb instruction */
 	_index2bkptindex_addr	r0, r3		/* Calculate Breakpoint Entry Address */
