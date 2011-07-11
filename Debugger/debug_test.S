@@ -54,17 +54,16 @@ test_arm_1:
 
 test_arm_2:
 	sub		r0, r0, #1
-	cmp		r0, #8
-	ldrle	pc, =test_arm_1
-	bgt		test_arm_3
-	beq		test_arm_2
+	cmp		r0, #5
+	bgt		test_arm_1
+	ldrle	pc, =test_arm_2
 	ldr		pc, =test_arm_1
 
 test_arm_3:
 	/* case for r0 == 9 */
 	sub		r0, r0, #1
-	teq		r0, #5
-	ldreq	r2, =test_arm_1
+	teq		r0, #8
+	beq		test_arm_1
 	ldrne	r2, =test_arm_3
 	bx		r2
 
@@ -154,7 +153,7 @@ dbg__test_thumb_instr_sub1:
 .thumb_func
 dbg__test_thumb_instr_sub2:
 	push	{lr}
-	mov		r0, #FALSE
+	mov		r1, #FALSE
 	pop		{pc}
 
 
