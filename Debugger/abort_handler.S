@@ -75,7 +75,7 @@ data_abort_handler:
 
 _common_abort_handler:
 		sub		r0, lr, r2				/* R0: Adjust PC to ABORTed instruction address */
- 		str		r0, [sp, #-4]			/* Save PC to stack (R15 slot) */
+ 		stmfd	sp!, {r0}				/* Save ABORTed Instruction PC to stack (R15 slot) */
 
 		mov		r3, sp					/* Use R3 to write Banked R13-R14 of ABORT instruction */
 
