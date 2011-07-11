@@ -75,9 +75,8 @@ data_abort_handler:
 
 _common_abort_handler:
 		sub		r0, lr, r2				/* R0: Adjust PC to ABORTed instruction address */
- 		stmfd	sp!, {r0}				/* Save ABORTed Instruction PC to stack (R15 slot) */
-
-		mov		r3, sp					/* Use R3 to write Banked R13-R14 of ABORT instruction */
+ 		str		r0, [sp, #-4]			/* Save ABORTed Instruction PC to stack (R15 slot) */
+		sub		r3, sp, #4				/* Use R3 to write Banked R13-R14 of ABORT instruction, update R3 to point to R14 slot */
 
  		mrs		r1, spsr				/* Copy SPSR to r1 */
  		tst		r1, #CPSR_THUMB			/* Check for Thumb Mode */
