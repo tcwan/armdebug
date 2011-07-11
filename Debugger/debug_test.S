@@ -129,7 +129,7 @@ test_thumb_2:
 
 test_thumb_3:
 	sub		r0, #1
-	cmp		r0, #B
+	cmp		r0, #0xB
 	blo		load_test_thumb_1
 	ldr		r2, =test_thumb_3+1		/* Need to set Thumb bit */
 	b		exit_test_thumb_3
