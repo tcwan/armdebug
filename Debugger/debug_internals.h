@@ -301,11 +301,24 @@ ENUM_END(bkpt_type_t)
  * Debugger Signal Message Enums.
  * The enums must be consecutive, starting from 0
  */
-/* FIXME: Need to validate against the ecos-generic-stub.c Error enums */
+/* Need to sync with the Signal enums in ecos-common-hal_stub.c */
 ENUM_BEGIN
-ENUM_VALASSIGN(MSG_SIG_DEFAULT, 0)    /**< Normal Signal Response. */
-ENUM_VAL(MSG_SIG_PREFETCH)            /**< Prefetch Abort Signal Response. */
-ENUM_VAL(MSG_SIG_DATA)                /**< Data Abort Signal Response. */
+ENUM_VALASSIGN(MSG_SIG_DEFAULT, 0)    /**< Default Signal Response. */
+ENUM_VAL(MSG_SIG_HUP)                 /**< Hangup Signal Response. */
+ENUM_VAL(MSG_SIG_INT)                 /**< Interrupt Signal Response. */
+ENUM_VAL(MSG_SIG_QUIT)                /**< Quit Signal Response. */
+ENUM_VAL(MSG_SIG_ILL)                 /**< Illegal Instruction Signal Response (not reset when caught). */
+ENUM_VAL(MSG_SIG_TRAP)                /**< Trace Trap Signal Response (not reset when caught). */
+ENUM_VAL(MSG_SIG_ABRT)                /**< Abort Signal Response (replace SIGIOT). */
+ENUM_VAL(MSG_SIG_EMT)                 /**< EMT Instruciton Signal Response. */
+ENUM_VAL(MSG_SIG_FPE)                 /**< Floating Point Exception Signal Response. */
+ENUM_VAL(MSG_SIG_KILL)                /**< Kill Signal Response (cannot be caught or ignored). */
+ENUM_VAL(MSG_SIG_BUS)                 /**< Bus Error Signal Response. */
+ENUM_VAL(MSG_SIG_SEGV)                /**< Segmentation Violation Signal Response. */
+ENUM_VAL(MSG_SIG_SYS)                 /**< Bad Argument to System Call Signal Response. */
+ENUM_VAL(MSG_SIG_PIPE)                /**< Write on a Pipe with No Reader Signal Response. */
+ENUM_VAL(MSG_SIG_ALRM)                /**< Alarm Clock Signal Response. */
+ENUM_VAL(MSG_SIG_TERM)                /**< Software Termination Signal from Kill Signal Response. */
 ENUM_END(dbg_msg_signo)
 
 /** Debugger Message Error Enums

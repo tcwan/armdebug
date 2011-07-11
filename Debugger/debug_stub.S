@@ -740,19 +740,18 @@ __dbg__sendDebugMsgExit:
  *          r0, r1, r2, r3: destroyed
  */
 _dbg__cmd_Status:
-	/* FIXME: The Signal numbers do not correspond to any GDB defined signals */
 	stmfd	sp!, {lr}
     _dbg_get_bkpt_type   r0
 _check_data_abort_exception:
 	teq		r0, #DBG_ABORT_DATA
-	moveq	r1, #MSG_SIG_DATA
+	moveq	r1, #MSG_SIG_BUS					/* Bus Error */
 	beq		_exit_dmg__cmd_Status
 _check_prefetch_abort_exception:
 	teq		r0, #DBG_ABORT_PREFETCH
-	moveq	r1, #MSG_SIG_PREFETCH
+	moveq	r1, #MSG_SIG_ABRT					/* FIMXE: Look for a better Signal number */
 	beq		_exit_dmg__cmd_Status
 _default_breakpoint_exception:
-	mov		r1, #MSG_SIG_DEFAULT				/* FIXME: Dummy Signal number */
+	mov		r1, #MSG_SIG_DEFAULT				/* Dummy Signal number */
 
 _exit_dmg__cmd_Status:
 	_dbg_outputMsgStatusSig
