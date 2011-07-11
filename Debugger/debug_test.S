@@ -70,10 +70,12 @@ exit_dbg__test_arm_instrstep:
 	bl		dbg__test_thumb_instr_sub1
 	ldmfd	sp!, {pc}
 
+	.global dbg__test_arm_instr_sub1
 dbg__test_arm_instr_sub1:
 	mov		r0, #10
 	bx		lr
 
+	.global dbg__test_arm_instr_sub1
 dbg__test_arm_instr_sub2:
 	stmfd	sp!, {r4, lr}
 	mov		r0, #TRUE
