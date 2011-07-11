@@ -546,7 +546,7 @@ _proc_command:
 
 _dbg_check_gdb_command:
 	teq		r0, #MSGBUF_STARTCHAR
-	movne	r0, #MSG_ERRFORMAT				/* Message Format invalid (not '$') */
+	movne	r1, #MSG_ERRFORMAT				/* Message Format invalid (not '$') */
 	bne		_dbg__cmdError					/* Shouldn't happen */
 	ldrb	r0, [r4], #1					/* Look for command char */
 	bl		_dbg__cmdChar2Index				/* Index in R0 */
@@ -558,7 +558,7 @@ _dbg_unknown_command:
 	b 		dbg__bkpt_waitCMD_cont
 
 #if 0
-	moveq	r0, #MSG_UNKNOWNCMD				/* Out of range, Command character not recognized */
+	moveq	r1, #MSG_UNKNOWNCMD				/* Out of range, Command character not recognized */
 	beq		_dbg__cmdError					/* Send response to GDB server */
 #endif
 
@@ -740,8 +740,22 @@ __dbg__sendDebugMsgExit:
  *          r0, r1, r2, r3: destroyed
  */
 _dbg__cmd_Status:
+	/* FIXME: The Signal numbers do not correspond to any GDB defined signals */
 	stmfd	sp!, {lr}
-	_dbg_outputMsgStatusSig 0x0				/* FIXME: Dummy Signal number */
+    _dbg_get_bkpt_type   r0
+_check_data_abort_exception:
+	teq		r0, #DBG_ABORT_DATA
+	moveq	r1, #MSG_SIG_DATA
+	beq		_exit_dmg__cmd_Status
+_check_prefetch_abort_exception:
+	teq		r0, #DBG_ABORT_PREFETCH
+	moveq	r1, #MSG_SIG_PREFETCH
+	beq		_exit_dmg__cmd_Status
+_default_breakpoint_exception:
+	mov		r1, #MSG_SIG_DEFAULT				/* FIXME: Dummy Signal number */
+
+_exit_dmg__cmd_Status:
+	_dbg_outputMsgStatusSig
 	b	__dbg__sendDebugMsgExit
 
 /* _dbg__cmd_Query

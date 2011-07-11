@@ -198,7 +198,7 @@
 /* _dbg_outputMsgStatusErr
  *	Return Message with Error ('+$ENN') status
  *	On entry:
- *	  R0: error code
+ *	  R1: error code
  *	On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
  *	  R1: destroyed
@@ -206,7 +206,6 @@
  *	  R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusErr
-	mov	r1, r0
 	__dbg_outputErrMsg
 	.endm
 
@@ -222,20 +221,48 @@
 	__dbg_outputErrMsg
 	.endm
 
+/* __dbg_outputSigMsg
+ *  Internal Routine called to generate Signal messages
+ *	Return Message with Signal ('+$SNN') status
+ *	On entry:
+ *	  R1: signal code
+ *	On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *	  R1: destroyed
+ *	  R2: destroyed
+ *	  R3: destroyed
+ */
+	.macro  __dbg_outputSigMsg
+	ldr	r0, =debug_OutMsgBuf
+	ldr	r2, =debug_SignalResponsePrefix
+	_dbg_stpcpy	 r0, r2, r3
+	bl	byte2ascii	  /* R0 points to buffer position after byte value */
+	_asciiz	r0, r1
+	.endm
+
 /* _dbg_outputMsgStatusSig
+ *	Return Message with Signal ('+$SNN') status
+ *	On entry:
+ *	  R1: signal code
+ *	On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *	  R1: destroyed
+ *	  R2: destroyed
+ */
+	.macro  _dbg_outputMsgStatusSig
+	__dbg_outputSigMsg
+	.endm
+
+/* _dbg_outputMsgStatusSigCode
  *	Return Message with Signal ('+$SNN') status
  *	On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
  *	  R1: destroyed
  *	  R2: destroyed
  */
-	.macro  _dbg_outputMsgStatusSig statuscode
-	ldr	r0, =debug_OutMsgBuf
-	ldr	r1, =debug_SignalResponsePrefix
-	_dbg_stpcpy	 r0, r1, r2
+	.macro  _dbg_outputMsgStatusSigCode statuscode
 	mov	r1, #\statuscode
-	bl	byte2ascii	  /* R0 points to buffer position after byte value */
-	_asciiz	r0, r1
+	__dbg_outputSigMsg
 	.endm
 
 /* _regenum2index

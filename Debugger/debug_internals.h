@@ -296,6 +296,18 @@ ENUM_VAL(DBG_ABORT_PREFETCH)            /**< Prefetch Abort. */
 ENUM_VAL(DBG_ABORT_DATA)                /**< Data Abort. */
 ENUM_END(bkpt_type_t)
 
+/** Debugger Message Signal Enums
+ *
+ * Debugger Signal Message Enums.
+ * The enums must be consecutive, starting from 0
+ */
+/* FIXME: Need to validate against the ecos-generic-stub.c Error enums */
+ENUM_BEGIN
+ENUM_VALASSIGN(MSG_SIG_DEFAULT, 0)    /**< Normal Signal Response. */
+ENUM_VALASSIGN(MSG_SIG_PREFETCH, 0)   /**< Prefetch Abort Signal Response. */
+ENUM_VALASSIGN(MSG_SIG_DATA, 0)       /**< Data Abort Signal Response. */
+ENUM_END(dbg_msg_signo)
+
 /** Debugger Message Error Enums
  *
  * Debugger Error Message Enums.
