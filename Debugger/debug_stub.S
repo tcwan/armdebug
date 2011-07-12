@@ -1141,15 +1141,23 @@ _dbg__cont_check_breakpoint_type:
     beq _dbg__cont_is_manual_bkpt_or_address_specified
 
 @ FIXME: Need to validate the following code
+/* Autobreakpoint handling is not robust. If there are intervening Exceptions which triggers the
+ * Debugger before the Auto Breakpoint is triggered, the Single Step instruction gets lost and
+ * the Breakpoint Opcode is left in the code.
+ *
+ * In addition, GDB knows to Step from a breakpointed instruction before continuing when
+ * Continue is issued.
+ */
 _dbg__cont_is_normal_breakpoint:
     _getdbgregister DBGSTACK_USERPC_INDEX, r0	/* Retrieve Aborted Instruction PC from the Debug Stack into R0 */
     _setdbgregister DBGSTACK_NEXTINSTR_INDEX, r0, r1	/* Set Next Instruction Pointer for Resume using contents of R0, and scratch register R1 */
+#if 0
     bl  	dbg_following_instruction_addr  /* following instruction address returned in r1 */
     bl  	dbg__install_singlestep         /* Setup Single Step, next instruction address returned in r1 */
     _dbg_getcurrbkpt_index r0               /* load current breakpoint index in memory */
     bl  	_dbg__activate_autobreakpoint   /* pass next instruction address in r1 */
 	b		_dbg__switch2undefmode
-
+#endif
 _dbg__cont_is_manual_bkpt_or_address_specified:
     bl      _dbg__activate_breakpoints      /* Restore exisiting breakpoints */
     b       _dbg__switch2undefmode
@@ -1391,8 +1399,14 @@ _dbg__clear_breakpoints:
 	.global dbg__install_singlestep
 /* dbg__install_singlestep
  *		Install the Single Step Breakpoint
+ *
  *		On entry:
  *			R1: Instruction Address (31 bits, b0 = THUMB flag)
+ *		On exit:
+ *			R0: Breakpoint index (preserved)
+ *			R1: Instruction Address (preserved)
+ *			R2: Breakpoint Instruction
+ *			R3: Breakpoint Entry address
  */
 dbg__install_singlestep:
 	mov		r0, #0
@@ -1400,11 +1414,13 @@ dbg__install_singlestep:
 
 /* _dbg__install_one_breakpoint
  *		Install breakpoint entry into Breakpoint State Table
+ *
  *		On entry:
  *			R0: Breakpoint index (assumed valid)
  *			R1: Instruction Address (31 bits, b0 = THUMB flag)
- *
  *		On exit:
+ *			R0: Breakpoint index (preserved)
+ *			R1: Instruction Address (preserved)
  *			R2: Breakpoint Instruction
  *			R3: Breakpoint Entry address
  */
@@ -1422,6 +1438,11 @@ _dbg__install_one_breakpoint:
 
 /* _dbg__restore_singlestep
  *		Restores the contents of the single step breakpoint to memory
+ *
+ *		On entry:
+ *			None
+ *		On exit:
+ *			R0-R2: Destroyed
  */
 _dbg__restore_singlestep:
 	mov		r0, #0						/* single step breakpoint index */
@@ -1433,10 +1454,15 @@ _dbg__restore_singlestep:
 
 /* _dbg__restore_one_breakpoint
  *		Restores the contents to memory for one breakpoint
+ *
  *		On entry:
  *			R0: Breakpoint index (assumed valid) [not used -- can be used for validating BKPT]
  *			R1: Breakpoint Address (assumed valid)
  *			R2: Breakpoint Instruction (assumed valid)
+ *		On exit:
+ *			R0: Breakpoint index (preserved)
+ *			R1: B0 cleared if Thumb Instruction Address
+ *			R2: Breakpoint Instruction (preserved)
  */
 _dbg__restore_one_breakpoint:
 /* Check for Thumb bit */
@@ -1450,15 +1476,25 @@ _dbg__restore_one_breakpoint:
 /* _dbg__restore_breakpoints
  *		Routine iterates through the array of breakpoints (incl single step breakpoint) and restores the contents to memory
  *		Only Active breakpoints (i.e., Non-zero Address) are processed.
+ *
+ *		On entry:
+ *			None
+ *		On exit:
+ *			R0-R6: Destroyed
  */
 _dbg__restore_breakpoints:
 	stmfd	sp!, {lr}
-	ldr		r5, =_dbg__restore_one_breakpoint
+	ldr		r6, =_dbg__restore_one_breakpoint
 	b		__dbg__iterate_breakpoint_array
 
 	.global dbg__activate_singlestep
 /* dbg__activate_singlestep
  *		Activate the single step breakpoint to memory
+ *
+ *		On entry:
+ *			None
+ *		On exit:
+ *			R0-R3: Destroyed
  */
 dbg__activate_singlestep:
 	mov		r0, #0						/* single step breakpoint index */
@@ -1470,10 +1506,14 @@ dbg__activate_singlestep:
 
 /* _dbg__activate_one_breakpoint
  *		Activate one breakpoint to memory
+ *
  *		On entry:
  *			R0: Breakpoint index (assumed valid)
  *			R1: Breakpoint Address (assumed valid)
  *			R2: Breakpoint Instruction (assumed valid)
+ *		On exit:
+ *			R0: Breakpoint index (preserved)
+ *			R1-R3: Destroyed
  */
 _dbg__activate_one_breakpoint:
 /* Check for Thumb bit */
@@ -1503,43 +1543,56 @@ _dbg__breakpoint_invalid_thumb:
 /* _dbg__activate_breakpoints
  *		Routine iterates through the array of breakpoints (incl single step breakpoint) and activates them
  *		Only Active breakpoints (i.e., Non-zero Address) are processed.
+ *
+ *		On entry:
+ *			None
+ *		On exit:
+ *			R0-R6: Destroyed
  */
 _dbg__activate_breakpoints:
 	stmfd	sp!, {lr}
-	ldr		r5, =_dbg__activate_one_breakpoint
+	ldr		r6, =_dbg__activate_one_breakpoint
 	b		__dbg__iterate_breakpoint_array
 
 
 /* __dbg__iterate_breakpoint_array
- *		Common routine iterates through the array of breakpoints (incl single step breakpoint)
- *		and executes routine given in R5, passing:
+ *	WARNING: DO NOT CALL THIS ROUTINE DIRECTLY.
+ *		Internal Routine, assumes that lr has been push to stack
+ *
+ *		Common routine to iterate through the array of breakpoints (incl single step breakpoint)
+ *		Only Active breakpoints (i.e., Non-zero Address entries) are processed.
+ *
+ *		On Entry:
  *			R0: Breakpoint index
  *			R1: Breakpoint Address
  *			R2: Breakpoint Instruction
+ *			R6: Handler Routine
+ *		On exit:
+ *			R0-R5: Destroyed
+ *			R6: Handler routine (preserved)
  *
- *		On Entry:
- *			Assumes that lr has been push to stack (routine can't be called directly)
- *
- *		Only Active breakpoints (i.e., Non-zero Address entries) are processed.
  */
 __dbg__iterate_breakpoint_array:
-	ldr		r4, =__breakpoints_end__		/* start from top of the table (Assume __breakpoints_end__ > __breakpoints_start__) */
-	ldr		r3, =__breakpoints_start__		/* end address check */
+	ldr		r5, =__breakpoints_end__		/* start from top of the table (Assume __breakpoints_end__ > __breakpoints_start__) */
+	ldr		r4, =__breakpoints_start__		/* end address check */
 	ldr		r0, =__breakpoints_num__		/* Number of Breakpoints (incl Single Step) (Assume Non-Zero) */
 4:	sub		r0, r0, #1						/* Decrement breakpoint index in r0 */
-	ldmea	r4!, {r1, r2}					/* r1: Breakpoint Address, r2: Breakpoint Instruction */
+	ldmea	r5!, {r1, r2}					/* r1: Breakpoint Address, r2: Breakpoint Instruction */
 	teq		r1, #0							/* Is it active? */
 	movne	lr, pc
-	bxne	r5								/* active entry */
-	cmp		r4, r3
+	bxne	r6								/* active entry */
+	cmp		r5, r4
 	bhi		4b								/* if (pointer > start of Breakpoint Table address), get next slot */
 	ldmfd	sp!, {pc}
 
 /* _dbg__activate_autobreakpoint
  *		Activate all other breakpoints except current breakpoint, activate auto breakpoint in next instr slot
+ *
  *		On entry:
  *			R0: Current Breakpoint index (assumed valid)
  *			R1: Next Instruction address (for AUTO Breakpoint) [Not used, assume Single Step Breakpoint already has correct info]
+ *		On exit:
+ *			R0-R5: Destroyed
  */
 _dbg__activate_autobreakpoint:
 	stmfd	sp!, {lr}
