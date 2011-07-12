@@ -287,7 +287,7 @@ ENUM_END(dbg_state_t)
  * The enums must be consecutive, starting from 0
  */
 ENUM_BEGIN
-ENUM_VALASSIGN(DBG_AUTO_BKPT,0)         /**< Auto Breakpoint (Instruction resume after breakpoint). */
+ENUM_VALASSIGN(DBG_AUTO_BKPT,0)         /**< RESERVED: Auto Breakpoint (Instruction resume after breakpoint). */
 ENUM_VAL(DBG_MANUAL_BKPT_ARM)           /**< Manual ARM Breakpoint. */
 ENUM_VAL(DBG_NORMAL_BKPT_ARM)           /**< Normal ARM Breakpoint (Single Step, Normal). */
 ENUM_VAL(DBG_MANUAL_BKPT_THUMB)         /**< Manual Thumb Breakpoint. */

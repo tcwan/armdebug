@@ -34,12 +34,12 @@
 #endif
 
 #define BKPT32_ENUM_MASK        0x000FFF0F      /* ARM BKPT Enum Mask */
-#define BKPT32_AUTO_BKPT        0x00080000      /* ARM BKPT Auto-Step Flag (for CONT support) */
+#define BKPT32_AUTO_BKPT        0x00080000      /* RESERVED: ARM BKPT Auto-Step Flag (for CONT support) */
 #define BKPT32_MANUAL_BKPT      0x0007FF0F      /* Manually inserted ARM Breakpoint */
 
 #define BKPT16_INSTR            0xBE00          /* Thumb BKPT instruction */
 #define BKPT16_ENUM_MASK        0x00FF          /* Thumb BKPT Enum Mask */
-#define BKPT16_AUTO_BKPT        0x0080          /* Thumb BKPT Auto-Step Flag (for CONT support) */
+#define BKPT16_AUTO_BKPT        0x0080          /* RESERVED: Thumb BKPT Auto-Step Flag (for CONT support) */
 #define BKPT16_MANUAL_BKPT      0x007F          /* Manually inserted Thumb Breakpoint */
 /*@}*/
 
