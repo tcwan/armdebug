@@ -43,12 +43,12 @@ dbg__test_arm_instrstep:
 	stmfd	sp!, {lr}
 	bl		dbg__test_arm_instr_sub1
 	ldr		r1, =test_arm_3			/* R1: pointer to test_arm_3 */
-	ldr		r2, =test_arm_3			/* R2: pointer to test_arm_3 (should not be triggered) */
+	ldr		r2, =test_arm_2			/* R2: pointer to test_arm_2 */
 	mov		pc, r1
 
 test_arm_1:
 	subs	r0, r0, #1
-	addne	pc, r1, #4				/* If R0 > 0, keep branching to a new location */
+	addne	pc, r2, #4				/* If R0 > 0, keep branching to a new location */
 	/* else R0 == 0 */
 	b		exit_dbg__test_arm_instrstep
 
