@@ -481,13 +481,15 @@ _dbg__switch2undefmode:
     ldr     lr, =resume_execution
     mov     pc, lr                          /* Exit via UNDEF mode */
 
+#if 0
 _process_manual_breakpoint_thumb:
 	mov r0, #DBG_MANUAL_BKPT_THUMB		/* Setup Breakpoint type before executing common routine */
 	b	_restore_normal_breakpoints
 
 _process_normal_breakpoint_thumb:
 	mov r0, #DBG_NORMAL_BKPT_THUMB		/* Setup Breakpoint type before executing common routine */
-	b	_restore_normal_breakpoints
+/*	b	_restore_normal_breakpoints */
+#endif
 
 _restore_normal_breakpoints:
 	_dbg_set_bkpt_type r0			/* Set Breakpoint Type given value in R0 */
