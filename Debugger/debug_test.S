@@ -63,8 +63,8 @@ test_arm_3:
 	sub		r0, r0, #1
 	teq		r0, #8
 	beq		test_arm_1
-	ldrne	r2, =test_arm_3
-	bx		r2
+	ldrne	r3, =test_arm_3
+	bx		r3
 
 exit_dbg__test_arm_instrstep:
 	bl		dbg__test_thumb_instr_sub1
