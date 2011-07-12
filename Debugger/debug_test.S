@@ -55,9 +55,9 @@ test_arm_1:
 test_arm_2:
 	sub		r0, r0, #1
 	cmp		r0, #5
-	bgt		test_arm_1
-	ldrle	pc, =test_arm_2
-	ldr		pc, =test_arm_1
+	bgt		test_arm_3
+	ldrle	pc, =test_arm_1
+	ldr		pc, =exit_dbg__test_arm_instrstep
 
 test_arm_3:
 	sub		r0, r0, #1
