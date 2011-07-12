@@ -22,7 +22,9 @@
 .align 4
 
 hex2char_lut:
-	.ascii	"0123456789ABCDEF"
+	/*	.ascii	"0123456789ABCDEF" */
+	/* Need to use lowercase hex chars to avoid confusion with GDB Error (E NN) response */
+	.ascii	"0123456789abcdef"
 
 /* Macros
  */
