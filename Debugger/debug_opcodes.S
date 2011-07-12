@@ -1317,14 +1317,16 @@ _exit_arm_coproc_swi_handler:
  *          R6: Default Following Instruction Address (PC+2)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1: destroyed
+ *          R1, R2: destroyed
  */
 _thumb_bx_blx_handler:
     stmfd   sp!, {lr}
-    and     r0, r4, #THUMB_BLX_INSTR_REG_RNMASK	/* Register Rn Enum in R0[6:3] (Hi-Reg indicated by B6) */
-    mov		r0, r0, lsr #3					/* Shift Rn Enum to R0[3:0] */
-    _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
+    and     r2, r4, #THUMB_BLX_INSTR_REG_RNMASK	/* Register Rn Enum in R2[6:3] (Hi-Reg indicated by B6) */
+    mov		r2, r2, lsr #3					/* Shift Rn Enum to R2[3:0] */
+    _regenum2index  r2, r1                  /* Convert Enum into Index in R1 */
     _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R0 */
+	teq		r2, #REG_PC
+	addeq	r0, r0, #4						/* Adjust PC relative register value (for BX PC) */
 	/* Here, the register value would have R0[0] set to indicate switch to Thumb mode  */
     ldmfd   sp!, {pc}
 
