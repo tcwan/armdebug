@@ -12,6 +12,17 @@
  * See COPYING for redistribution license
  *
  */
+
+/* WARNING: The following excepted code from eCos arm_stub.c has bugs in
+ * the next instruction address calculation logic. The C code has not been
+ * updated since it is only used for documentation purposes.
+ *
+ * Correct code behavior should be determined from the ARMDEBUG source code
+ * whenever there is conflict in the algorithms.
+ *
+ * Of note: ARM and Thumb mode BX PC handling (missing PC+8/PC+4 adjustment).
+ *          LDM PC handling (missing Pre/Post Incr/Decr adjustment).
+ */
 /****************************************************************************
 // Selected Routines from the eCos arm_stub.c related to next instruction address
 // determination in ARM processors.
@@ -1155,13 +1166,15 @@ _opcode_mvn:
  *          R6: Default Following Instruction Address (PC+4)
  *      On exit:
  *          R0: following instruction address (B0 set to indicate Thumb mode)
- *          R1: destroyed
+ *          R1,R2: destroyed
  */
 _arm_bx_blx_handler:
     stmfd   sp!, {lr}
-    and     r0, r4, #NIBBLE0                /* Register Rn Enum in R0 */
-    _regenum2index  r0, r1                  /* Convert Enum into Index in R1 */
+    and     r2, r4, #NIBBLE0                /* Register Rn Enum in R2 */
+    _regenum2index  r2, r1                  /* Convert Enum into Index in R1 */
     _getdbgregisterfromindex r1, r0         /* Retrieve Register contents from Index (R1) into R0 */
+	teq		r2, #REG_PC
+	addeq	r0, r0, #8						/* Adjust PC relative register value (for BX PC) */
 	/* Here, the register value would have B0 set to indicate switch to Thumb mode  */
     ldmfd   sp!, {pc}
 
