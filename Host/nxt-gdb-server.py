@@ -22,6 +22,7 @@ import select
 #import usb
 import pyfantom
 import struct
+import sys
 
 CTRLC = chr(3)
 NAKCHAR = '-'
@@ -156,14 +157,17 @@ class NXTGDBServer:
         s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind (('', self.port))
         s.listen (1)
-        print "Waiting for GDB connection on port %s..." % self.port
         while True:
-            # Wait for a connection.
-            client, addr = s.accept ()
-            print "Client from", addr
+            # We should open the NXT connection first, otherwise Python startup delay
+            # may cause GDB to misbehave
+            dummy = raw_input('Waiting...Press <ENTER> when NXT GDB Stub is ready. ')
             # Open connection to the NXT brick.
             brick = nxt.locator.find_one_brick ()
             brick.sock.debug = DEBUG
+            # Wait for a connection.
+            print "Waiting for GDB connection on port %s..." % self.port
+            client, addr = s.accept ()
+            print "Client from", addr
             # Work loop, wait for a message from client socket or NXT brick.
             while client is not None:
                 data = ''
@@ -213,7 +217,7 @@ class NXTGDBServer:
                         client.send (data)
                     data = ''
             brick.sock.close()
-            print "Connection closed, waiting for GDB connection on port %s..." % self.port
+            print "Connection closed."
 
 if __name__ == '__main__':
     # Read options from command line.
@@ -226,5 +230,9 @@ if __name__ == '__main__':
     if args:
         parser.error ("Too many arguments")
     # Run.
-    s = NXTGDBServer (options.port)
-    s.run ()
+    try:
+        s = NXTGDBServer (options.port)
+        s.run ()
+    except KeyboardInterrupt:
+        print "\n\nException caught. Bye!"
+        sys.exit()
