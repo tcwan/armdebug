@@ -739,8 +739,9 @@ _exit_dmg__cmd_Status:
  *          r0, r1, r2, r3: destroyed
  */
 _dbg__cmd_Query:
-	stmfd	sp!, {lr}
+	stmfd	sp!, {r0,r1, lr}
 	_dbg_setstate	DBG_CONFIGURED			/* We have exchanged query messages with the GDB server */
+	ldmfd	sp!, {r0, r1}					/* Restore parameters needed for subsequent processing */
 	bl      __dbg__cmdParamLen
 	cmp		r1, #CMD_QUERY_CURRTID_PARAMLEN
 	bne		_dbg__cmd_Query_default
