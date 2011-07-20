@@ -119,6 +119,15 @@
 #define CMD_STEP_MINPARAMLEN        0
 /*@}*/
 
+/** @name Debug Query Command Constants.
+ *
+ * Debug Query Command
+ */
+/*@{*/
+#define CMD_QUERY_MINPARAMLEN    0
+#define CMD_QUERY_CURRTID_PARAMLEN    1
+#define CMD_QUERY_CURRTID_CHAR   'C'
+/*@}*/
 
 
 /** @name Debug Breakpoint Command Constants.
@@ -167,12 +176,12 @@
 
 #define RESET_VECTOR	0x00000000
 #define UNDEF_VECTOR	0x00000004
-#define SVC_VECTOR	    0x00000008
+#define SVC_VECTOR	0x00000008
 #define PABRT_VECTOR	0x0000000C
 #define DABRT_VECTOR	0x00000010
 #define RESERVED_VECTOR 0x00000014
-#define IRQ_VECTOR		0x00000018
-#define FIQ_VECTOR		0x0000001C
+#define IRQ_VECTOR	0x00000018
+#define FIQ_VECTOR	0x0000001C
 
 
 /*@}*/
@@ -210,7 +219,7 @@
 #define CPSR_FIQ        0x00000040
 #define CPSR_IRQ        0x00000080
 #define CPSR_MODE       0x0000001F
-#define CPSR_COND		0xF0000000
+#define CPSR_COND	0xF0000000
 
 /* ARM Exception Modes */
 #define MODE_USR 0x10                   /* User mode */

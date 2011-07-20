@@ -251,6 +251,9 @@ debug_SignalResponsePrefix:
 debug_OkResponse:
 	.byte	'+','$','O','K',0
 
+debug_ThreadIDResponse:
+	.byte	'+','$','Q','C','0',0			/* 0: Any thread */
+
 /* The CmdIndexTable and CmdJumpTable must be kept in sync */
 debug_cmdIndexTable:
 	.byte	'g','G','p','P','m','M','D','c','s','k','z','Z','?','q','Q',0
@@ -738,7 +741,19 @@ _exit_dmg__cmd_Status:
 _dbg__cmd_Query:
 	stmfd	sp!, {lr}
 	_dbg_setstate	DBG_CONFIGURED			/* We have exchanged query messages with the GDB server */
-	b      __dbg__procUnimplementedError	/* FIXME: return an empty message to GDB (no modifiable settings) */
+	bl      __dbg__cmdParamLen
+	cmp		r1, #CMD_QUERY_CURRTID_PARAMLEN
+	bne		_dbg__cmd_Query_default
+
+_dbg__cmd_Query_check:
+	ldrb	r2, [r0]						/* Get First Query Param Char */
+	teq		r2, #CMD_QUERY_CURRTID_CHAR		/* Handle Current Thread ID Query */
+	bne		_dbg__cmd_Query_default
+	_dbg_outputMsgCurrTID
+	b	__dbg__sendDebugMsgExit
+
+_dbg__cmd_Query_default:
+	b		__dbg__procUnimplementedError	/* FIXME: return an empty message to GDB (no modifiable settings) */
 
 
 /* _dbg__cmd_GetOneReg

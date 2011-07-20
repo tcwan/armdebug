@@ -265,6 +265,20 @@
 	__dbg_outputSigMsg
 	.endm
 
+/* _dbg_outputMsgCurrTID
+ *      Return Message with Default Thread ID ('+$QC0')
+ *      On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *        R1: destroyed
+ *        R2: destroyed
+ */
+        .macro  _dbg_outputMsgCurrTID
+        ldr      r0, =debug_OutMsgBuf
+        ldr      r1, =debug_ThreadIDResponse              /* ASCIIZ terminated */
+        _dbg_stpcpy     r0, r1, r2
+        .endm
+
+
 /* _regenum2index
  *      Convert register enum to debugger stack index
  *
