@@ -827,11 +827,15 @@ _dbg_outputOneRegValue:
 	moveq	r2, #DBGSTACK_USERCPSR_INDEX	/* convert register enum to Debug Stack index */
 	beq		_retrieve_RegVal
 
+	bhi		_exit_dbg_outputOneRegValue		/* No match (reg enum > REG_CPSR), skip */
+
+#if 0
 	cmp		r1, #REG_FPSCR
 	bne		_exit_dbg_outputOneRegValue		/* No match, skip */
+#endif
 
-_output_dummy_fpscr:
-	/* Output Dummy FPSCR value */
+_output_dummy_regval:
+	/* Output Dummy Register value (for FP0-FP7, FPSR) */
 	mov		r1, #0
 	b		_output2buffer					/* Output all zeros for FPSCR */
 
@@ -873,10 +877,12 @@ _dbg__cmd_GetAllRegs:
 	add		r3, r3, #1						/* increment index */
 	cmp		r3, #REG_PC
 	bls		1b								/* process all the registers */
+#if 0
 _get_cpsr:
+	/* GDB will query for CPSR value specifically */
 	mov		r1, #REG_CPSR					/* Output User CPSR Value last */
 	bl		_dbg_outputOneRegValue			/* update output buffer */
-
+#endif
     _asciiz r0, r1
 	bl		dbg__putDebugMsg				/* Send response to the GDB server */
 	ldmfd	sp!, {pc}
