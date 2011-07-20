@@ -836,6 +836,7 @@ _dbg_outputOneRegValue:
 
 _output_dummy_regval:
 	/* Output Dummy Register value (for F0-F7, FPSR) */
+	/* FIXME: F0-F7 expects output value that is more than 32-bits */
 	mov		r1, #0
 	b		_output2buffer					/* Output all zeros for F0-F7, FPSCR */
 
@@ -855,7 +856,7 @@ _exit_dbg_outputOneRegValue:
 
 /* _dbg__cmd_GetAllRegs
  *		Get All Register Values Command Handler
- *		Output Buffer returns register values in the order: User R0, R1, R2, ..., R15, CPSR
+ *		Output Buffer returns register values in the order: User R0, R1, R2, ..., R15
  *		On entry:
  *			r0: parameter buffer pointer (contents after '$' and '<cmdchar>')
  *              <NULL> (no parameters)
@@ -895,6 +896,8 @@ _get_cpsr:
  *		On exit:
  *          r0: (Updated) Address of parameter in buffer
  *          r1, r2, r3: destroyed
+ *
+ * FIXME: This routine assumes that the input buffer contains exactly 8-Hex digits for each register value.
  */
 _dbg_setOneRegValue:
     stmfd   sp!, {lr}
@@ -911,10 +914,10 @@ _dbg_setOneRegValue:
 #if 0
 	cmp		r1, #REG_FPSCR
 	bne		_exit_dbg_setOneRegValue		/* No match, skip */
-	/* FIXME: If we get SetAllRegs with FP reg values, this will not skip pass the FP regs! */
 #endif
 
 _set_dummy_regval:
+	/* FIXME: This assumes that we will never get FP reg values (96-bits) in this routine */
 	/* Set dummy FPSCR value (ignored) */
 	add		r1, r0, #CMD_REG_REGPARAMLEN	/* Just increment the pointer */
 	b		_done_store_RegVal
@@ -952,7 +955,14 @@ _dbg__cmd_SetOneReg:
     cmp     r1, #CMD_REG_SETONE_MAXPARAMLEN    /* Check for correct length */
     bhi     __dbg__procCmdParamError        /* Unexpected input, report error */
 
+    /* FIXME: We can't set FP regs.
+     * Fortunately the values required by FP regs are 96 bits (24 nibbles)
+     * so it fails the CMD_REG_SETONE_MAXPARAMLEN check
+     */
+
     bl      ascii2hex_varlen_be             /* convert ASCII reg enum to Hex (in R0), R1 has address of next buffer char */
+    cmp		r0, #REG_FPSCR
+    beq     __dbg__procCmdParamError        /* Don't allow setting of FPSCR */
 	mov		r4, r0							/* Keep enum in R4 */
     _check_msgassignment r1					/* R1 points to next char in buffer */
     bne     __dbg__procCmdParamError        /* Can't find '=' */
@@ -973,7 +983,7 @@ _dbg__proc_setRegister:
  *
  */
 _dbg__cmd_SetAllRegs:
-	/* Assumes that the registers are in the sequence R0, R1, ... R15, CPSR */
+	/* Assumes that the registers are in the sequence R0, R1, ... R15 */
     stmfd   sp!, {lr}
     bl      __dbg__cmdParamLen              /* R0: pointer to parameters in buffer */
     teq     r1, #CMD_REG_SETALL_PARAMLEN    /* Check for correct length */
@@ -985,20 +995,6 @@ _dbg__cmd_SetAllRegs:
     cmp		r4, #REG_PC
     bls		1b
 
-_set_cpsr:
-#if 0
-	/* GDB was not happy when this was added */
-	/* Read dummy FPSCR value (ignored) */
-#ifdef __BIG_ENDIAN__
-    bl      ascii2word_be
-#else
-    bl      ascii2word_le
-#endif
-	mov		r0, r1							/* Copy buffer pointer to next parameter to R0 for return value */
-#endif
-
-    mov     r1, #REG_CPSR				    /* Use CPSR enum */
-	bl		_dbg_setOneRegValue				/* R0: next parameter address pointer */
     ldrb    r0, [r0]
     teq     r0, #0                          /* Look for ASCIIZ character to terminate loop */
     beq     __dbg__procCmdOk
