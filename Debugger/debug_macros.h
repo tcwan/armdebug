@@ -122,17 +122,44 @@
         bne      1b
         .endm
 
+/* _dbg_CopyMsg2OutputBuf
+ *      Copies source message to output buffer
+ *      On entry:
+ *        R2: source message buffer (ASCIIZ terminated)
+ *      On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *        R2-R3: destroyed
+ */
+        .macro  _dbg_CopyMsg2OutputBuf
+        ldr      r0, =debug_OutMsgBuf
+        _dbg_stpcpy     r0, r2, r3
+        .endm
+
+/* _dbg_CopyMsg2OutputBuf_withParam
+ *  Internal Routine called to output message with parameters
+ *      Return Message with byte-sized parameter
+ *      On entry:
+ *        R1: byte-sized param
+ *        R2: source message buffer (ASCIIZ terminated)
+ *      On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *        R1-R3: destroyed
+ */
+        .macro  _dbg_CopyMsg2OutputBuf_withParam
+        _dbg_CopyMsg2OutputBuf    /* R1 unchanged */
+        bl      byte2ascii        /* R0 points to buffer position after byte value */
+        _asciiz r0, r1
+        .endm
+
 /* _dbg_outputAckOnlyFlag
  *      Return Flag ('+') for Continue or Step
  *      On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
- *        R1: destroyed
- *        R2: destroyed
+ *        R2-R3: destroyed
  */
         .macro  _dbg_outputAckOnlyFlag
-        ldr      r0, =debug_OutMsgBuf
-        ldr      r1, =debug_AckOnlyFlag                  /* ASCIIZ terminated */
-        _dbg_stpcpy     r0, r1, r2
+        ldr      r2, =debug_AckOnlyFlag                  /* ASCIIZ terminated */
+        _dbg_CopyMsg2OutputBuf
         .endm
 
 
@@ -140,60 +167,67 @@
  *      Return Flag ('-') for Checksum Error (retransmission needed)
  *      On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
- *        R1: destroyed
- *        R2: destroyed
+ *        R2-R3: destroyed
  */
         .macro  _dbg_outputRetransmitFlag
-        ldr      r0, =debug_OutMsgBuf
-        ldr      r1, =debug_RetransmitFlag                  /* ASCIIZ terminated */
-        _dbg_stpcpy     r0, r1, r2
+        ldr      r2, =debug_RetransmitFlag                  /* ASCIIZ terminated */
+        _dbg_CopyMsg2OutputBuf
         .endm
 
 /* _dbg_outputMsgValidResponse
  *	Return Message with valid response ('+$')
  *	On exit:
  *	  R0: Pointer to Output Buffer next character slot location
- *        R1: destroyed
- *	  R2: destroyed
+ *        R2-R3: destroyed
  */
 	.macro  _dbg_outputMsgValidResponse
-	ldr	 r0, =debug_OutMsgBuf
-	ldr	 r1, =debug_ValidResponsePrefix
-	_dbg_stpcpy	 r0, r1, r2
+	ldr	 r2, =debug_ValidResponsePrefix
+        _dbg_CopyMsg2OutputBuf
 	.endm
-
 
 /* _dbg_outputMsgStatusOk
  *	Return Message with Ok ('+$OK') status
  *	On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
- *	  R1: destroyed
- *	  R2: destroyed
+ *	  R2-R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusOk
-	ldr	 r0, =debug_OutMsgBuf
-	ldr	 r1, =debug_OkResponse			/* ASCIIZ terminated */
-	_dbg_stpcpy	r0, r1, r2
+	ldr	 r2, =debug_OkResponse			/* ASCIIZ terminated */
+        _dbg_CopyMsg2OutputBuf
 	.endm
 
-/* __dbg_outputErrMsg
- *  Internal Routine called to generate error messages
- *	Return Message with Error ('+$ENN') status
- *	On entry:
- *	  R1: error code
- *	On exit:
+/* _dbg_outputMsgCurrTID
+ *      Return Message with Default Thread ID ('+$QC0')
+ *      On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
- *	  R1: destroyed
- *	  R2: destroyed
- *	  R3: destroyed
+ *        R2-R3: destroyed
  */
-	.macro  __dbg_outputErrMsg
-	ldr	r0, =debug_OutMsgBuf
-	ldr	r2, =debug_ErrorResponsePrefix
-	_dbg_stpcpy	 r0, r2, r3
-	bl	byte2ascii	  /* R0 points to buffer position after byte value */
-	_asciiz	r0, r1
-	.endm
+        .macro  _dbg_outputMsgCurrTID
+        ldr      r2, =debug_ThreadIDResponse              /* ASCIIZ terminated */
+        _dbg_CopyMsg2OutputBuf
+        .endm
+
+/* _dbg_outputMsgFirstThreadInfo
+ *      Return Message with Default Current Thread ID ('+$m0')
+ *      On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *        R2-R3: destroyed
+ */
+        .macro  _dbg_outputMsgFirstThreadInfo
+        ldr      r2, =debug_FirstThreadInfoResponse        /* ASCIIZ terminated */
+        _dbg_CopyMsg2OutputBuf
+        .endm
+
+/* _dbg_outputMsgSubsequentThreadInfo
+ *      Return Message with Default Current Thread ID ('+$m0')
+ *      On exit:
+ *        R0: Pointer to Output Buffer ASCIIZ location
+ *        R2-R3: destroyed
+ */
+        .macro  _dbg_outputMsgSubsequentThreadInfo
+        ldr      r2, =debug_SubsequentThreadInfoResponse   /* ASCIIZ terminated */
+        _dbg_CopyMsg2OutputBuf
+        .endm
 
 /* _dbg_outputMsgStatusErr
  *	Return Message with Error ('+$ENN') status
@@ -201,43 +235,22 @@
  *	  R1: error code
  *	On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
- *	  R1: destroyed
- *	  R2: destroyed
- *	  R3: destroyed
+ *        R1-R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusErr
-	__dbg_outputErrMsg
+        ldr     r2, =debug_ErrorResponsePrefix
+	_dbg_CopyMsg2OutputBuf_withParam
 	.endm
 
 /* _dbg_outputMsgStatusErrCode
  *	Return Message with Error ('+$ENN') status
  *	On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
- *	  R1: destroyed
- *	  R2: destroyed
+ *        R1-R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusErrCode errcode
 	mov	r1, #\errcode
-	__dbg_outputErrMsg
-	.endm
-
-/* __dbg_outputSigMsg
- *  Internal Routine called to generate Signal messages
- *	Return Message with Signal ('+$SNN') status
- *	On entry:
- *	  R1: signal code
- *	On exit:
- *        R0: Pointer to Output Buffer ASCIIZ location
- *	  R1: destroyed
- *	  R2: destroyed
- *	  R3: destroyed
- */
-	.macro  __dbg_outputSigMsg
-	ldr	r0, =debug_OutMsgBuf
-	ldr	r2, =debug_SignalResponsePrefix
-	_dbg_stpcpy	 r0, r2, r3
-	bl	byte2ascii	  /* R0 points to buffer position after byte value */
-	_asciiz	r0, r1
+	_dbg_outputMsgStatusErr
 	.endm
 
 /* _dbg_outputMsgStatusSig
@@ -246,37 +259,23 @@
  *	  R1: signal code
  *	On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
- *	  R1: destroyed
- *	  R2: destroyed
+ *        R1-R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusSig
-	__dbg_outputSigMsg
+        ldr     r2, =debug_SignalResponsePrefix
+        _dbg_CopyMsg2OutputBuf_withParam
 	.endm
 
 /* _dbg_outputMsgStatusSigCode
  *	Return Message with Signal ('+$SNN') status
  *	On exit:
  *        R0: Pointer to Output Buffer ASCIIZ location
- *	  R1: destroyed
- *	  R2: destroyed
+ *        R1-R3: destroyed
  */
 	.macro  _dbg_outputMsgStatusSigCode statuscode
 	mov	r1, #\statuscode
-	__dbg_outputSigMsg
+	_dbg_outputMsgStatusSig
 	.endm
-
-/* _dbg_outputMsgCurrTID
- *      Return Message with Default Thread ID ('+$QC0')
- *      On exit:
- *        R0: Pointer to Output Buffer ASCIIZ location
- *        R1: destroyed
- *        R2: destroyed
- */
-        .macro  _dbg_outputMsgCurrTID
-        ldr      r0, =debug_OutMsgBuf
-        ldr      r1, =debug_ThreadIDResponse              /* ASCIIZ terminated */
-        _dbg_stpcpy     r0, r1, r2
-        .endm
 
 
 /* _regenum2index

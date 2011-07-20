@@ -254,6 +254,11 @@ debug_OkResponse:
 debug_ThreadIDResponse:
 	.byte	'+','$','Q','C','0',0			/* 0: Any thread */
 
+debug_FirstThreadInfoResponse:
+	.byte	'+','$','m','0',0				/* 0: One default thread */
+debug_SubsequentThreadInfoResponse:
+	.byte	'+','$','l',0					/* End of Thread List */
+
 /* The CmdIndexTable and CmdJumpTable must be kept in sync */
 debug_cmdIndexTable:
 	.byte	'g','G','p','P','m','M','D','c','s','k','z','Z','?','q','Q',0
@@ -693,11 +698,11 @@ __dbg__procCmdReturnOutputLengthError:
  */
 __dbg__procBreakpointAddrError:
     mov r1, #MSG_UNKNOWNBRKPT
-    b   __dbg__procErrorMsg
+/*    b   __dbg__procErrorMsg */
 
 
 __dbg__procErrorMsg:
-    __dbg_outputErrMsg
+    _dbg_outputMsgStatusErr
     /* b       __dbg__sendDebugMsgExit */
 
 __dbg__sendDebugMsgExit:
@@ -743,14 +748,30 @@ _dbg__cmd_Query:
 	_dbg_setstate	DBG_CONFIGURED			/* We have exchanged query messages with the GDB server */
 	ldmfd	sp!, {r0, r1}					/* Restore parameters needed for subsequent processing */
 	bl      __dbg__cmdParamLen
+	cmp		r1, #CMD_QUERY_MINPARAMLEN
+	beq		_dbg__cmd_Query_default
+
+	ldrb	r2, [r0]						/* Get First Query Param Char */
+_dbg__cmd_Query_check_C:
+	teq		r2, #CMD_QUERY_CURRTID_CHAR		/* Handle Current Thread ID Query */
+	bne		_dbg__cmd_Query_check_fThreadInfo
 	cmp		r1, #CMD_QUERY_CURRTID_PARAMLEN
 	bne		_dbg__cmd_Query_default
-
-_dbg__cmd_Query_check:
-	ldrb	r2, [r0]						/* Get First Query Param Char */
-	teq		r2, #CMD_QUERY_CURRTID_CHAR		/* Handle Current Thread ID Query */
-	bne		_dbg__cmd_Query_default
 	_dbg_outputMsgCurrTID
+	b	__dbg__sendDebugMsgExit
+_dbg__cmd_Query_check_fThreadInfo:
+	teq		r2, #CMD_QUERY_FTINFO_CHAR		/* Handle fThreadInfo Query */
+	bne		_dbg__cmd_Query_check_sThreadInfo
+	cmp		r1, #CMD_QUERY_FTINFO_PARAMLEN
+	bne		_dbg__cmd_Query_default
+	_dbg_outputMsgFirstThreadInfo
+	b	__dbg__sendDebugMsgExit
+_dbg__cmd_Query_check_sThreadInfo:
+	teq		r2, #CMD_QUERY_STINFO_CHAR		/* Handle sThreadInfo ID Query */
+	bne		_dbg__cmd_Query_default
+	cmp		r1, #CMD_QUERY_STINFO_PARAMLEN
+	bne		_dbg__cmd_Query_default
+	_dbg_outputMsgSubsequentThreadInfo
 	b	__dbg__sendDebugMsgExit
 
 _dbg__cmd_Query_default:
