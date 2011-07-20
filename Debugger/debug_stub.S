@@ -72,7 +72,7 @@
  *	  px			get the value of one register (x)      hex data or ENN
  *	  Px=rrrr		set the value of one register (x) to   OK or ENN
  *					32-bit hex value rrrr.
- *					x = ['0','F'] for R0-R15,
+ *					x = ['0','F'] for R0-R15, ['10','17'] for F0-F7 (dummy)
  *                  '18' for FPSCR (dummy), '19' for User CPSR
  *
  *    mAA..AA,LLLL  Read LLLL bytes at address AA..AA      hex data or ENN
@@ -835,9 +835,9 @@ _dbg_outputOneRegValue:
 #endif
 
 _output_dummy_regval:
-	/* Output Dummy Register value (for FP0-FP7, FPSR) */
+	/* Output Dummy Register value (for F0-F7, FPSR) */
 	mov		r1, #0
-	b		_output2buffer					/* Output all zeros for FPSCR */
+	b		_output2buffer					/* Output all zeros for F0-F7, FPSCR */
 
 _retrieve_RegVal:
 	_getdbgregisterfromindex r2, r1			/* Retrieve Register contents into R1 */
@@ -906,11 +906,15 @@ _dbg_setOneRegValue:
 	moveq	r2, #DBGSTACK_USERCPSR_INDEX	/* convert register enum to Debug Stack index */
 	beq		_store_RegVal
 
+	bhi		_exit_dbg_setOneRegValue		/* No match (reg enum > REG_CPSR), skip */
+
+#if 0
 	cmp		r1, #REG_FPSCR
 	bne		_exit_dbg_setOneRegValue		/* No match, skip */
 	/* FIXME: If we get SetAllRegs with FP reg values, this will not skip pass the FP regs! */
+#endif
 
-_set_dummy_fpscr:
+_set_dummy_regval:
 	/* Set dummy FPSCR value (ignored) */
 	add		r1, r0, #CMD_REG_REGPARAMLEN	/* Just increment the pointer */
 	b		_done_store_RegVal
