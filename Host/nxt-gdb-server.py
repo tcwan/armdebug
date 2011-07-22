@@ -30,7 +30,7 @@ ACKCHAR = '+'
 STATUS_QUERY = "$?#3F"
 DEFAULT_PORT = 2828
 SELECT_TIMEOUT = 0.1
-DEBUG = True
+DEBUG = False
 DEBUG2 = False
 NXT_RECV_ERR = -1
 
@@ -48,8 +48,9 @@ class NXTGDBServer:
     # Debug command header, no reply.
     debug_command = 0x8d
 
-    def __init__ (self, port):
+    def __init__ (self, port, nowait):
         """Initialise server."""
+        self.nowait = nowait
         self.port = port
         self.in_buf = ''
 
@@ -160,7 +161,8 @@ class NXTGDBServer:
         while True:
             # We should open the NXT connection first, otherwise Python startup delay
             # may cause GDB to misbehave
-            dummy = raw_input('Waiting...Press <ENTER> when NXT GDB Stub is ready. ')
+            if not self.nowait:
+                dummy = raw_input('Waiting...Press <ENTER> when NXT GDB Stub is ready. ')
             # Open connection to the NXT brick.
             brick = nxt.locator.find_one_brick ()
             brick.sock.debug = DEBUG
@@ -226,12 +228,19 @@ if __name__ == '__main__':
     """)
     parser.add_option ('-p', '--port', type = 'int', default = DEFAULT_PORT,
             help = "server listening port (default: %default)", metavar = "PORT")
+    parser.add_option ('-v', '--verbose', action='store_true', dest='verbose', default = False,
+            help = "verbose mode (default: %default)")
+    parser.add_option ('-n', '--nowait', action='store_true', dest='nowait', default = False,
+            help = "Don't wait for NXT GDB Stub Setup before connecting (default: %default)")
     (options, args) = parser.parse_args ()
     if args:
         parser.error ("Too many arguments")
     # Run.
     try:
-        s = NXTGDBServer (options.port)
+        DEBUG = options.verbose
+        if DEBUG:
+            print "Debug Mode Enabled!"
+        s = NXTGDBServer (options.port, options.nowait)
         s.run ()
     except KeyboardInterrupt:
         print "\n\nException caught. Bye!"
