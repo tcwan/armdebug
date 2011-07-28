@@ -164,8 +164,8 @@ class NXTGDBServer:
             if not self.nowait:
                 dummy = raw_input('Waiting...Press <ENTER> when NXT GDB Stub is ready. ')
             # Open connection to the NXT brick.
-            brick = nxt.locator.find_one_brick ()
-            brick.sock.debug = DEBUG
+            server.brick = nxt.locator.find_one_brick ()
+            server.brick.sock.debug = DEBUG
             # Wait for a connection.
             print "Waiting for GDB connection on port %s..." % self.port
             client, addr = s.accept ()
@@ -194,7 +194,7 @@ class NXTGDBServer:
                         data = ''
                         for seg in segments:
                             try:
-                                brick.sock.send (seg)
+                                server.brick.sock.send (seg)
                             except usb.USBError as e:
                                 # Some pyusb are buggy, ignore some "errors".
                                 if e.args != ('No error', ):
@@ -202,14 +202,14 @@ class NXTGDBServer:
                         if segments != [] and LIBUSB_RECEIVE_BLOCKING:
                             if DEBUG2:
                                 print "Accessing Blocking sock.recv()"
-                            data = self.reassemble (brick.sock)
+                            data = self.reassemble (server.brick.sock)
                     else:
                         client.close ()
                         client = None
                 if not LIBUSB_RECEIVE_BLOCKING:
                     if DEBUG2:
                          print "Accessing Non-Blocking sock.recv()"
-                    data = self.reassemble (brick.sock)
+                    data = self.reassemble (server.brick.sock)
                     
                 # Is there something from NXT brick?
                 if data:
@@ -218,7 +218,7 @@ class NXTGDBServer:
                     if client:
                         client.send (data)
                     data = ''
-            brick.sock.close()
+            server.brick.sock.close()
             print "Connection closed."
 
 if __name__ == '__main__':
@@ -240,8 +240,9 @@ if __name__ == '__main__':
         DEBUG = options.verbose
         if DEBUG:
             print "Debug Mode Enabled!"
-        s = NXTGDBServer (options.port, options.nowait)
-        s.run ()
+        server = NXTGDBServer (options.port, options.nowait)
+        server.run ()
     except KeyboardInterrupt:
         print "\n\nException caught. Bye!"
+        server.brick.sock.close()
         sys.exit()
