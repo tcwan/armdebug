@@ -19,8 +19,10 @@ import nxt.locator
 import socket
 import optparse
 import select
-#import usb
-import pyfantom
+try:
+    import pyfantom
+except ImportError:
+    import usb
 import struct
 import sys
 
