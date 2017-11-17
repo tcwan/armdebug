@@ -39,3 +39,8 @@ scons.options
 
 # pyfantom related
 pyfantom.py
+
+# Eclipse related
+.project
+.cproject
+.settings/
