@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (C) 2011 the NxOS developers
+# Copyright (C) 2011-2017 the NxOS developers
 #
 # Module Developed by: Nicolas Schodet
 #                      TC Wan
@@ -21,6 +21,12 @@ import optparse
 import select
 import struct
 import sys
+from time import sleep
+
+from usb.core import USBError
+from nxt.locator import BrickNotFoundError
+
+PROTOCOL_VER = (1, 129)
 
 CTRLC = chr(3)
 NAKCHAR = '-'
@@ -82,7 +88,7 @@ class NXTGDBServer:
         while end == 0:
             self.in_buf = self.in_buf[end+1:]   # Strip out any leading ACKCHAR
             if DEBUG2:
-                print "stripped ACK, remain: ", self.in_buf
+                print("stripped ACK, remain: ", self.in_buf)
             end = self.in_buf.find (ACKCHAR)
 
         # Find NAK '-' 
@@ -101,7 +107,7 @@ class NXTGDBServer:
             end = self.in_buf.find (CTRLC)
         
         end = self.in_buf.find ('#')
-        # Is # found and enough place for the checkum?
+        # Is # found and enough place for the checksum?
         while end >= 0 and end < len (self.in_buf) - 2:
             msg, self.in_buf = self.in_buf[0:end + 3], self.in_buf[end + 3:]
             i = 0
@@ -111,7 +117,7 @@ class NXTGDBServer:
                 i += 1
                 gdbprefix = msg[i]
                 if DEBUG2:
-                    print "Checking '", gdbprefix, "'"
+                    print("Checking '", gdbprefix, "'")
             assert gdbprefix == '$', "not a GDB command"
             # Make segments.
             seg_no = 0
@@ -149,7 +155,25 @@ class NXTGDBServer:
                 if e.args != ('No error', ):
                     raise e
         return msg
-        
+    
+    def connect_to_brick(self):
+        try:
+            self.brick = nxt.locator.find_one_brick()
+            if self.brick != None:
+                prot_version, fw_version = self.brick.get_firmware_version()
+                if DEBUG:
+                    print("Protocol version: %s.%s" % prot_version)
+                if prot_version != PROTOCOL_VER:
+                    print("Protocol mismatch (found %s.%s): Make sure nxos-armdebug RXE is running!" % prot_version)
+                    self.brick.sock.close()
+                    self.brick = None
+        except BrickNotFoundError:
+            print("."),
+            sys.stdout.flush()
+        except USBError:
+            print("USB Error! Restart NXT")
+            self.brick = None
+    
     def run (self):
         """Endless run loop."""
         # Create the listening socket.
@@ -163,12 +187,15 @@ class NXTGDBServer:
             if not self.nowait:
                 dummy = raw_input('Waiting...Press <ENTER> when NXT GDB Stub is ready. ')
             # Open connection to the NXT brick.
-            self.brick = nxt.locator.find_one_brick ()
+            while self.brick == None:
+                self.connect_to_brick()
+                if self.brick == None:
+                    sleep(2)
             self.brick.sock.debug = DEBUG
             # Wait for a connection.
-            print "Waiting for GDB connection on port %s..." % self.port
+            print("Waiting for GDB connection on port %s..." % self.port)
             client, addr = s.accept ()
-            print "Client from", addr
+            print("Client from", addr)
             # Work loop, wait for a message from client socket or NXT brick.
             while client is not None:
                 data = ''
@@ -182,13 +209,13 @@ class NXTGDBServer:
                     data = data.strip()
                     if len (data) > 0:
                         #if len (data) == 1 and data.find(CTRLC) >= 0:
-                        #   print "CTRL-C Received!"
+                        #   print("CTRL-C Received!")
                         #   data = STATUS_QUERY
                         if DEBUG:
                             if data[0] == CTRLC:
-                                print "[GDB->NXT] <CTRL-C>"
+                                print("[GDB->NXT] <CTRL-C>")
                             else:
-                                print "[GDB->NXT] %s" % data
+                                print("[GDB->NXT] %s" % data)
                         segments = self.segment (data)
                         data = ''
                         for seg in segments:
@@ -200,25 +227,25 @@ class NXTGDBServer:
                                     raise e
                         if segments != [] and LIBUSB_RECEIVE_BLOCKING:
                             if DEBUG2:
-                                print "Accessing Blocking sock.recv()"
+                                print("Accessing Blocking sock.recv()")
                             data = self.reassemble (self.brick.sock)
                     else:
                         client.close ()
                         client = None
                 if not LIBUSB_RECEIVE_BLOCKING:
                     if DEBUG2:
-                         print "Accessing Non-Blocking sock.recv()"
+                         print("Accessing Non-Blocking sock.recv()")
                     data = self.reassemble (self.brick.sock)
                     
                 # Is there something from NXT brick?
                 if data:
                     if DEBUG:
-                        print "[NXT->GDB] %s" % data
+                        print("[NXT->GDB] %s" % data)
                     if client:
                         client.send (data)
                     data = ''
             self.brick.sock.close()
-            print "Connection closed."
+            print("Connection closed.")
             if self.nowait:
                 break
 
@@ -240,11 +267,11 @@ if __name__ == '__main__':
     try:
         DEBUG = options.verbose
         if DEBUG:
-            print "Debug Mode Enabled!"
+            print("Debug Mode Enabled!")
         server = NXTGDBServer (options.port, options.nowait)
         server.run ()
     except KeyboardInterrupt:
-        print "\n\nException caught. Bye!"
+        print("\n\nException caught. Bye!")
         if server.brick is not None:
             server.brick.sock.close()
         sys.exit()
