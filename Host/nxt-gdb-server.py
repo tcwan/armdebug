@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (C) 2011-2017 the NxOS developers
+# Copyright (C) 2011-2018 the NxOS developers
 #
 # Module Developed by: Nicolas Schodet
 #                      TC Wan
@@ -15,6 +15,20 @@
 # This can be used by the firmware to make the distinction between debug
 # messages and regular messages.
 #
+# Flush stdout immediately
+from __future__ import print_function
+import sys
+
+if sys.version_info[:2] < (3, 3):
+    old_print = print
+    def print(*args, **kwargs):
+        flush = kwargs.pop('flush', False)
+        old_print(*args, **kwargs)
+        if flush:
+            file = kwargs.get('file', sys.stdout)
+            # Why might file=None? IDK, but it works for print(i, file=None)
+            file.flush() if file is not None else sys.stdout.flush()
+            
 import nxt.locator
 import socket
 import optparse
@@ -40,6 +54,10 @@ NXT_RECV_ERR = -1
 
 # Libusb 0.12.x blocks on USB reads
 LIBUSB_RECEIVE_BLOCKING = True
+# Set number of retries when encountering USB socker read timeout
+# So far it does not seem to help recover from USB bus hangs
+USB_NUMTRIES = 1
+
 
 class NXTGDBServer:
 
@@ -88,7 +106,7 @@ class NXTGDBServer:
         while end == 0:
             self.in_buf = self.in_buf[end+1:]   # Strip out any leading ACKCHAR
             if DEBUG2:
-                print("stripped ACK, remain: ", self.in_buf)
+                print("stripped ACK, remain: ", self.in_buf, flush=True)
             end = self.in_buf.find (ACKCHAR)
 
         # Find NAK '-' 
@@ -117,7 +135,7 @@ class NXTGDBServer:
                 i += 1
                 gdbprefix = msg[i]
                 if DEBUG2:
-                    print("Checking '", gdbprefix, "'")
+                    print("Checking '", gdbprefix, "'", flush=True)
             assert gdbprefix == '$', "not a GDB command"
             # Make segments.
             seg_no = 0
@@ -133,6 +151,7 @@ class NXTGDBServer:
         
     def reassemble (self, sock):
         msg = ''
+        tries = 0
         prev_segno = 0
         segno = NXT_RECV_ERR                    # force initial pass through while loop
         while segno != 0:
@@ -152,8 +171,16 @@ class NXTGDBServer:
                     msg += s               
             except IOError as e:
                 # Some pyusb are buggy, ignore some "errors".
+                # print(e.args, flush=True)
                 if e.args != ('No error', ):
-                    raise e
+                    if DEBUG:
+                        print("sock.recv() raised exception", flush=True)
+                    if e.args == (60, 'Operation timed out'):
+                        tries += 1
+                        if (tries < USB_NUMTRIES):
+                            print("Timed out. Retrying...%d " % tries, flush=True)
+                        else:
+                            raise e
         return msg
     
     def connect_to_brick(self):
@@ -162,16 +189,16 @@ class NXTGDBServer:
             if self.brick != None:
                 prot_version, fw_version = self.brick.get_firmware_version()
                 if DEBUG:
-                    print("Protocol version: %s.%s" % prot_version)
+                    print("Protocol version: %s.%s" % prot_version, flush=True)
                 if prot_version != PROTOCOL_VER:
-                    print("Protocol mismatch (found %s.%s): Make sure nxos-armdebug RXE is running!" % prot_version)
+                    print("Protocol mismatch (found %s.%s): Make sure nxos-armdebug RXE is running!" % prot_version, flush=True)
                     self.brick.sock.close()
                     self.brick = None
         except BrickNotFoundError:
-            print("."),
+            print(".", flush=True),
             sys.stdout.flush()
         except USBError:
-            print("USB Error! Restart NXT")
+            print("USB Error! Restart NXT", flush=True)
             self.brick = None
     
     def run (self):
@@ -193,11 +220,11 @@ class NXTGDBServer:
                     sleep(2)
             self.brick.sock.debug = DEBUG
             # Wait for a connection.
-            print("Waiting for GDB connection on port %s..." % self.port)
+            print("Waiting for GDB connection on port %s..." % self.port, flush=True)
             client, addr = s.accept ()
-            print("Client from", addr)
+            print("Client from", addr, flush=True)
             # Work loop, wait for a message from client socket or NXT brick.
-            while client is not None:
+            while client is not None and self.brick is not None:
                 data = ''
                 # Wait for a message from client or timeout.
                 rlist, wlist, xlist = select.select ([ client ], [ ], [ ],
@@ -209,13 +236,13 @@ class NXTGDBServer:
                     data = data.strip()
                     if len (data) > 0:
                         #if len (data) == 1 and data.find(CTRLC) >= 0:
-                        #   print("CTRL-C Received!")
+                        #   print("CTRL-C Received!", flush=True)
                         #   data = STATUS_QUERY
                         if DEBUG:
                             if data[0] == CTRLC:
-                                print("[GDB->NXT] <CTRL-C>")
+                                print("[GDB->NXT] <CTRL-C>", flush=True)
                             else:
-                                print("[GDB->NXT] %s" % data)
+                                print("[GDB->NXT] %s" % data, flush=True)
                         segments = self.segment (data)
                         data = ''
                         for seg in segments:
@@ -223,31 +250,43 @@ class NXTGDBServer:
                                 self.brick.sock.send (seg)
                             except IOError as e:
                                 # Some pyusb are buggy, ignore some "errors".
+                                # print(e.args, flush=True)
                                 if e.args != ('No error', ):
-                                    raise e
+                                    if DEBUG:
+                                        print("sock.send() raised exception", flush=True)
+                                    if e.args == (19, 'No such device (it may have been disconnected)'):
+                                        self.brick.sock.close()
+                                        self.brick = None
+                                        data = ''
+                                    else:
+                                        raise e
                         if segments != [] and LIBUSB_RECEIVE_BLOCKING:
                             if DEBUG2:
-                                print("Accessing Blocking sock.recv()")
-                            data = self.reassemble (self.brick.sock)
+                                print("Accessing Blocking sock.recv()", flush=True)
+                            if self.brick:
+                                data = self.reassemble (self.brick.sock)
                     else:
                         client.close ()
                         client = None
                 if not LIBUSB_RECEIVE_BLOCKING:
                     if DEBUG2:
-                         print("Accessing Non-Blocking sock.recv()")
-                    data = self.reassemble (self.brick.sock)
+                         print("Accessing Non-Blocking sock.recv()", flush=True)
+                    if self.brick:
+                        data = self.reassemble (self.brick.sock)
                     
                 # Is there something from NXT brick?
                 if data:
                     if DEBUG:
-                        print("[NXT->GDB] %s" % data)
+                        print("[NXT->GDB] %s" % data, flush=True)
                     if client:
                         client.send (data)
                     data = ''
-            self.brick.sock.close()
-            print("Connection closed.")
-            if self.nowait:
-                break
+            if self.brick:
+                self.brick.sock.close()
+                self.brick = None
+            print("Connection closed.", flush=True)
+#            if self.nowait:
+#                break
 
 if __name__ == '__main__':
     # Read options from command line.
@@ -267,11 +306,11 @@ if __name__ == '__main__':
     try:
         DEBUG = options.verbose
         if DEBUG:
-            print("Debug Mode Enabled!")
+            print("Debug Mode Enabled!", flush=True)
         server = NXTGDBServer (options.port, options.nowait)
         server.run ()
     except KeyboardInterrupt:
-        print("\n\nException caught. Bye!")
+        print("\n\nException caught. Bye!", flush=True)
         if server.brick is not None:
             server.brick.sock.close()
         sys.exit()
