@@ -55,8 +55,7 @@ NXT_RECV_ERR = -1
 # Libusb 0.12.x blocks on USB reads
 LIBUSB_RECEIVE_BLOCKING = True
 # Set number of retries when encountering USB socket read timeout
-# So far it does not seem to help recover from USB bus hangs
-USB_NUMTRIES = 1
+USB_NUMTRIES = 2
 
 
 class NXTGDBServer:
@@ -76,6 +75,7 @@ class NXTGDBServer:
         self.port = port
         self.in_buf = ''
         self.brick = None
+        self.s = None               # Listening Socket
 
     def pack (self, data, segment_no):
         """Return packed data to send to NXT."""
@@ -151,7 +151,6 @@ class NXTGDBServer:
         
     def reassemble (self, sock):
         msg = ''
-        tries = 0
         prev_segno = 0
         segno = NXT_RECV_ERR                    # force initial pass through while loop
         while segno != 0:
@@ -175,13 +174,28 @@ class NXTGDBServer:
                 if e.args != ('No error', ):
                     if DEBUG:
                         print("sock.recv() raised exception", flush=True)
-                    if e.args == (60, 'Operation timed out'):
-                        tries += 1
-                        if (tries < USB_NUMTRIES):
-                            print("Timed out. Retrying...%d " % tries, flush=True)
-                        else:
-                            raise e
+                    raise e
         return msg
+    
+    def try_reassemble (self):
+        try_msg = ''
+        try:
+            try_msg = self.reassemble (self.brick.sock)
+        except IOError as e:
+            if e.args == (60, 'Operation timed out'):
+                self.tries = self.tries + 1
+                if (self.tries < USB_NUMTRIES):
+                    print("Timed out. Retrying...%d " % self.tries, flush=True)
+                    self.brick.sock.close()
+                    self.brick = None
+                    # sleep(1)
+                    self.connect_to_brick()
+                    if self.brick != None:
+                         self.brick.sock.debug = DEBUG
+            else:
+                client.close ()
+                raise e
+        return try_msg
     
     def connect_to_brick(self):
         try:
@@ -204,11 +218,12 @@ class NXTGDBServer:
     def run (self):
         """Endless run loop."""
         # Create the listening socket.
-        s = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind (('', self.port))
-        s.listen (1)
+        self.s = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
+        self.s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.s.bind (('', self.port))
+        self.s.listen (1)
         while True:
+            self.tries = 0 
             # We should open the NXT connection first, otherwise Python startup delay
             # may cause GDB to misbehave
             if not self.nowait:
@@ -221,7 +236,7 @@ class NXTGDBServer:
             self.brick.sock.debug = DEBUG
             # Wait for a connection.
             print("Waiting for GDB connection on port %s..." % self.port, flush=True)
-            client, addr = s.accept ()
+            client, addr = self.s.accept ()
             print("Client from", addr, flush=True)
             # Work loop, wait for a message from client socket or NXT brick.
             while client is not None and self.brick is not None:
@@ -259,12 +274,13 @@ class NXTGDBServer:
                                         self.brick = None
                                         data = ''
                                     else:
+                                        client.close()
                                         raise e
                         if segments != [] and LIBUSB_RECEIVE_BLOCKING:
                             if DEBUG2:
                                 print("Accessing Blocking sock.recv()", flush=True)
                             if self.brick:
-                                data = self.reassemble (self.brick.sock)
+                                data = self.try_reassemble()
                     else:
                         client.close ()
                         client = None
@@ -272,7 +288,7 @@ class NXTGDBServer:
                     if DEBUG2:
                          print("Accessing Non-Blocking sock.recv()", flush=True)
                     if self.brick:
-                        data = self.reassemble (self.brick.sock)
+                        data = self.try_reassemble ()
                     
                 # Is there something from NXT brick?
                 if data:
@@ -313,4 +329,6 @@ if __name__ == '__main__':
         print("\n\nException caught. Bye!", flush=True)
         if server.brick is not None:
             server.brick.sock.close()
+        if server.s is not None:
+            server.s.close()
         sys.exit()
