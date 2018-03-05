@@ -1,19 +1,19 @@
 The nxt-gdb-server.py script is initially developed by Nicolas Schodet.
 
 It depends on the following libraries:
- - nxt-python v2.2.x http://code.google.com/p/nxt-python/
+ - nxt-python v2.2.x https://github.com/castarco/nxt-python
 
+Additional Dependencies For macOS (tested on 10.13 High Sierra)  and Linux:
+ - pyusb v1.0.x http://pyusb.wiki.sourceforge.net
+ - libusb v.1.0.x http://libusb.org/
+
+[Obsoleted]
 Additional Dependencies For Windows and MacOSX:
  - Fantom Drivers from LEGO
+[/Obsoleted]
 
-Additional Dependencies For Linux:
- - pyusb v0.4x http://pyusb.wiki.sourceforge.net
- - libusb v0.1.x http://libusb.org/
-
- Currently, it does not work with libusb v1.x; on Mac OSX, it causes segfaults.
-
- Installation
- ============
+Installation
+============
  
  There is no specific installation requirements (at this moment). Just run the python script
  in a terminal window.
