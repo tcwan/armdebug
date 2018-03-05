@@ -54,7 +54,7 @@ NXT_RECV_ERR = -1
 
 # Libusb 0.12.x blocks on USB reads
 LIBUSB_RECEIVE_BLOCKING = True
-# Set number of retries when encountering USB socker read timeout
+# Set number of retries when encountering USB socket read timeout
 # So far it does not seem to help recover from USB bus hangs
 USB_NUMTRIES = 1
 
