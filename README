@@ -8,7 +8,7 @@ Contents
 ========
 The various folders contents are as follows:
 Debugger: GDB client driver for NXT (need to be embedded in firmware code)
-Host:     GDB Server for PC Host
+Host:     GDB Server for PC Host. This has now been updated to Python3
 
 LICENSES
 ========

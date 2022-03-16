@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
-# Copyright (C) 2011-2018 the NxOS developers
+# Copyright (C) 2011-2022 the NxOS developers
 #
 # Module Developed by: Nicolas Schodet
 #                      TC Wan
@@ -16,7 +16,7 @@
 # messages and regular messages.
 #
 # Flush stdout immediately
-from __future__ import print_function
+
 import sys
 
 if sys.version_info[:2] < (3, 3):
@@ -73,7 +73,7 @@ class NXTGDBServer:
         """Initialise server."""
         self.nowait = nowait
         self.port = port
-        self.in_buf = ''
+        self.in_buf = b''
         self.brick = None
         self.s = None               # Listening Socket
 
@@ -87,13 +87,13 @@ class NXTGDBServer:
         """Return unpacked data from NXT."""
         # May be improved, for now, check command and announced length.
         if len (data) == 0:
-            return '', 0  # No message, exit
+            return b'', 0  # No message, exit
         if len (data) < 3:
-            return '', NXT_RECV_ERR
+            return b'', NXT_RECV_ERR
         header, body = data[0:3], data[3:]
         command, segment_no, length = struct.unpack ('BBB', header)
         if command != self.debug_command or length != len (body):
-            return '', NXT_RECV_ERR
+            return b'', NXT_RECV_ERR
         return body, segment_no
 
     def segment (self, data):
@@ -102,29 +102,29 @@ class NXTGDBServer:
         self.in_buf += data
 
         # Find ACK '+' 
-        end = self.in_buf.find (ACKCHAR)
+        end = self.in_buf.find (ord(ACKCHAR))
         while end == 0:
             self.in_buf = self.in_buf[end+1:]   # Strip out any leading ACKCHAR
             if DEBUG2:
                 print("stripped ACK, remain: ", self.in_buf, flush=True)
-            end = self.in_buf.find (ACKCHAR)
+            end = self.in_buf.find (ord(ACKCHAR))
 
         # Find NAK '-' 
-        end = self.in_buf.find (NAKCHAR)
+        end = self.in_buf.find (ord(NAKCHAR))
         if end == 0:
             msg, self.in_buf = self.in_buf[0:end+1], self.in_buf[end+1:]
             segs.append (self.pack (msg, 0))
-            end = self.in_buf.find (NAKCHAR)
+            end = self.in_buf.find (ord(NAKCHAR))
 
         # Find Ctrl-C (assumed to be by itself and not following a normal command)
-        end = self.in_buf.find (CTRLC)
+        end = self.in_buf.find (ord(CTRLC))
         if end >= 0:
             msg, self.in_buf = self.in_buf[0:end+1], self.in_buf[end+1:]
             assert len (msg) <= self.pack_size, "Ctrl-C Command Packet too long!"
             segs.append (self.pack (msg, 0))
-            end = self.in_buf.find (CTRLC)
+            end = self.in_buf.find (ord(CTRLC))
         
-        end = self.in_buf.find ('#')
+        end = self.in_buf.find (ord('#'))
         # Is # found and enough place for the checksum?
         while end >= 0 and end < len (self.in_buf) - 2:
             msg, self.in_buf = self.in_buf[0:end + 3], self.in_buf[end + 3:]
@@ -136,7 +136,7 @@ class NXTGDBServer:
                 gdbprefix = msg[i]
                 if DEBUG2:
                     print("Checking '", gdbprefix, "'", flush=True)
-            assert gdbprefix == '$', "not a GDB command"
+            assert gdbprefix == ord('$'), "not a GDB command"
             # Make segments.
             seg_no = 0
             while msg:
@@ -146,11 +146,11 @@ class NXTGDBServer:
                     seg_no = 0
                 segs.append (self.pack (seg, seg_no))
             # Look for next one.
-            end = self.in_buf.find ('#')
+            end = self.in_buf.find (ord('#'))
         return segs
         
     def reassemble (self, sock):
-        msg = ''
+        msg = b''
         prev_segno = 0
         segno = NXT_RECV_ERR                    # force initial pass through while loop
         while segno != 0:
@@ -158,7 +158,7 @@ class NXTGDBServer:
                 s, segno = self.unpack (sock.recv ())
                 if len (s) == 0:
                     if segno == 0 and prev_segno == 0:
-                        return ''               # No message pending
+                        return b''               # No message pending
                     else:
                         segno = NXT_RECV_ERR    # Keep waiting for segments
                 # Ignore error packets
@@ -178,20 +178,20 @@ class NXTGDBServer:
         return msg
     
     def try_reassemble (self):
-        try_msg = ''
+        try_msg = b''
         try:
-            try_msg = self.reassemble (self.brick.sock)
+            try_msg = self.reassemble (self.brick._sock)
         except IOError as e:
             if e.args == (60, 'Operation timed out'):
                 self.tries = self.tries + 1
                 if (self.tries < USB_NUMTRIES):
                     print("Timed out. Retrying...%d " % self.tries, flush=True)
-                    self.brick.sock.close()
+                    self.brick._sock.close()
                     self.brick = None
                     # sleep(1)
                     self.connect_to_brick()
                     if self.brick != None:
-                         self.brick.sock.debug = DEBUG
+                         self.brick._sock.debug = DEBUG
             else:
                 client.close ()
                 raise e
@@ -199,14 +199,14 @@ class NXTGDBServer:
     
     def connect_to_brick(self):
         try:
-            self.brick = nxt.locator.find_one_brick()
+            self.brick = nxt.locator.find()        
             if self.brick != None:
                 prot_version, fw_version = self.brick.get_firmware_version()
                 if DEBUG:
                     print("Protocol version: %s.%s" % prot_version, flush=True)
                 if prot_version != PROTOCOL_VER:
                     print("Protocol mismatch (found %s.%s): Make sure nxos-armdebug RXE is running!" % prot_version, flush=True)
-                    self.brick.sock.close()
+                    self.brick._sock.close()
                     self.brick = None
         except BrickNotFoundError:
             print(".", flush=True),
@@ -227,20 +227,20 @@ class NXTGDBServer:
             # We should open the NXT connection first, otherwise Python startup delay
             # may cause GDB to misbehave
             if not self.nowait:
-                dummy = raw_input('Waiting...Press <ENTER> when NXT GDB Stub is ready. ')
+                dummy = input('Waiting...Press <ENTER> when NXT GDB Stub is ready. ')
             # Open connection to the NXT brick.
             while self.brick == None:
                 self.connect_to_brick()
                 if self.brick == None:
                     sleep(2)
-            self.brick.sock.debug = DEBUG
+            self.brick._sock.debug = DEBUG
             # Wait for a connection.
             print("Waiting for GDB connection on port %s..." % self.port, flush=True)
             client, addr = self.s.accept ()
             print("Client from", addr, flush=True)
             # Work loop, wait for a message from client socket or NXT brick.
             while client is not None and self.brick is not None:
-                data = ''
+                data = b''
                 # Wait for a message from client or timeout.
                 rlist, wlist, xlist = select.select ([ client ], [ ], [ ],
                         SELECT_TIMEOUT)
@@ -259,10 +259,10 @@ class NXTGDBServer:
                             else:
                                 print("[GDB->NXT] %s" % data, flush=True)
                         segments = self.segment (data)
-                        data = ''
+                        data = b''
                         for seg in segments:
                             try:
-                                self.brick.sock.send (seg)
+                                self.brick._sock.send (seg)
                             except IOError as e:
                                 # Some pyusb are buggy, ignore some "errors".
                                 # print(e.args, flush=True)
@@ -270,9 +270,9 @@ class NXTGDBServer:
                                     if DEBUG:
                                         print("sock.send() raised exception", flush=True)
                                     if e.args == (19, 'No such device (it may have been disconnected)'):
-                                        self.brick.sock.close()
+                                        self.brick._sock.close()
                                         self.brick = None
-                                        data = ''
+                                        data = b''
                                     else:
                                         client.close()
                                         raise e
@@ -296,9 +296,9 @@ class NXTGDBServer:
                         print("[NXT->GDB] %s" % data, flush=True)
                     if client:
                         client.send (data)
-                    data = ''
+                    data = b''
             if self.brick:
-                self.brick.sock.close()
+                self.brick._sock.close()
                 self.brick = None
             print("Connection closed.", flush=True)
 #            if self.nowait:
@@ -328,7 +328,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\n\nException caught. Bye!", flush=True)
         if server.brick is not None:
-            server.brick.sock.close()
+            server.brick._sock.close()
         if server.s is not None:
             server.s.close()
         sys.exit()

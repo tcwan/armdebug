@@ -1,16 +1,12 @@
 The nxt-gdb-server.py script is initially developed by Nicolas Schodet.
+[This version is now dependent on Python3]
 
 It depends on the following libraries:
- - nxt-python v2.2.x https://github.com/castarco/nxt-python
+ - nxt-python v3.x.x https://github.com/schodet/nxt-python
 
-Additional Dependencies For macOS (tested on 10.13 High Sierra)  and Linux:
- - pyusb v1.0.x http://pyusb.wiki.sourceforge.net
+Additional Dependencies For macOS (tested on 12.3 Big Sur) and Linux:
+ - pyusb v1.2.x http://pyusb.wiki.sourceforge.net
  - libusb v.1.0.x http://libusb.org/
-
-[Obsoleted]
-Additional Dependencies For Windows and MacOSX:
- - Fantom Drivers from LEGO
-[/Obsoleted]
 
 Installation
 ============
@@ -23,4 +19,4 @@ Installation
  
  1. Connect the USB cable from the PC Host to the NXT
  2. start nxt-gdb-server.py
- 3. start arm-none-eabi-gdb, configured as remote for port 2828 (default)
+ 3. start arm-none-eabi-gdb (or equivalent), configured as remote for port 2828 (default)

@@ -7,7 +7,6 @@
 
 import os
 import os.path
-import new
 from glob import glob
 
 ###############################################################
@@ -141,7 +140,7 @@ if not env.GetOption('clean'):
     if not (conf.CheckTool('CC', 'gcc') and conf.CheckTool('AR') and
             conf.CheckTool('OBJCOPY') and conf.CheckTool('LINK', 'ld') and
             conf.CheckLibGcc(conf.env['CC'])):
-        print "Missing or incomplete arm-elf toolchain, cannot continue!"
+        print("Missing or incomplete arm-elf toolchain, cannot continue!")
         Exit(1)
     env = conf.Finish()
 
